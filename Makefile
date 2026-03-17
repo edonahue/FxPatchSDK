@@ -1,6 +1,7 @@
 TOOLCHAIN ?= arm-none-eabi-
 CUSTOM_COMPILER_OPTIONS ?=
 PATCH_LOAD_ADDR ?= 0x80000000
+PATCH_NAME ?= patch
 
 CC = $(TOOLCHAIN)gcc
 CXX = $(TOOLCHAIN)g++
@@ -46,7 +47,8 @@ else
     NULL_DEVICE = /dev/null
 endif
 
-PATCH_BIN := $(BUILD_DIR)/patch_$(PATCH_TIMESTAMP).bin
+PATCH_ELF := $(BUILD_DIR)/$(PATCH_NAME).elf
+PATCH_BIN := $(BUILD_DIR)/$(PATCH_NAME)_$(PATCH_TIMESTAMP).endl
 
 all: $(PATCH_BIN)
 
@@ -58,10 +60,10 @@ $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
 	@$(MKDIR) $(call FIX_PATH,$(dir $@)) 2>$(NULL_DEVICE) || exit 0
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-$(BUILD_DIR)/patch.elf: $(OBJ) internal/patch_imx.ld | $(BUILD_DIR)
+$(PATCH_ELF): $(OBJ) internal/patch_imx.ld | $(BUILD_DIR)
 	$(LD) $(CXXFLAGS) $(OBJ) -o $@ $(LDFLAGS) $(LIBS)
 
-$(PATCH_BIN): $(BUILD_DIR)/patch.elf | $(BUILD_DIR)
+$(PATCH_BIN): $(PATCH_ELF) | $(BUILD_DIR)
 	$(OBJCOPY) -O binary $< $@
 
 $(BUILD_DIR):
