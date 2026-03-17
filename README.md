@@ -33,3 +33,7 @@ Deploy to device
 The process is the same as with agent-generated binaries. Connect the Endless to your host with a USB cable, then copy the resulting .bin file to the Endless drive.
 
 For more details, refer to the Endless manual.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
