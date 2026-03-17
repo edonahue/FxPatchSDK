@@ -26,21 +26,6 @@ class PatchImpl : public Patch
         return ParameterMetadata{ 0.0f, 1.0f, 0.5f };
     }
 
-    bool isParamEnabled(int paramIdx, ParamSource source) override
-    {
-        switch (source)
-        {
-            case ParamSource::kParamSourceKnob:
-                return paramIdx < 3 ? true : false;
-
-            case ParamSource::kParamSourceExpression:
-                return paramIdx == 0 ? true : false;
-
-            default:
-                return false;
-        }
-    }
-
     Color getStateLedColor() override { return state ? Color::kBlue : Color::kDimBlue; }
 
     void setParamValue(int idx, float value) override

@@ -9,6 +9,8 @@
 // Mapping of IDs used in the API to Endless hardware properties.
 namespace endless
 {
+constexpr int kParams = 3;
+
 enum class ParamId
 {
     kParamLeft,
@@ -39,12 +41,6 @@ class Patch
         float minValue;
         float maxValue;
         float defaultValue;
-    };
-
-    enum class ParamSource
-    {
-        kParamSourceKnob,
-        kParamSourceExpression,
     };
 
     enum class Color
@@ -102,12 +98,6 @@ class Patch
      * structures.
      */
     virtual void setParamValue(int paramIdx, float value) = 0;
-
-    /**
-     * Called to query whether a parameter is enabled for a given source.
-     */
-    virtual bool isParamEnabled(int paramIdx, ParamSource source) = 0;
-
     /**
      * Called when an action is triggered by the user.
      */

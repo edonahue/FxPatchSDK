@@ -52,7 +52,13 @@ extern "C"
 
     uint8_t patch_agent_is_param_enabled(const PatchEnv* /* env */, int idx, int sourceId)
     {
-        return Patch::getInstance()->isParamEnabled(idx, static_cast<Patch::ParamSource>(sourceId));
+        bool isKnob = sourceId == 0;
+        if (idx < endless::kParams && idx >= 0 && isKnob)
+        {
+            return 1;
+        }
+
+        return 0;
     }
 
     void patch_agent_get_param_name(const PatchEnv* /* env */,
