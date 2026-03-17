@@ -22,7 +22,7 @@ extern "C"
 
     int patch_agent_get_buffer_size(const PatchEnv* /* env */)
     {
-        return Patch::kWorkingBufferSize * sizeof(float);
+        return Patch::kWorkingBufferSize;
     }
 
     float patch_agent_update_buffers(const PatchEnv* /* env */,
