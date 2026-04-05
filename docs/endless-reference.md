@@ -463,7 +463,9 @@ to support expression pedal routing per-parameter.
 - Effects live in `effects/` directory (separate from `source/`) as individual `.cpp` files
 - Has a test suite
 
-**Reference copies of 3 effects from this fork are in `effects/examples/`.**
+**Note:** Source files from this fork were removed from `effects/examples/` because they
+require sthompsonjr's WDF library and extended SDK (`sdk/Patch.h`, `isParamEnabled`,
+`ParamSource`) which aren't present in the stock SDK. Clone the repo directly to use them.
 
 ---
 
@@ -493,7 +495,8 @@ to lift a working implementation straight into your own repo.
 - Very readable code; comments explain the algorithm, not just the code
 - Working buffer usage is well-commented (see reverb as the best example)
 
-**Reference copy of `reverb.cpp` from this fork is in `effects/examples/`.**
+**`effects/examples/reverb.cpp`** in this repo is taken from this fork — it compiles
+against the stock SDK with no extra dependencies.
 
 ---
 
@@ -526,5 +529,7 @@ Skip.
 
 ### Example files
 
-The most instructive patch files from the forks above are collected in
-[`../effects/examples/`](../effects/examples/) with attribution headers and compilation notes.
+**[`../effects/examples/`](../effects/examples/)** contains `reverb.cpp` (andybalham),
+the only community example that compiles against the stock SDK.
+The `effects/` directory is also the intended home for custom patches built in this repo —
+see [`../effects/README.md`](../effects/README.md) for the workflow and a patch template.
