@@ -17,6 +17,7 @@ A single-page reference synthesizing hardware specs, SDK internals, build workfl
 6. [Bitcrush Example Walkthrough](#6-bitcrush-example-walkthrough)
 7. [Community & Resources](#7-community--resources)
 8. [Keeping the Fork in Sync](#8-keeping-the-fork-in-sync)
+9. [Community Forks & Active Repos](#9-community-forks--active-repos)
 
 ---
 
@@ -423,3 +424,107 @@ git fetch upstream
 git log master..upstream/master --oneline  # see what's new upstream
 git diff master upstream/master            # full diff
 ```
+
+---
+
+## 9. Community Forks & Active Repos
+
+As of April 2026, there are 4 public forks of `polyend/FxPatchSDK` plus one standalone
+effects collection. Here's what's actually in each one.
+
+---
+
+### sthompsonjr/Endless-FxPatchSDK
+**https://github.com/sthompsonjr/Endless-FxPatchSDK**  
+**Last push:** April 2, 2026 · ~342 KB · C++ (96.8%) · 44 commits · 1 star
+
+The most developed fork by a significant margin. Added a full WDF (Wave Digital Filter)
+library for analog circuit modeling, a `dsp/` utilities layer (parameter smoothing, saturation,
+envelope followers), and extended the `Patch` base class with `isParamEnabled(int, ParamSource)`
+to support expression pedal routing per-parameter.
+
+**Effects implemented (9):**
+
+| Effect | What it is |
+|---|---|
+| Optical Compressor | PC-2A, Optical Leveler, Hybrid Opt/OTA — three circuits, one right-knob selector |
+| Tubescreamer Family | TS808, TS9, Klon Centaur clip stage — drive/tone/circuit select |
+| Cry Baby Wah | Expression, auto-wah, LFO, EnvLfo modes; tap tempo via hold footswitch |
+| Big Muff Pi | RamsHead, CivilWar, Triangle variants |
+| ProCo Rat | 5 circuit variants |
+| DOD 250 | Vintage overdrive with boost stage |
+| Dallas Rangemaster | Treble booster with germanium transistor emulation |
+| Yamaha SPX500 Shimmer | Grain-based pitch-shifted reverb |
+| Bitcrush | Bit-depth and sample-rate reduction |
+
+**Architecture notes:**
+- 25+ WDF primitives (`wdf/` directory) for authentic analog modeling
+- `sdk/Patch.h` is a superset of the stock SDK — adds `isParamEnabled` and `ParamSource` enum
+- Effects live in `effects/` directory (separate from `source/`) as individual `.cpp` files
+- Has a test suite
+
+**Reference copies of 3 effects from this fork are in `effects/examples/`.**
+
+---
+
+### andybalham/FxPatchSDK
+**https://github.com/andybalham/FxPatchSDK**  
+**Last push:** March 22, 2026 · ~37 KB · C++ (76.7%) · fork of polyend/FxPatchSDK
+
+Educational fork with clean, well-documented effect implementations. Effects are
+header-only classes in `source/effects/`, selected via compile-time `#define`. Compiles
+against the stock SDK with no extra dependencies — the best starting point if you want
+to lift a working implementation straight into your own repo.
+
+**Effects implemented (6):**
+
+| Effect | What it is |
+|---|---|
+| Reverb | Freeverb (4 comb + 2 all-pass filters); delay lines in working buffer |
+| Flanger | LFO-modulated ring buffer with linear interpolation |
+| Delay | Echo with feedback and wet/dry mix |
+| Distortion | Basic hard-clipping distortion |
+| Saturation | Soft clipping |
+| Bitcrush | Bit reduction and sample-rate decimation |
+
+**Architecture notes:**
+- Each effect is a header file defining a standalone class (no WDF dependencies)
+- Effect selection is a compile-time `#define` in a config header — one binary per effect
+- Very readable code; comments explain the algorithm, not just the code
+- Working buffer usage is well-commented (see reverb as the best example)
+
+**Reference copy of `reverb.cpp` from this fork is in `effects/examples/`.**
+
+---
+
+### rveitch/polyend-endless-effects
+**https://github.com/rveitch/polyend-endless-effects**  
+**Not a fork of FxPatchSDK** — standalone repo
+
+Early-stage collection repo. Has the SDK vendored in as a subdirectory (`example/`)
+alongside a top-level effects directory, suggesting intent to host multiple effects as
+separate projects. At time of research the effects directory was sparse and undocumented.
+Worth watching but not yet a useful reference.
+
+---
+
+### scarlton/FxPatchSDK
+**https://github.com/scarlton/FxPatchSDK**  
+**Last push:** January 23, 2026 (initial commit only) · 9 KB
+
+Straight clone of the upstream repo at beta launch, no changes. Not useful as a reference.
+
+---
+
+### klausmobi32/FxPatchSDK
+**https://github.com/klausmobi32/FxPatchSDK**  
+Despite the name and description ("Create custom effects for the Polyend Endless pedal"),
+the repo topics and contents are unrelated to audio (Kubernetes, WeChat, proxy tooling).
+Skip.
+
+---
+
+### Example files
+
+The most instructive patch files from the forks above are collected in
+[`../effects/examples/`](../effects/examples/) with attribution headers and compilation notes.
