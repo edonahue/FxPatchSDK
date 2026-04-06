@@ -124,6 +124,51 @@ namespace endless {
 
 `getParameterMetadata` and `setParamValue` receive the raw int index (0/1/2). Guard with `if (idx == 0)` etc.
 
+#### Expression pedal
+
+The 1/4" TRS expression input sends values through the same `setParamValue(idx, value)`
+call as knobs. The firmware decides which parameter to route pedal values to by querying
+`patch_agent_is_param_enabled(idx, sourceId)` in the C wrapper, where:
+
+- `sourceId 0` = knob
+- `sourceId 1` = expression pedal
+
+**Current repo behaviour (in `internal/PatchCppWrapper.cpp`):**
+Expression pedal is hardcoded to param 2 (Right knob) for every patch built here.
+Heel down = 0.0, toe down = 1.0. When the pedal is connected, the firmware substitutes
+pedal values for idx 2 and ignores the Right knob.
+
+**Implication:** if you write a patch where the Right knob is a set-and-forget parameter
+(e.g. a circuit selector), the expression pedal will unexpectedly drive it. Change the
+hardcoded `idx == 2` in `PatchCppWrapper.cpp` to whichever idx makes sense for that patch,
+or adopt the per-patch virtual method approach below.
+
+**The graceful per-patch approach (not yet implemented):**
+Add a virtual method to `Patch.h` with a safe default (expression pedal disabled),
+then override per effect. `PatchCppWrapper.cpp` calls it instead of hardcoding:
+
+```cpp
+// Patch.h — add with default (expression pedal off unless overridden)
+virtual bool isParamEnabled(int idx, int sourceId)
+{
+    return (sourceId == 0) && idx >= 0 && idx < endless::kParams;
+}
+
+// PatchCppWrapper.cpp — replace the hardcoded block with:
+return Patch::getInstance()->isParamEnabled(idx, sourceId) ? 1 : 0;
+
+// In a patch that wants expression pedal on mix (idx 2):
+bool isParamEnabled(int idx, int sourceId) override
+{
+    if (sourceId == 0) return idx >= 0 && idx < endless::kParams;
+    if (sourceId == 1) return idx == 2;
+    return false;
+}
+```
+
+This is what sthompsonjr's fork does (`ParamSource` is their named enum for `sourceId`).
+The default keeps every existing patch working with no changes required.
+
 #### Actions
 
 ```cpp
@@ -211,6 +256,7 @@ Key values:
 
 You never touch `PatchHeader` directly — `patch_main.c` and `PatchCppWrapper.cpp` handle it. Just note that:
 - `agent_get_param_name` and `agent_get_param_unit` exist in the ABI but the high-level `Patch` C++ API doesn't expose a way to set them yet. Knob labels are not user-configurable from the SDK today.
+- `agent_is_param_enabled(idx, sourceId)` controls which parameters are active for each input source. Known `sourceId` values (from `PatchCppWrapper.cpp`): `0` = knob, `1` = expression pedal. In this repo the wrapper hardcodes expression pedal → param 2. See §3a for the full explanation and the per-patch virtual method path.
 - All `agent_*` pointers are optional (may be NULL) — the firmware handles missing ones gracefully.
 
 ---
@@ -288,6 +334,11 @@ Connect Endless via USB-C → drag-and-drop the `.endl` file onto the Endless dr
 - `setParamValue` is called for any knob that changes — not just the one you care about. Always check `idx` before storing.
 - `getParameterMetadata` is called for all three params (indices 0, 1, 2). You can return different ranges per knob.
 - All three knobs are always active from the user's perspective — even if your effect only uses one. Consider whether unused knobs should do something (or at least not cause confusion).
+
+**Expression pedal**
+- Routes through `setParamValue(idx, value)` — same call as knobs.
+- In this repo, expression pedal is hardcoded to param 2 (Right knob) in `internal/PatchCppWrapper.cpp`. All patches built here inherit this. Heel = 0.0, toe = 1.0.
+- If your Right knob is not a live-performance parameter, update the `idx == 2` condition in `PatchCppWrapper.cpp` for that patch, or implement the per-patch virtual `isParamEnabled` described in §3a.
 
 **Actions**
 - Both `kLeftFootSwitchPress` (0) and `kLeftFootSwitchHold` (1) fire `handleAction`. If you only need press, just ignore idx 1.

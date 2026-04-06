@@ -112,4 +112,25 @@ Patch* Patch::getInstance() { return &patch; }
 - No exceptions, no RTTI
 - Write `0.5f` not `0.5` (single-precision only; `-Wdouble-promotion` will catch you)
 
+---
+
+## Expression pedal
+
+**Current repo behaviour:** expression pedal is hardcoded to param 2 (Right knob)
+for every patch. This is set in `internal/PatchCppWrapper.cpp`. Heel down = 0.0,
+toe down = 1.0, same range as the knob. When the pedal is connected, the firmware
+uses pedal values for param 2 and ignores the Right knob.
+
+**Implication for patch design:**
+- If your Right knob is a live-performance control (mix, level, depth) — expression
+  pedal works automatically with no extra code.
+- If your Right knob is a set-and-forget parameter (circuit selector, mode switch,
+  etc.) — either swap which knob is your live-performance target, or change the
+  `idx == 2` condition in `PatchCppWrapper.cpp` to match.
+
+**Future: per-patch control.** The clean solution is a virtual `isParamEnabled`
+method on `Patch.h` so each patch declares its own expression pedal routing without
+touching shared infrastructure. See `docs/endless-reference.md §3a` for the full
+design and code snippet.
+
 See [`docs/endless-reference.md`](../docs/endless-reference.md) for the full SDK reference.

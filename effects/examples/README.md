@@ -32,6 +32,8 @@ any effect that needs large delay lines.
 | Right | Dry/Wet Mix | 0–1 | 0.33 |
 
 **Footswitch:** Press or hold → bypass toggle  
+**Expression pedal:** controls Right knob (Mix) — heel = dry, toe = full wet.
+Enabled repo-wide via `PatchCppWrapper.cpp`. No code change needed in the patch itself.  
 **LED:** `kLightBlueColor` = active · `kDimWhite` = bypassed
 
 **To use:** copy to `source/PatchImpl.cpp`, change the include to `"Patch.h"`,
