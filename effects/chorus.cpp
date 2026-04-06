@@ -26,6 +26,11 @@
 //
 // Footswitch (press or hold): bypass toggle
 //
+// Expression pedal:
+//   Controls Mix (same as Right knob). Heel down = 0% wet, toe down = 100% wet.
+//   When the expression pedal is connected, the Right knob is ignored by the
+//   firmware. Enabled via patch_agent_is_param_enabled in PatchCppWrapper.cpp.
+//
 // LED:
 //   kLightBlueColor = active
 //   kDimBlue        = bypassed

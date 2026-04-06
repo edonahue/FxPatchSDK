@@ -52,11 +52,20 @@ extern "C"
 
     uint8_t patch_agent_is_param_enabled(const PatchEnv* /* env */, int idx, int sourceId)
     {
-        bool isKnob = sourceId == 0;
-        if (idx < endless::kParams && idx >= 0 && isKnob)
-        {
+        bool isKnob       = sourceId == 0;
+        bool isExpression = sourceId == 1;
+
+        // Knobs: Left (0), Mid (1), Right (2) are always enabled.
+        if (idx >= 0 && idx < endless::kParams && isKnob)
             return 1;
-        }
+
+        // Expression pedal: mapped to param 2 (Right knob position).
+        // heel down = 0.0, toe down = 1.0 — same range as the knob.
+        // When the expression pedal is connected the firmware will call
+        // setParamValue(2, ...) from the pedal; the Right knob is ignored
+        // while the pedal is plugged in.
+        if (idx == 2 && isExpression)
+            return 1;
 
         return 0;
     }
