@@ -26,11 +26,12 @@ Or use the VSCode **Build** / **Build + Deploy** tasks (`.vscode/tasks.json`).
 
 ```
 effects/
-  README.md         ← you are here
-  chorus.cpp        ← stereo chorus (first custom patch)
-  examples/         ← reference implementations from community forks
+  README.md              ← you are here
+  chorus.cpp             ← stereo chorus (first custom patch)
+  mxr_distortion_plus.cpp ← MXR Distortion+ circuit model
+  examples/              ← reference implementations from community forks
     README.md
-    reverb.cpp      ← Freeverb stereo reverb (compiles against stock SDK)
+    reverb.cpp           ← Freeverb stereo reverb (compiles against stock SDK)
 ```
 
 Add your own patch files at the top level of this directory, e.g.:
@@ -134,3 +135,30 @@ touching shared infrastructure. See `docs/endless-reference.md §3a` for the ful
 design and code snippet.
 
 See [`docs/endless-reference.md`](../docs/endless-reference.md) for the full SDK reference.
+
+---
+
+## Circuit-based patch design
+
+Custom patches in this repository are built from analog circuit analysis.
+
+- [`docs/mxr-distortion-plus-circuit-analysis.md`](../docs/mxr-distortion-plus-circuit-analysis.md) —
+  Component-level analysis of the MXR Distortion+ circuit: gain stage, diode clipping,
+  filter topology, and how each maps to the DSP model in `effects/mxr_distortion_plus.cpp`.
+
+- [`docs/circuit-to-patch-conversion.md`](../docs/circuit-to-patch-conversion.md) —
+  General methodology for converting analog schematics into SDK patches. Covers
+  1-pole IIR filters, waveshapers, gain staging, SDK constraints, and worked examples.
+  Intended as a reference for future sessions and contributors.
+
+---
+
+## Testing
+
+Run the automated syntax and lint check from the repository root:
+
+```bash
+bash tests/check_patches.sh
+```
+
+See [`tests/README.md`](../tests/README.md) for details on what is checked and its limitations.
