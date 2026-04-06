@@ -100,35 +100,43 @@ When gain is controlled by a potentiometer, recompute `gain` once per buffer, no
 
 Diode clipping is nonlinear — the DSP equivalent is a waveshaper function applied to each sample.
 
-| Clipping type | Analog component | DSP approximation |
-|---|---|---|
-| Soft symmetric | Germanium diodes (1N270, 1N34A) | `tanhf(x)` |
-| Soft symmetric | Vacuum tube triode | `tanhf(x)` or polynomial |
-| Medium symmetric | Silicon diodes (1N914, 1N4148) | `tanhf(x * k)` with higher k, or piecewise |
-| Hard symmetric | LED clipping | `fmaxf(-1, fminf(1, x))` |
-| Asymmetric | Mixed diode types or tube | Asymmetric tanh: positive/negative separate |
+The diode forward voltage (`Vf`) determines the knee sharpness. Lower `Vf` = softer onset =
+lower `k` in the tanh model. Silicon diodes clip harder than germanium for the same circuit
+topology; model this by increasing the `k` scaling factor.
 
-**Standard soft clip:**
+| Clipping type | Component | Vf | DSP | k factor |
+|---|---|---|---|---|
+| Ultra-soft symmetric | Germanium (1N270, 1N34A) — e.g. MXR D+ | ~0.3 V | `tanhf(x)` | k = 1 |
+| Soft symmetric | Vacuum tube triode | ~2–5 V (plate) | `tanhf(x)` or polynomial | k = 1–2 |
+| Medium symmetric | Silicon (1N914, 1N4148) — e.g. DOD 250 | ~0.65 V | `tanhf(x * k)` | k = 2–4 |
+| Hard symmetric | LED clipping | ~1.8–2.2 V | `fmaxf(-1, fminf(1, x))` | — |
+| Asymmetric | Mixed diode types or single diode | varies | Asymmetric tanh: separate +/− paths | — |
+
+**Standard germanium soft clip (k=1):**
 ```cpp
-float clipped = tanhf(gained);  // always in (-1, +1)
+float clipped = tanhf(gained);  // always in (-1, +1); smooth onset
 ```
 
-**Harder soft clip (higher-order approximation):**
+**Silicon harder clip (k≈3):**
 ```cpp
-// Cubic soft clip — less expensive than tanhf, clips harder
-float clipped = x - (x * x * x) / 3.0f;  // valid only for |x| <= 1
+float clipped = tanhf(gained * 3.0f);  // sharper knee, closer to hard limiting
 ```
 
-**Hard clip:**
+**Cubic soft clip (faster than tanhf, valid only for |x| ≤ 1):**
+```cpp
+float clipped = x - (x * x * x) / 3.0f;
+```
+
+**Hard clip (LED, zener):**
 ```cpp
 float clipped = fmaxf(-1.0f, fminf(1.0f, gained));
 ```
 
-**Asymmetric (positive path softer than negative, or vice versa):**
+**Asymmetric (mixed diode types — one germanium, one silicon, or single-diode):**
 ```cpp
 float clipped = (gained >= 0.0f)
-    ? tanhf(gained)                        // soft positive clip
-    : fmaxf(-1.0f, gained * 1.5f);         // harder negative clip
+    ? tanhf(gained)               // soft positive (germanium-like)
+    : -tanhf(-gained * 3.0f);     // harder negative (silicon-like)
 ```
 
 ### Delay-Based Effects → Working Buffer
@@ -203,6 +211,22 @@ the final output does not exceed ±1.0.
 | No MIDI | The Endless has no MIDI. All modulation comes from knobs, footswitches, or expression pedal. |
 | CPU budget | ARM Cortex-M7 @ 720 MHz. Per sample budget at 48 kHz is ~15,000 cycles. `tanhf` costs ~40–80 cycles. A stereo 5-stage chain is fine. |
 
+### Aliasing in Waveshapers
+
+`tanhf()` and hard-clip functions generate harmonics that can fold back below Nyquist
+(aliasing). At 48 kHz with maximum distortion gain this is audible as a slightly artificial
+sheen on the top end.
+
+The standard fix is **2× oversampling**: upsample to 96 kHz, apply the waveshaper, then
+downsample with a half-band FIR filter. This doubles the working buffer usage for the
+oversampled stage and requires FIR coefficients. Not currently implemented in this repo.
+
+For embedded use at 48 kHz, `tanhf` aliasing is acceptable in practice — the psychoacoustic
+impact at guitar frequencies is mild, and the LP tone filter rolls off some of the aliased
+content. Professional studio VST plugins (e.g. Plusdistortion) use 2× oversampling because
+they target critical listening at full bandwidth. The Endless hardware context is live
+performance, where the trade-off favors simplicity.
+
 ### Computing constants outside the sample loop
 
 Filter coefficients (alpha values), gain multipliers, and other parameters derived from knob
@@ -254,6 +278,35 @@ uses (except ARM-specific flags). All patches in `effects/` should pass.
 
 ---
 
+## Circuit Variants and DSP Implications
+
+Small circuit differences often require only a targeted change in one DSP stage. The DOD 250
+vs. MXR Distortion+ is a clear example: identical topology, different diode.
+
+| | MXR Distortion+ | DOD 250 |
+|---|---|---|
+| Op-amp | LM741 non-inverting | LM741 non-inverting |
+| Gain formula | `1 + 1MΩ / (4.7kΩ + RV)` | `1 + 1MΩ / (4.7kΩ + RV)` |
+| Clipping diodes | 1N270 germanium, anti-parallel | 1N914 silicon (some asymmetric) |
+| Forward voltage | ~0.3 V | ~0.65 V |
+| Knee | Soft, gradual | Sharper |
+| DSP | `tanhf(x)` | `tanhf(x * 3.0f)` |
+| Character | Warm, smooth overdrive | Tighter, better as clean boost |
+
+**Key lesson:** The diode type (and its forward voltage) determines the `k` scaling factor
+in `tanhf(x * k)`, not the circuit topology. When analyzing a new circuit, identify the
+diode type first — it's the single biggest predictor of DSP model character.
+
+Other topology-preserving variants to be aware of:
+- **Big Muff Pi:** Two cascaded gain+clip stages (not one) → cascade two `tanhf` blocks with
+  separate gain stages; produces fuzzier, more sustained distortion
+- **Tube Screamer:** Clipping in the op-amp feedback path (not to ground) + strong mid-boost
+  → asymmetric clipping model + additional bandpass filter stage
+- **Fuzz Face:** Transistor-based (NPN or PNP germanium) → requires asymmetric waveshaper
+  and a bias offset term to model the transistor operating point
+
+---
+
 ## Advanced Techniques (Not Yet Implemented)
 
 ### Wave Digital Filters (WDF)
@@ -298,10 +351,30 @@ LP filter:  omega = 2π*fc/fs
             alpha = omega / (1 + omega)
             y[n]  = alpha*x[n] + (1-alpha)*y[n-1]
 
-Soft clip:  y = tanhf(x)                  // germanium, tube
-Hard clip:  y = fmaxf(-1, fminf(1, x))    // silicon LED
+Soft clip:  y = tanhf(x)                  // germanium (k=1), tube
+            y = tanhf(x * 3.0f)           // silicon (k=3), harder knee
+Hard clip:  y = fmaxf(-1, fminf(1, x))    // LED, zener
+Asymmetric: y = (x>=0) ? tanhf(x) : -tanhf(-x*3)  // mixed diodes
 Gain:       y = x * (1 + R2/Ri)           // non-inverting amp
 
 Log taper:  hz = minHz * powf(maxHz/minHz, knob)
             (computed once per buffer with powf)
 ```
+
+---
+
+## References
+
+- **Yeh & Abel (DAFX 2007)** — "Simplified, Physically-Informed Models of Distortion and
+  Overdrive Guitar Effects Pedals." Canonical academic reference for the MXR D+, DOD 250,
+  and similar circuits: https://ccrma.stanford.edu/~dtyeh/papers/yeh07_dafx_distortion.pdf
+- **Werner et al. (EUSIPCO 2016)** — "Wave Digital Filter Modeling of Circuits with
+  Operational Amplifiers." Foundational WDF paper for op-amp circuits.
+- **ChowDSP WDF library** — Open-source C++ WDF implementation:
+  https://github.com/Chowdhury-DSP/chowdsp_wdf
+- **Audio EQ Cookbook** (R. Bristow-Johnson) — Biquad coefficient formulas for all standard
+  filter types: https://webaudio.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html
+- **FAUST** — Functional DSP language for rapid algorithm prototyping, compiles to C++:
+  https://faust.grame.fr/
+- **ElectroSmash** — Detailed circuit analyses of classic pedals (MXR D+, Big Muff, Tube
+  Screamer, etc.): https://www.electrosmash.com/

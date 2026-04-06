@@ -102,12 +102,16 @@ public:
             // Stage 2: Op-amp gain
             float gainedL = hpL * gain;
 
-            // Stage 3: Germanium soft clip (tanh models 1N270 diode I-V curve)
-            //   Output bounded to (-1, +1) regardless of input level.
+            // Stage 3: Germanium soft clip (1N270 diode model, k=1)
+            //   tanhf(x) with k=1 matches the soft, low-threshold (~0.3V) germanium I-V curve.
+            //   For silicon diodes (1N914 / DOD 250 character), use tanhf(x * 3.0f) for a
+            //   sharper knee. Output bounded to (-1, +1) regardless of input level.
             float clippedL = tanhf(gainedL);
 
-            // Stage 4: 1-pole low-pass filter (tone control)
+            // Stage 4: 1-pole low-pass filter (tone control + partial aliasing rolloff)
             //   y[n] = alpha * x[n] + (1-alpha) * y[n-1]
+            //   Note: the LP also attenuates some aliased harmonics introduced by tanhf.
+            //   For full anti-aliasing, 2x oversampling before Stage 3 would be needed.
             float lpL  = alpha_lp * clippedL + alpha_lp_inv * lpPrevL_;
             lpPrevL_   = lpL;
 

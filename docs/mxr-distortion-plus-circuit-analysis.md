@@ -201,10 +201,57 @@ void processAudio(const float* inL, const float* inR,
 | Power supply sag | Voltage droop under heavy load | Not modelled | Minor |
 | Op-amp noise / non-linearity | LM741 characteristic noise floor | Not modelled | Minor |
 | Tone control interaction | Passive network with loading | Simplified LP only | Acceptable |
+| Op-amp nonlinearity (LM741) | Rail-limiting, slew-rate distortion, bandwidth ~1 MHz | Not modelled separately | Minor — diodes clip first |
+| Aliasing from `tanhf` | Harmonic content above Nyquist at max gain | No oversampling applied | Audible at maximum Distortion setting |
 
 For higher fidelity, Wave Digital Filter (WDF) techniques can model the component-level
 behavior more accurately (see sthompsonjr's fork, which uses the `WDF` library). However,
 WDF is not available in the stock SDK.
+
+---
+
+## Related Circuits — DOD 250 Comparison
+
+The DOD 250 Overdrive Preamp is the closest circuit relative to the MXR Distortion+. Both
+use an LM741 op-amp in a non-inverting configuration with essentially the same gain formula.
+The critical difference is the clipping diodes:
+
+| Feature | MXR Distortion+ | DOD 250 |
+|---|---|---|
+| Clipping diodes | 1N270 germanium, anti-parallel to ground | 1N914 silicon (some versions asymmetric) |
+| Forward voltage | ~0.3 V | ~0.65 V |
+| Knee character | Soft, gradual onset | Sharper, more abrupt |
+| Tonal character | Warm, smooth overdrive; less output volume | Tighter, more aggressive; stronger as clean boost |
+| DSP model | `tanhf(x)` — k=1 | `tanhf(x * 3.0f)` — higher k for sharper knee |
+
+### DSP implications
+
+The diode type determines the scaling factor `k` in the waveshaper:
+
+```cpp
+// MXR Distortion+ — germanium, soft clip (k=1)
+float clipped = tanhf(gained);
+
+// DOD 250 equivalent — silicon, harder clip (k≈3)
+float clipped = tanhf(gained * 3.0f);
+
+// DOD 250 asymmetric variant (single diode each polarity, unmatched)
+float clipped = (gained >= 0.0f)
+    ? tanhf(gained * 3.0f)
+    : -tanhf(-gained * 2.5f);   // slightly softer negative half
+```
+
+### Character difference
+
+At low distortion settings the DOD 250 functions well as a unity-gain or mild boost pedal —
+the silicon diodes stay below their threshold, producing cleaner amplification than the MXR.
+At high gain the MXR D+ produces a warmer, more compressed saturation; the DOD 250 produces
+a brighter, slightly rawer tone.
+
+No existing Polyend Endless SDK fork implements either pedal — `effects/mxr_distortion_plus.cpp`
+in this repository is the first known Endless implementation of this circuit family.
+A DOD 250 variant could be implemented by changing the clipping stage and adjusting the `k`
+factor as shown above.
 
 ---
 
@@ -227,6 +274,8 @@ handled by `internal/PatchCppWrapper.cpp` which routes the expression pedal to p
 - ElectroSmash — MXR Distortion+ Analysis: https://www.electrosmash.com/mxr-distortion-plus-analysis
 - 1N270 Germanium Diode datasheet (forward voltage ~0.3 V, soft knee characteristic)
 - LM741 Op-Amp datasheet (non-inverting configuration, open-loop gain ~200 V/mV)
+- Yeh & Abel, "Simplified, Physically-Informed Models of Distortion and Overdrive Guitar Effects Pedals," DAFX 2007 (CCRMA Stanford) — canonical academic reference for this class of circuits: https://ccrma.stanford.edu/~dtyeh/papers/yeh07_dafx_distortion.pdf
+- Plusdistortion VST by Distorque Audio — C++ MXR Distortion+ emulation with 2× oversampling and separate op-amp / diode clipping controls: http://distorqueaudio.com/plugins/plusdistortion.html
 - See also: [`docs/circuit-to-patch-conversion.md`](circuit-to-patch-conversion.md) for the general methodology
 
 ---
