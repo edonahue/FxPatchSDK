@@ -10,11 +10,12 @@ Each patch is a self-contained C++ implementation of the `Patch` abstract class.
 To build and deploy one:
 
 1. **Copy** the patch file to `source/PatchImpl.cpp` (replacing the existing file)
-2. **Build:**
+2. **Fix the include:** change `#include "../source/Patch.h"` → `#include "Patch.h"`
+3. **Build:**
    ```bash
    make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_effect
    ```
-3. **Deploy:** connect Endless via USB-C, copy `build/my_effect_<timestamp>.endl`
+4. **Deploy:** connect Endless via USB-C, copy `build/my_effect_<timestamp>.endl`
    to the Endless drive
 
 Or use the VSCode **Build** / **Build + Deploy** tasks (`.vscode/tasks.json`).
@@ -26,6 +27,7 @@ Or use the VSCode **Build** / **Build + Deploy** tasks (`.vscode/tasks.json`).
 ```
 effects/
   README.md         ← you are here
+  chorus.cpp        ← stereo chorus (first custom patch)
   examples/         ← reference implementations from community forks
     README.md
     reverb.cpp      ← Freeverb stereo reverb (compiles against stock SDK)
