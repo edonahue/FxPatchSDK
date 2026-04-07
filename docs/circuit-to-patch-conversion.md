@@ -85,7 +85,48 @@ For 2-pole (12 dB/oct) responses, cascade two 1-pole filters. For Biquad (2nd-or
 resonance peak), use the standard Biquad IIR formulation. Most guitar pedal tone stacks are
 1-pole (6 dB/oct), so cascading simple 1-pole filters is usually sufficient.
 
-### Op-Amp Gain Stage → Scalar Multiply
+### State-Variable Filter (SVF) → Resonant Bandpass / LP / HP
+
+Use when you need a **resonant bandpass** with independently controllable center frequency and
+Q — e.g., wah, envelope filter, formant filter. The Chamberlin SVF yields all three filter
+outputs (lowpass, bandpass, highpass) from one pass through three equations.
+
+**When to prefer SVF over biquad:**
+- When frequency and Q need to be independently set (expression pedal frequency + Q knob)
+- When code simplicity matters (3 lines/sample vs. 5-coefficient biquad)
+- When you want all three filter outputs simultaneously
+
+```cpp
+// Coefficient (recompute when fc or Q changes — once per buffer)
+constexpr float kPi = 3.14159265f;
+float f1 = 2.0f * sinf(kPi * fc / kSampleRate);  // frequency coeff
+float q1 = 1.0f / Q;                               // damping coeff (= 1/Q)
+
+// Per-sample (maintain lo and band as state — initialized to 0)
+lo   += f1 * band;
+float hi = x - lo - q1 * band;
+band += f1 * hi;
+
+// Outputs:
+//   lo   = lowpass  (rolls off above fc)
+//   band = bandpass (peak at fc, gain = Q/2)
+//   hi   = highpass (rolls off below fc)
+```
+
+**Gain normalization (bandpass):** SVF bandpass peak gain = Q/2. To normalize to unity:
+```cpp
+float wet = band * (2.0f * q1);  // = band * (2/Q); peak gain = 1.0 at all Q values
+```
+
+**Stability:** The Chamberlin SVF is stable when `f1² + 2×q1×f1 < 4`. In practice this
+means fc < ~3 kHz at 48 kHz sample rate is safe for Q ≤ 10. For higher fc or Q, consider
+the Cytomic/Andy Simper SVF formulation (more numerically robust but slightly more complex).
+
+**State clearing:** When fc changes abruptly (e.g., mode switch), clear `lo` and `band` to
+zero to avoid a transient pop. When sweeping smoothly (expression pedal), do NOT clear —
+the state continuity IS the sweep character.
+
+
 
 **Non-inverting configuration:** `gain = 1 + R_feedback / R_input`  
 **Inverting configuration:** `gain = -R_feedback / R_input` (invert sign)

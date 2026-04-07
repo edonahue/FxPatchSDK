@@ -26,12 +26,13 @@ Or use the VSCode **Build** / **Build + Deploy** tasks (`.vscode/tasks.json`).
 
 ```
 effects/
-  README.md              ← you are here
-  chorus.cpp             ← stereo chorus (first custom patch)
-  mxr_distortion_plus.cpp ← MXR Distortion+ circuit model
-  examples/              ← reference implementations from community forks
+  README.md                ← you are here
+  chorus.cpp               ← stereo chorus (LFO-modulated delay, dry/wet mix)
+  mxr_distortion_plus.cpp  ← MXR Distortion+ circuit model (SVF HP→gain→tanh→LP→level)
+  wah.cpp                  ← dual-mode wah (Crybaby/Vox, SVF bandpass, expression pedal sweep)
+  examples/                ← reference implementations from community forks
     README.md
-    reverb.cpp           ← Freeverb stereo reverb (compiles against stock SDK)
+    reverb.cpp             ← Freeverb stereo reverb (compiles against stock SDK)
 ```
 
 Add your own patch files at the top level of this directory, e.g.:
@@ -140,16 +141,27 @@ See [`docs/endless-reference.md`](../docs/endless-reference.md) for the full SDK
 
 ## Circuit-based patch design
 
-Custom patches in this repository are built from analog circuit analysis.
+Custom patches in this repository are built from analog circuit analysis. Each patch has an
+accompanying build walkthrough documenting every design decision made during development.
+
+- [`docs/wah-build-walkthrough.md`](../docs/wah-build-walkthrough.md) —
+  Decision log for `wah.cpp`: SVF topology choice, gain normalization, expression pedal
+  routing constraint, log frequency taper, footswitch UX, and LED state design.
 
 - [`docs/mxr-distortion-plus-circuit-analysis.md`](../docs/mxr-distortion-plus-circuit-analysis.md) —
   Component-level analysis of the MXR Distortion+ circuit: gain stage, diode clipping,
-  filter topology, and how each maps to the DSP model in `effects/mxr_distortion_plus.cpp`.
+  filter topology, DOD 250 comparison, and how each maps to `effects/mxr_distortion_plus.cpp`.
 
 - [`docs/circuit-to-patch-conversion.md`](../docs/circuit-to-patch-conversion.md) —
-  General methodology for converting analog schematics into SDK patches. Covers
-  1-pole IIR filters, waveshapers, gain staging, SDK constraints, and worked examples.
-  Intended as a reference for future sessions and contributors.
+  General methodology for converting analog schematics into SDK patches. Covers 1-pole IIR
+  filters, SVF (state-variable filter), waveshapers, gain staging, circuit variants
+  (Crybaby vs. DOD 250), aliasing notes, SDK constraints, and references.
+
+**Starting a new patch?** Use the blank template:
+[`docs/templates/patch-build-walkthrough.md`](../docs/templates/patch-build-walkthrough.md)
+— fill in each section as you design and implement. The pre-implementation checklist at the
+top will catch common issues (expression pedal routing, working buffer, LED enum values)
+before you write a line of code.
 
 ---
 
