@@ -52,10 +52,14 @@ Playground is Polyend's hosted text-to-effect service — describe what you want
 2. Polyend's pipeline of specialized agents parses the request, selects DSP algorithms, generates C++ code, and runs automated tests
 3. Download the ready-to-use `.endl` and drag it onto the Endless drive
 
+Multi-round sessions are the norm for complex effects — the pipeline supports revisions.
+Each revision costs additional tokens but keeps the full context of the previous result.
+
 **Token economy:**
 - Pay-per-prompt (no subscription)
 - Bundled: 2000 tokens ($20 value) with pedal purchase
 - Cost per effect: ~$1–2 for simple effects, up to ~$5 for complex ones
+- Multi-revision sessions cost roughly 2–3× a single-shot effect
 - Access restricted to registered Endless owners
 
 **SDK vs. Playground:**
@@ -66,8 +70,23 @@ Playground is Polyend's hosted text-to-effect service — describe what you want
 | Control | Full C++ source | Black box |
 | Speed | Build time + deploy | Minutes |
 | Skill required | C++, DSP | Natural language |
+| Revisable? | Edit source directly | Multi-round prompt sessions |
 
 Use the SDK for anything you want to iterate on, own, or understand.
+Use Playground for rapid prototyping when the exact algorithm is secondary to the sound.
+
+**Playground resources in this repo:**
+
+| File | What it is |
+|---|---|
+| [`playground/README.md`](../playground/README.md) | Overview and SDK vs. Playground comparison |
+| [`playground/prompting-best-practices.md`](../playground/prompting-best-practices.md) | How to write effective prompts; revision patterns extracted from a 23-effect session |
+| [`playground/examples/SpiralCaster_Examples/CATALOG.md`](../playground/examples/SpiralCaster_Examples/CATALOG.md) | Per-effect reference: 23 effects with knob assignments, footswitch behavior, expression routing |
+| [`docs/playground-to-sdk.md`](playground-to-sdk.md) | Guide for re-implementing a Playground effect as an SDK patch |
+
+**Example effects:** `playground/examples/SpiralCaster_Examples/` contains 23 `.endl` files
+from YouTube creator SpiralCaster, each with its prompt log PDF. Ready to load onto the
+Endless immediately.
 
 ---
 
