@@ -1,54 +1,43 @@
 # effects/
 
-This directory is for custom patches built on top of the FxPatchSDK.
+This directory is where real patch development happens in this fork. Everything here is
+intended to stay compatible with the stock `polyend/FxPatchSDK` layout unless a file is
+explicitly marked otherwise.
+
+Current inventory:
+
+- `chorus.cpp`: stereo chorus with modulated delay lines
+- `mxr_distortion_plus.cpp`: circuit-informed distortion patch
+- `wah.cpp`: dual-mode wah with expression-driven sweep
+- `examples/reverb.cpp`: imported reference example that still compiles against the stock SDK
 
 ---
 
-## Workflow
+## Recommended Workflow
 
-Each patch is a self-contained C++ implementation of the `Patch` abstract class.
-To build and deploy one:
+Each top-level `effects/*.cpp` file is a self-contained `Patch` implementation.
 
-1. **Copy** the patch file to `source/PatchImpl.cpp` (replacing the existing file)
-2. **Fix the include:** change `#include "../source/Patch.h"` → `#include "Patch.h"`
-3. **Build:**
+To build one with the current repo layout:
+
+1. Copy the patch file into `source/PatchImpl.cpp`
+2. Change `#include "../source/Patch.h"` to `#include "Patch.h"`
+3. Build:
    ```bash
    make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_effect
    ```
-4. **Deploy:** connect Endless via USB-C, copy `build/my_effect_<timestamp>.endl`
-   to the Endless drive
+4. Deploy the resulting `.endl` file onto the Endless USB volume
 
-Or use the VSCode **Build** / **Build + Deploy** tasks (`.vscode/tasks.json`).
+Or use the VSCode tasks in `.vscode/tasks.json`.
 
----
+Before hardware testing:
 
-## Structure
-
-```
-effects/
-  README.md                ← you are here
-  chorus.cpp               ← stereo chorus (LFO-modulated delay, dry/wet mix)
-  mxr_distortion_plus.cpp  ← MXR Distortion+ circuit model (SVF HP→gain→tanh→LP→level)
-  wah.cpp                  ← dual-mode wah (Crybaby/Vox, SVF bandpass, expression pedal sweep)
-  examples/                ← reference implementations from community forks
-    README.md
-    reverb.cpp             ← Freeverb stereo reverb (compiles against stock SDK)
-```
-
-Add your own patch files at the top level of this directory, e.g.:
-
-```
-effects/
-  chorus.cpp
-  fuzz.cpp
-  delay.cpp
-  examples/
-    ...
+```bash
+bash tests/check_patches.sh
 ```
 
 ---
 
-## Quick patch template
+## Patch Authoring Notes
 
 ```cpp
 #include "Patch.h"
@@ -108,7 +97,8 @@ static PatchImpl patch;
 Patch* Patch::getInstance() { return &patch; }
 ```
 
-**Rules:**
+Rules that matter in practice:
+
 - No heap (`malloc`, `new`, `std::vector`) — all state must be members or in the working buffer
 - Output must stay in `(-1.0f, 1.0f)` — no automatic limiting
 - No exceptions, no RTTI
@@ -118,59 +108,46 @@ Patch* Patch::getInstance() { return &patch; }
 
 ## Expression pedal
 
-**Current repo behaviour:** expression pedal is hardcoded to param 2 (Right knob)
-for every patch. This is set in `internal/PatchCppWrapper.cpp`. Heel down = 0.0,
-toe down = 1.0, same range as the knob. When the pedal is connected, the firmware
-uses pedal values for param 2 and ignores the Right knob.
+Current repo behavior: expression pedal is hardcoded to param `2` for every patch.
+This is implemented in `internal/PatchCppWrapper.cpp`. Heel down = `0.0f`, toe down
+= `1.0f`, same range as the Right knob. When the pedal is connected, the firmware
+uses pedal values for param `2` and ignores the physical Right knob.
 
-**Implication for patch design:**
+Implications for patch design:
+
 - If your Right knob is a live-performance control (mix, level, depth) — expression
   pedal works automatically with no extra code.
 - If your Right knob is a set-and-forget parameter (circuit selector, mode switch,
   etc.) — either swap which knob is your live-performance target, or change the
   `idx == 2` condition in `PatchCppWrapper.cpp` to match.
 
-**Future: per-patch control.** The clean solution is a virtual `isParamEnabled`
-method on `Patch.h` so each patch declares its own expression pedal routing without
-touching shared infrastructure. See `docs/endless-reference.md §3a` for the full
-design and code snippet.
+Future improvement: add a virtual `isParamEnabled()` method to `Patch.h` so each patch
+declares its own expression routing without editing shared infrastructure.
 
 See [`docs/endless-reference.md`](../docs/endless-reference.md) for the full SDK reference.
 
 ---
 
-## Circuit-based patch design
+## Design Documents
 
-Custom patches in this repository are built from analog circuit analysis. Each patch has an
-accompanying build walkthrough documenting every design decision made during development.
+These are the best files to read before editing or adding a patch:
 
 - [`docs/wah-build-walkthrough.md`](../docs/wah-build-walkthrough.md) —
-  Decision log for `wah.cpp`: SVF topology choice, gain normalization, expression pedal
-  routing constraint, log frequency taper, footswitch UX, and LED state design.
-
+  complete design log for `wah.cpp`
 - [`docs/mxr-distortion-plus-circuit-analysis.md`](../docs/mxr-distortion-plus-circuit-analysis.md) —
-  Component-level analysis of the MXR Distortion+ circuit: gain stage, diode clipping,
-  filter topology, DOD 250 comparison, and how each maps to `effects/mxr_distortion_plus.cpp`.
-
+  circuit-to-DSP analysis for `mxr_distortion_plus.cpp`
 - [`docs/circuit-to-patch-conversion.md`](../docs/circuit-to-patch-conversion.md) —
-  General methodology for converting analog schematics into SDK patches. Covers 1-pole IIR
-  filters, SVF (state-variable filter), waveshapers, gain staging, circuit variants
-  (Crybaby vs. DOD 250), aliasing notes, SDK constraints, and references.
-
-**Starting a new patch?** Use the blank template:
-[`docs/templates/patch-build-walkthrough.md`](../docs/templates/patch-build-walkthrough.md)
-— fill in each section as you design and implement. The pre-implementation checklist at the
-top will catch common issues (expression pedal routing, working buffer, LED enum values)
-before you write a line of code.
+  general methodology for mapping analog pedal ideas into SDK-safe DSP
+- [`docs/templates/patch-build-walkthrough.md`](../docs/templates/patch-build-walkthrough.md) —
+  starting point for documenting a new patch
 
 ---
 
 ## Testing
 
-Run the automated syntax and lint check from the repository root:
-
 ```bash
 bash tests/check_patches.sh
 ```
 
-See [`tests/README.md`](../tests/README.md) for details on what is checked and its limitations.
+This is a host-side preflight, not a replacement for a real ARM build or on-device
+listening test. See [`tests/README.md`](../tests/README.md).

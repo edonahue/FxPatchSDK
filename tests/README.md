@@ -1,18 +1,19 @@
 # Patch Validation Tests
 
 This directory contains automated validation scripts for Polyend Endless SDK patches
-stored in `effects/`.
+stored in `effects/`. Treat these checks as a fast preflight before device testing, not
+as proof that a patch is production-ready on the pedal.
 
 ---
 
 ## check_patches.sh
 
-Performs two types of checks on all `effects/*.cpp` files:
+Performs two categories of checks on all `effects/*.cpp` files:
 
 ### 1. Syntax-Only Compile Check
 
-Runs `g++ -fsyntax-only` with the same flags as the SDK build (minus ARM-specific
-options not available on the host machine). This catches:
+Runs `g++ -fsyntax-only` with flags that mirror the SDK build, minus ARM-specific
+options that are not available on the host machine. This catches:
 
 - Missing or incorrect `#include` paths
 - Type errors and implicit conversions
@@ -27,7 +28,7 @@ options not available on the host machine). This catches:
 - Runtime behavior (audio glitches, incorrect filter behavior)
 - Bugs that only appear with specific input signals
 
-For a complete build, use the ARM cross-compiler and the SDK Makefile:
+For a real SDK build, use the ARM cross-compiler and the repo Makefile:
 
 ```bash
 cp effects/mxr_distortion_plus.cpp source/PatchImpl.cpp
@@ -46,7 +47,7 @@ Grep-based pattern checks that warn about common SDK violations:
 | Hardcoded sample rate | Use `Patch::kSampleRate` instead of `48000` |
 | Missing `getInstance()` | Every patch must define `Patch* Patch::getInstance()` |
 
-Lint warnings are informational — they do not cause the script to exit non-zero.
+Lint warnings are informational and do not cause the script to exit non-zero.
 
 ---
 
@@ -83,7 +84,7 @@ All patches passed syntax check.
 
 ---
 
-## Adding New Tests
+## Adding New Checks
 
 To add a new lint rule, append to the lint section of `check_patches.sh`:
 
@@ -111,19 +112,18 @@ fi
 
 ## Known Limitations
 
-1. **No ARM cross-compiler:** Host `g++` cannot produce ARM binaries. A patch that
-   passes this check may still fail to link or behave incorrectly on hardware if it
-   uses unsupported system calls or relies on undefined ARM ABI behavior.
+1. **No ARM artifact is produced:** Host `g++` cannot produce the deployed `.endl`
+   image. A patch that passes this check may still fail to link or behave incorrectly
+   on hardware if it uses unsupported calls or relies on undefined ARM ABI behavior.
 
-2. **No audio testing:** This script does not run the patch with real audio. Functional
-   correctness (correct filter response, no clicks/pops, accurate effect behavior) must
-   be validated by ear on the hardware.
+2. **No audio testing:** The script does not run the patch with real audio. Functional
+   correctness must still be validated by ear on hardware.
 
 3. **Double-literal detection is heuristic:** The grep pattern for double literals may
    produce false positives in comments or string literals. Review warnings manually.
 
 4. **Excludes `effects/examples/`:** Only `effects/*.cpp` is checked, not
-   `effects/examples/*.cpp`. To check examples, run:
+   `effects/examples/*.cpp`. To check examples manually, run:
    ```bash
    g++ -std=c++20 -fno-exceptions -fno-rtti -fsingle-precision-constant \
        -Wdouble-promotion -fsyntax-only -I source effects/examples/reverb.cpp

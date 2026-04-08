@@ -1,586 +1,293 @@
-# Polyend Endless — Personal Reference
+# Polyend Endless / FxPatchSDK Developer Reference
 
-A single-page reference synthesizing hardware specs, SDK internals, build workflow, and community resources. Written for my own use while building custom patches.
+This document is the current technical reference for working in this fork. It combines
+verified official product information with repo-local behavior that matters for patch
+development.
 
----
-
-## Table of Contents
-
-1. [Hardware Quick Reference](#1-hardware-quick-reference)
-2. [Playground — AI Patch Generator](#2-playground--ai-patch-generator)
-3. [SDK Architecture](#3-sdk-architecture)
-   - [The `Patch` C++ Class](#3a-the-patch-c-class)
-   - [C ABI (`PatchABI.h`)](#3b-c-abi-patchabih)
-   - [Build Output Format](#3c-build-output-format)
-4. [Build System](#4-build-system)
-5. [Hard Rules & Gotchas](#5-hard-rules--gotchas)
-6. [Bitcrush Example Walkthrough](#6-bitcrush-example-walkthrough)
-7. [Community & Resources](#7-community--resources)
-8. [Keeping the Fork in Sync](#8-keeping-the-fork-in-sync)
-9. [Community Forks & Active Repos](#9-community-forks--active-repos)
+For the branch audit and codebase review that informed this document, see
+[`repository-review.md`](repository-review.md).
 
 ---
 
-## 1. Hardware Quick Reference
+## 1. Official Context
 
-| Property | Detail |
-|---|---|
-| **CPU** | ARM Cortex-M7 @ 720 MHz |
-| **FPU** | fpv5-sp-d16 (single-precision hardware float) |
-| **Audio** | Stereo, 48 kHz, 24-bit |
-| **Audio I/O** | 2× 1/4" TRS in, 2× 1/4" TRS out |
-| **Controls** | 3× multifunction knobs (Left, Mid, Right), 2× footswitches, 1× multicolor LED |
-| **Expression** | 1× 1/4" TRS expression pedal input (freely assignable) |
-| **USB** | 1× USB-C — power, data, drag-and-drop patch install |
-| **MIDI** | None |
-| **Power** | 9–12 V DC, ≥200 mA, center-neg or center-pos |
-| **Size** | 4.72″ × 3.15″ × 2.2″ (H with knobs), 0.88 lbs |
-| **Enclosure** | CNC-machined aluminum; magnetic swappable faceplates |
-| **Faceplate** | Blank included; optional designs ~$20 each |
-| **Price** | $299 USD / €299 EUR |
+Polyend markets Endless as a programmable effects pedal with two parallel creation paths:
 
-Signal path is configurable: Mono, Stereo, or Mono-to-Stereo.
+- write C++ patches against the official `polyend/FxPatchSDK`
+- generate compiled patches through the hosted `Playground` platform
 
----
+Useful official entry points:
 
-## 2. Playground — AI Patch Generator
-
-Playground is Polyend's hosted text-to-effect service — describe what you want in plain language, get a compiled `.endl` file back in minutes.
-
-**Workflow:**
-1. Type a natural-language prompt (e.g. "granular delay that smears into reverb")
-2. Polyend's pipeline of specialized agents parses the request, selects DSP algorithms, generates C++ code, and runs automated tests
-3. Download the ready-to-use `.endl` and drag it onto the Endless drive
-
-**Token economy:**
-- Pay-per-prompt (no subscription)
-- Bundled: 2000 tokens ($20 value) with pedal purchase
-- Cost per effect: ~$1–2 for simple effects, up to ~$5 for complex ones
-- Access restricted to registered Endless owners
-
-**SDK vs. Playground:**
-
-| | SDK | Playground |
+| Resource | URL | Why it matters |
 |---|---|---|
-| Cost | Free, unlimited | ~$1–5 per effect |
-| Control | Full C++ source | Black box |
-| Speed | Build time + deploy | Minutes |
-| Skill required | C++, DSP | Natural language |
+| Endless product page | <https://polyend.com/endless/> | hardware and product positioning |
+| Playground | <https://polyend.com/playground/> | hosted patch-generation workflow |
+| Endless downloads | <https://polyend.com/downloads/endless-downloads/> | manual and quick-start references |
+| Upstream SDK | <https://github.com/polyend/FxPatchSDK> | baseline repo structure and public API |
+| Backstage | <https://backstage.polyend.com/> | official community and setup posts |
 
-Use the SDK for anything you want to iterate on, own, or understand.
+What matters for this fork:
+
+- Endless exposes a small, fixed control surface to patch code: three parameters,
+  one exposed footswitch with press/hold events, and a state LED.
+- The official SDK is intentionally minimal. Most product behavior lives in the device
+  firmware, not in the repo.
+- Playground gives you compiled `.endl` outputs, but not the editable source that a
+  normal SDK workflow gives you.
 
 ---
 
-## 3. SDK Architecture
+## 2. This Fork at a Glance
 
-The SDK is small: one abstract C++ class you implement, a thin C ABI layer between your code and the firmware, and a Makefile.
+This fork keeps the stock SDK layout, then adds practical development layers on top:
 
-```
-source/
-  Patch.h          ← abstract base class; this is the public API
-  PatchImpl.cpp    ← your effect code goes here
-
-internal/
-  PatchABI.h       ← C struct the firmware actually reads from the binary
-  PatchCppWrapper.h/.cpp  ← bridges C++ Patch class → C ABI
-  patch_main.c     ← entry point; emits the PatchHeader at binary start
-  patch_imx.ld     ← linker script; positions binary at 0x80000000
+```text
+source/        upstream-style public API and default example patch
+internal/      ABI bridge used by the firmware loader
+effects/       custom patches that compile against the stock SDK
+tests/         host-side syntax/lint checks for effects/*.cpp
+docs/          design notes, walkthroughs, repo review, SDK reference
+playground/    downloaded example artifacts from Polyend Playground creators
 ```
 
-### 3a. The `Patch` C++ Class
+Current branch reality:
 
-**File:** `source/Patch.h`
+- `master` is the branch of record.
+- `origin/claude/polyend-endless-docs-OJnCb` is older and behind `master`.
+- The significant newer work is already on `master`: chorus, MXR Distortion+, wah,
+  test tooling, and the Playground example archive.
 
-#### Constants
+The practical consequence is simple: start future development from `master`.
+
+---
+
+## 3. Hardware and Platform Notes
+
+The official product page and Endless materials describe the pedal as a stereo effects
+platform with USB-based patch loading and two creation modes. The repo itself confirms
+or constrains the developer-facing subset:
+
+| Area | What matters in code |
+|---|---|
+| Sample rate | `Patch::kSampleRate = 48000` |
+| Audio buffers | stereo spans of equal length |
+| Parameter count | `endless::kParams = 3` |
+| Actions | `kLeftFootSwitchPress`, `kLeftFootSwitchHold` |
+| LED | `Patch::Color` enum in `source/Patch.h` |
+| Working buffer | `2400000` floats, provided once via `setWorkingBuffer()` |
+
+Repo-local note: the hardware has more physical controls than the SDK currently exposes
+to patch code. In practice, you program against the public API, not against every pedal
+surface directly.
+
+---
+
+## 4. Patch API and ABI Shape
+
+### `source/Patch.h`
+
+The public interface is one abstract base class:
+
+- `init()`
+- `setWorkingBuffer(std::span<float, kWorkingBufferSize>)`
+- `processAudio(std::span<float> left, std::span<float> right)`
+- `getParameterMetadata(int paramIdx)`
+- `setParamValue(int paramIdx, float value)`
+- `handleAction(int actionIdx)`
+- `getStateLedColor()`
+
+Important constants:
 
 ```cpp
-static constexpr int kWorkingBufferSize = 2400000; // floats (~9.6 MB)
+static constexpr int kWorkingBufferSize = 2400000;
 static constexpr int kSampleRate = 48000;
 ```
 
-#### Methods you must implement
+Parameter indices are raw `int` values:
 
-| Method | When called | Notes |
-|---|---|---|
-| `init()` | Once at patch load | Setup, zero state |
-| `setWorkingBuffer(span<float, 2400000>)` | Once after init | Store the span if you need delay lines etc. in external RAM |
-| `processAudio(span<float> left, span<float> right)` | Every audio frame | Hot path — keep it fast |
-| `getParameterMetadata(int paramIdx)` | At load per param | Return `{minValue, maxValue, defaultValue}` |
-| `setParamValue(int paramIdx, float value)` | On knob change | Called from audio thread; no sync needed |
-| `handleAction(int actionIdx)` | On footswitch event | Toggle state, reset, etc. |
-| `getStateLedColor()` | Periodically polled | Return a `Color` enum value |
+- `0`: Left knob
+- `1`: Mid knob
+- `2`: Right knob
 
-#### Parameters
+### `internal/PatchABI.h`
 
-```cpp
-namespace endless {
-    enum class ParamId {
-        kParamLeft,   // 0 — left knob
-        kParamMid,    // 1 — middle knob
-        kParamRight,  // 2 — right knob
-    };
-}
-```
+The device firmware loads a `PatchHeader` from the beginning of the generated image.
+Important fields and values in the current repo:
 
-`getParameterMetadata` and `setParamValue` receive the raw int index (0/1/2). Guard with `if (idx == 0)` etc.
+- `PATCH_MAGIC = 0x48435450u` (`PTCH`)
+- `PATCH_ABI_VERSION = 0x000Bu`
+- fixed load address configured through the linker script and `PATCH_LOAD_ADDR`
 
-#### Expression pedal
+You normally do not edit the ABI layer directly. The path is:
 
-The 1/4" TRS expression input sends values through the same `setParamValue(idx, value)`
-call as knobs. The firmware decides which parameter to route pedal values to by querying
-`patch_agent_is_param_enabled(idx, sourceId)` in the C wrapper, where:
+`Patch` implementation -> `PatchCppWrapper.cpp` -> `PatchHeader` function pointers
 
-- `sourceId 0` = knob
-- `sourceId 1` = expression pedal
+### Build artifact
 
-**Current repo behaviour (in `internal/PatchCppWrapper.cpp`):**
-Expression pedal is hardcoded to param 2 (Right knob) for every patch built here.
-Heel down = 0.0, toe down = 1.0. When the pedal is connected, the firmware substitutes
-pedal values for idx 2 and ignores the Right knob.
+The Makefile emits a raw ARM image with an `.endl` extension:
 
-**Implication:** if you write a patch where the Right knob is a set-and-forget parameter
-(e.g. a circuit selector), the expression pedal will unexpectedly drive it. Change the
-hardcoded `idx == 2` in `PatchCppWrapper.cpp` to whichever idx makes sense for that patch,
-or adopt the per-patch virtual method approach below.
+`build/<PATCH_NAME>_<YYYYMMDD_HHMMSS>.endl`
 
-**The graceful per-patch approach (not yet implemented):**
-Add a virtual method to `Patch.h` with a safe default (expression pedal disabled),
-then override per effect. `PatchCppWrapper.cpp` calls it instead of hardcoding:
-
-```cpp
-// Patch.h — add with default (expression pedal off unless overridden)
-virtual bool isParamEnabled(int idx, int sourceId)
-{
-    return (sourceId == 0) && idx >= 0 && idx < endless::kParams;
-}
-
-// PatchCppWrapper.cpp — replace the hardcoded block with:
-return Patch::getInstance()->isParamEnabled(idx, sourceId) ? 1 : 0;
-
-// In a patch that wants expression pedal on mix (idx 2):
-bool isParamEnabled(int idx, int sourceId) override
-{
-    if (sourceId == 0) return idx >= 0 && idx < endless::kParams;
-    if (sourceId == 1) return idx == 2;
-    return false;
-}
-```
-
-This is what sthompsonjr's fork does (`ParamSource` is their named enum for `sourceId`).
-The default keeps every existing patch working with no changes required.
-
-#### Actions
-
-```cpp
-namespace endless {
-    enum class ActionId {
-        kLeftFootSwitchPress,  // 0 — momentary press
-        kLeftFootSwitchHold,   // 1 — held down
-    };
-}
-```
-
-#### LED Colors
-
-16 options in `Patch::Color`:
-
-```
-kDimWhite    kDarkRed      kDarkLime     kDarkCobalt
-kLightYellow kDimBlue      kBeige        kDimCyan
-kMagenta     kLightBlueColor kPastelGreen kDimYellow
-kBlue        kLightGreen   kRed          kDimGreen
-```
-
-`getStateLedColor()` is polled by the firmware — just return the right color based on your internal state. No push mechanism.
-
-#### Minimal skeleton
-
-```cpp
-#include "Patch.h"
-
-class PatchImpl : public Patch {
-public:
-    void init() override {}
-
-    void setWorkingBuffer(std::span<float, kWorkingBufferSize> buf) override {
-        workingBuf = buf;
-    }
-
-    void processAudio(std::span<float> left, std::span<float> right) override {
-        // process left and right in lockstep
-    }
-
-    ParameterMetadata getParameterMetadata(int /*paramIdx*/) override {
-        return {0.0f, 1.0f, 0.5f};
-    }
-
-    void setParamValue(int idx, float value) override {
-        if (idx == 0) param0 = value;
-    }
-
-    void handleAction(int /*idx*/) override {
-        active = !active;
-    }
-
-    Color getStateLedColor() override {
-        return active ? Color::kBlue : Color::kDimBlue;
-    }
-
-private:
-    std::span<float, kWorkingBufferSize> workingBuf;
-    float param0 = 0.5f;
-    bool active = false;
-};
-
-static PatchImpl patch;
-Patch* Patch::getInstance() { return &patch; }
-```
+This is not an ELF deployment artifact. `objcopy` flattens the linked binary before
+it is copied onto the pedal.
 
 ---
 
-### 3b. C ABI (`PatchABI.h`)
+## 5. Repo-Local Behavior That Will Surprise You
 
-**File:** `internal/PatchABI.h`
+### Expression pedal routing is hardcoded
 
-The firmware doesn't call your C++ class directly — it reads a `PatchHeader` struct from the very beginning of the binary, which contains function pointers that the `PatchCppWrapper` layer fills in.
+`internal/PatchCppWrapper.cpp` enables:
 
-Key values:
+- knobs for params `0`, `1`, `2`
+- expression pedal only for param `2`
 
-| Symbol | Value | Meaning |
-|---|---|---|
-| `PATCH_MAGIC` | `0x48435450` (`'PTCH'`) | Header sanity check |
-| `PATCH_ABI_VERSION` | `0x000B` | Bump = breaking firmware change |
-| Load address | `0x80000000` | External RAM on the MCU |
+That means every patch in this repo currently treats the Right knob as the expression
+pedal target whenever a pedal is connected.
 
-`PatchHeader` includes: magic, abi_version, flags, init function pointer, a suite of `agent_*` function pointers (audio update, param get/set, action, LED state), `image_size`, `bss_begin`, `bss_size`, and 16 reserved words.
+Implications:
 
-You never touch `PatchHeader` directly — `patch_main.c` and `PatchCppWrapper.cpp` handle it. Just note that:
-- `agent_get_param_name` and `agent_get_param_unit` exist in the ABI but the high-level `Patch` C++ API doesn't expose a way to set them yet. Knob labels are not user-configurable from the SDK today.
-- `agent_is_param_enabled(idx, sourceId)` controls which parameters are active for each input source. Known `sourceId` values (from `PatchCppWrapper.cpp`): `0` = knob, `1` = expression pedal. In this repo the wrapper hardcodes expression pedal → param 2. See §3a for the full explanation and the per-patch virtual method path.
-- All `agent_*` pointers are optional (may be NULL) — the firmware handles missing ones gracefully.
+- `chorus.cpp`: good fit, because Right is mix
+- `mxr_distortion_plus.cpp`: good fit, because Right is output level
+- `wah.cpp`: required, because Right is the sweep position
+- future patches: be careful if Right is a mode selector or other set-and-forget control
+
+There is a documented future path to a per-patch `isParamEnabled()` API, but it is not
+implemented in this branch.
+
+### `source/PatchImpl.cpp` is still upstream-style
+
+The default file in `source/` is a simple bitcrusher example. It is useful as a minimal
+API reference, but it is not the most interesting patch work in this fork. For real
+development patterns, read files in `effects/`.
+
+### The host-side test script is only a preflight
+
+`tests/check_patches.sh` is good at catching syntax and basic SDK-rule violations, but it
+does not replace a real ARM build or hardware listening pass.
 
 ---
 
-### 3c. Build Output Format
+## 6. Included Patch Inventory
 
-| Property | Detail |
-|---|---|
-| Extension | `.endl` |
-| Format | Raw ARM binary (not ELF) |
-| Filename | `build/<PATCH_NAME>_YYYYMMDD_HHMMSS.endl` |
-| Default name | `patch` (override with `PATCH_NAME=`) |
+### `effects/chorus.cpp`
 
-The binary is a flat image: `PatchHeader` at offset 0, followed by code and initialized data. BSS is cleared by the firmware loader using the `bss_begin`/`bss_size` fields in the header.
+- stock-SDK-compatible stereo chorus
+- uses the working buffer for delay lines
+- demonstrates fractional delay, LFO phase offset, and expression-as-mix
+
+### `effects/mxr_distortion_plus.cpp`
+
+- circuit-informed distortion model
+- maps a simple analog topology into HP -> gain -> `tanhf` -> LP -> level
+- good example of coefficient precomputation outside the sample loop
+
+### `effects/wah.cpp`
+
+- dual-mode wah inspired by Crybaby and Vox behavior
+- demonstrates a Chamberlin SVF, mode switching, and expression-driven control
+- strong example of state clearing discipline around bypass/mode changes
+
+### `effects/examples/reverb.cpp`
+
+- imported reference example, not original to this fork
+- useful for studying working-buffer allocation and larger delay-based structures
+
+Related design notes:
+
+- [`circuit-to-patch-conversion.md`](circuit-to-patch-conversion.md)
+- [`mxr-distortion-plus-circuit-analysis.md`](mxr-distortion-plus-circuit-analysis.md)
+- [`wah-build-walkthrough.md`](wah-build-walkthrough.md)
 
 ---
 
-## 4. Build System
+## 7. Build Workflow
 
-**File:** `Makefile`
-
-### Requirements
-
-- [GNU Arm Embedded Toolchain](https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain) — provides `arm-none-eabi-gcc`, `arm-none-eabi-g++`, `arm-none-eabi-objcopy`
-
-### Commands
+Baseline command:
 
 ```bash
-# Build (Linux/macOS)
 make TOOLCHAIN=/usr/bin/arm-none-eabi-
-
-# Build with a custom patch name
-make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_chorus
-
-# Clean
-make clean
 ```
 
-Output: `build/<PATCH_NAME>_YYYYMMDD_HHMMSS.endl`
+Named build:
 
-### Key compiler flags
+```bash
+make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_patch
+```
 
-| Flag | Purpose |
-|---|---|
-| `-mcpu=cortex-m7 -mfpu=fpv5-sp-d16 -mfloat-abi=hard` | Target hardware |
-| `-mthumb` | Thumb instruction set |
-| `-std=c++20` | C++20 for `std::span`, etc. |
-| `-fno-exceptions -fno-rtti` | Required — no C++ exceptions or RTTI |
-| `-O3` | Full optimization |
-| `-fsingle-precision-constant` | Float literals are `float`, not `double` |
-| `-Wdouble-promotion` | Warns if a `float` gets silently widened to `double` |
+Typical custom-patch workflow in this fork:
 
-### Deploy
+1. choose a file from `effects/` or write a new one there
+2. copy it into `source/PatchImpl.cpp`
+3. change `#include "../source/Patch.h"` to `#include "Patch.h"`
+4. build with `make`
+5. copy the resulting `.endl` onto the Endless USB volume
 
-Connect Endless via USB-C → drag-and-drop the `.endl` file onto the Endless drive → it loads automatically.
+Useful flags in the current Makefile:
 
-### VSCode
-
-`.vscode/tasks.json` has pre-configured **Build** and **Build + Deploy** tasks. Set your toolchain path there.
+- `-mcpu=cortex-m7 -mfpu=fpv5-sp-d16 -mfloat-abi=hard`
+- `-std=c++20`
+- `-fno-exceptions -fno-rtti`
+- `-fsingle-precision-constant`
+- `-Wdouble-promotion`
+- `-O3`
 
 ---
 
-## 5. Hard Rules & Gotchas
+## 8. Hard Rules for Patch Authors
 
-**Memory**
-- No `malloc`, no `new`, no `std::vector`, no dynamic allocation of any kind. All state lives as members of your `PatchImpl` class, or in the working buffer provided via `setWorkingBuffer`.
-- The working buffer (2.4M floats) lives in external RAM — reads/writes have higher latency than internal SRAM. Fine for initialization and large delay lines; avoid tight inner-loop random access.
+- No heap use: no `new`, `malloc`, `std::vector`, or similar dynamic allocation.
+- Keep output within `(-1.0f, 1.0f)`; there is no safety net in the SDK.
+- Keep expensive work outside the inner sample loop whenever possible.
+- Use `float` literals with `f` suffixes.
+- Treat `setParamValue()` as audio-thread code.
+- Expect `left` and `right` spans to be in-place buffers.
+- Use the working buffer for large delay/state storage, not for convenience-only data.
 
-**Audio**
-- Output **must stay in `(-1.0f, 1.0f)`**. Hard clipping at the DAC. No automatic limiting.
-- `processAudio()` must return before the next frame deadline. If it takes too long, frames drop and you'll hear glitches. Keep the hot path lean.
-- `left` and `right` spans are guaranteed to be the same size. You can use a single index counter for both.
-
-**Parameters**
-- `setParamValue` is called for any knob that changes — not just the one you care about. Always check `idx` before storing.
-- `getParameterMetadata` is called for all three params (indices 0, 1, 2). You can return different ranges per knob.
-- All three knobs are always active from the user's perspective — even if your effect only uses one. Consider whether unused knobs should do something (or at least not cause confusion).
-
-**Expression pedal**
-- Routes through `setParamValue(idx, value)` — same call as knobs.
-- In this repo, expression pedal is hardcoded to param 2 (Right knob) in `internal/PatchCppWrapper.cpp`. All patches built here inherit this. Heel = 0.0, toe = 1.0.
-- If your Right knob is not a live-performance parameter, update the `idx == 2` condition in `PatchCppWrapper.cpp` for that patch, or implement the per-patch virtual `isParamEnabled` described in §3a.
-
-**Actions**
-- Both `kLeftFootSwitchPress` (0) and `kLeftFootSwitchHold` (1) fire `handleAction`. If you only need press, just ignore idx 1.
-
-**LED**
-- `getStateLedColor()` is polled, not event-driven. Don't rely on it for timing. Just reflect your current state.
-
-**C++ restrictions**
-- No exceptions (`-fno-exceptions`), no RTTI (`-fno-rtti`). Don't use `dynamic_cast`, `typeid`, `throw`, or `try/catch`.
-- Single-precision only (`-fsingle-precision-constant`, `-Wdouble-promotion`). Write `0.5f` not `0.5`. Math functions from `<cmath>` are fine — just watch for overloads that promote to double.
+These rules are enforced partly by toolchain flags and partly by discipline.
 
 ---
 
-## 6. Bitcrush Example Walkthrough
+## 9. Playground Artifacts in This Repo
 
-**File:** `source/PatchImpl.cpp`
+`playground/` is not source code. It is a reference archive of compiled creator-made
+Playground effects and related PDFs. These files are useful for:
 
-The default example is a bit-depth reduction (bitcrusher). Here's what each part does:
+- understanding the kind of effects people are getting from Playground
+- comparing UX and naming conventions against hand-written SDK patches
+- building a listening/test corpus for future fork development
 
-```cpp
-void processAudio(std::span<float> audioBufferLeft, std::span<float> audioBufferRight) override
-{
-    // Map paramValue (0.0–1.0) to a quantization step count.
-    // At paramValue=0: 2^(0*4+5) = 2^5 = 32 levels (heavy crush)
-    // At paramValue=1: 2^(1*4+5) = 2^9 = 512 levels (subtle)
-    auto values = std::pow(2.0f, (1.0f - paramValue) * 4.0f + 5.0f);
-    auto valuesInv = 1.0f / values;
-
-    for (auto leftIt = audioBufferLeft.begin(), rightIt = audioBufferRight.begin();
-         leftIt != audioBufferLeft.end();
-         ++leftIt, ++rightIt)
-    {
-        // Quantize: round to nearest step, scale back to (-1, 1)
-        *leftIt  = std::round(*leftIt  * values) * valuesInv;
-        *rightIt = std::round(*rightIt * values) * valuesInv;
-    }
-}
-```
-
-```cpp
-ParameterMetadata getParameterMetadata(int /* paramIdx */) override {
-    // All three knobs return the same range — only knob 0 is actually used
-    return ParameterMetadata{ 0.0f, 1.0f, 0.5f };
-}
-```
-
-```cpp
-void setParamValue(int idx, float value) override {
-    if (idx == 0) {         // only store knob 0
-        paramValue = value;
-    }
-    // idx 1, 2 silently ignored
-}
-```
-
-```cpp
-void handleAction(int /* idx */) override { state = !state; }
-// Both footswitch press and hold toggle the state flag.
-// The state flag doesn't actually change the audio in this example —
-// it's just reflected in the LED color below.
-
-Color getStateLedColor() override { return state ? Color::kBlue : Color::kDimBlue; }
-```
-
-**Key pattern to take from this example:**
-- Pre-compute constants outside the sample loop (the `pow` is expensive — done once per buffer, not per sample)
-- Use iterator-based loops over the spans
-- Guard `setParamValue` by `idx`
-- Reflect boolean state in LED color
+They are not useful for code extraction or line-by-line reverse engineering in the same
+way that `effects/*.cpp` files are.
 
 ---
 
-## 7. Community & Resources
+## 10. Syncing with Upstream
 
-| Resource | URL |
-|---|---|
-| Product page | https://polyend.com/endless/ |
-| Downloads (manual, quick start) | https://polyend.com/downloads/endless-downloads/ |
-| Playground | https://polyend.com/playground/ |
-| GitHub org | https://github.com/polyend |
-| FxPatchSDK repo (upstream) | https://github.com/polyend/FxPatchSDK |
-| Backstage forums (official community) | https://backstage.polyend.com/ |
-| Dev setup tutorial on Backstage | https://backstage.polyend.com/t/getting-setup-to-develop-for-the-polyend-endless/24364 |
-| MOD Wiggler thread | https://www.modwiggler.com/forum/viewtopic.php?t=298499 |
+This repo is still structurally close enough to upstream that syncing remains realistic.
 
-The Backstage forum has an Endless category with a growing library of community-built effects (examples seen: Multidrive, granular reverb, tape scanner, micro-looping arpeggiator). Community effects are free to download and share.
-
----
-
-## 8. Keeping the Fork in Sync
-
-This repo is a fork of `polyend/FxPatchSDK`. When Polyend updates the upstream SDK (new ABI features, build fixes, etc.), here's how to pull those in.
-
-### One-time setup
+Recommended setup:
 
 ```bash
 git remote add upstream https://github.com/polyend/FxPatchSDK.git
-git remote -v  # verify: should show both origin and upstream
-```
-
-### Syncing
-
-```bash
-# Fetch latest from upstream (no merge yet)
 git fetch upstream
-
-# Switch to your main branch
-git checkout master
-
-# Option A: rebase your master on top of upstream (cleaner history)
-git rebase upstream/master
-
-# Option B: merge (preserves merge commit, easier conflict resolution)
-git merge upstream/master
-
-# Push your updated master
-git push origin master
 ```
 
-### Conflict hotspot
+When reviewing an upstream update, pay closest attention to:
 
-`source/PatchImpl.cpp` is where your custom patches live, and it's also the file upstream ships as an example. It **will** conflict if upstream updates the example. Resolution is usually straightforward — keep your implementation, discard theirs.
+- `source/Patch.h`
+- `internal/PatchABI.h`
+- `internal/PatchCppWrapper.*`
+- `internal/patch_main.c`
+- `internal/patch_imx.ld`
+- `Makefile`
 
-`internal/` files (`PatchABI.h`, `PatchCppWrapper.*`, `patch_main.c`, `patch_imx.ld`) are infrastructure you don't touch. Take upstream's version if there's a conflict there, unless you've deliberately patched them.
+Conflict pattern to expect:
 
-### ABI version bumps
+- `source/PatchImpl.cpp` will often conflict trivially because upstream uses it as the
+  default example slot and this fork uses it as a build target.
+- `internal/` changes may indicate real firmware/ABI compatibility changes and should be
+  treated carefully.
 
-If `PATCH_ABI_VERSION` in `internal/PatchABI.h` changes in upstream, it's a **breaking change**. Old `.endl` binaries won't load on new firmware. Rebuild all your patches after merging.
-
-### Checking for upstream changes
-
-```bash
-git fetch upstream
-git log master..upstream/master --oneline  # see what's new upstream
-git diff master upstream/master            # full diff
-```
-
----
-
-## 9. Community Forks & Active Repos
-
-As of April 2026, there are 4 public forks of `polyend/FxPatchSDK` plus one standalone
-effects collection. Here's what's actually in each one.
-
----
-
-### sthompsonjr/Endless-FxPatchSDK
-**https://github.com/sthompsonjr/Endless-FxPatchSDK**  
-**Last push:** April 2, 2026 · ~342 KB · C++ (96.8%) · 44 commits · 1 star
-
-The most developed fork by a significant margin. Added a full WDF (Wave Digital Filter)
-library for analog circuit modeling, a `dsp/` utilities layer (parameter smoothing, saturation,
-envelope followers), and extended the `Patch` base class with `isParamEnabled(int, ParamSource)`
-to support expression pedal routing per-parameter.
-
-**Effects implemented (9):**
-
-| Effect | What it is |
-|---|---|
-| Optical Compressor | PC-2A, Optical Leveler, Hybrid Opt/OTA — three circuits, one right-knob selector |
-| Tubescreamer Family | TS808, TS9, Klon Centaur clip stage — drive/tone/circuit select |
-| Cry Baby Wah | Expression, auto-wah, LFO, EnvLfo modes; tap tempo via hold footswitch |
-| Big Muff Pi | RamsHead, CivilWar, Triangle variants |
-| ProCo Rat | 5 circuit variants |
-| DOD 250 | Vintage overdrive with boost stage |
-| Dallas Rangemaster | Treble booster with germanium transistor emulation |
-| Yamaha SPX500 Shimmer | Grain-based pitch-shifted reverb |
-| Bitcrush | Bit-depth and sample-rate reduction |
-
-**Architecture notes:**
-- 25+ WDF primitives (`wdf/` directory) for authentic analog modeling
-- `sdk/Patch.h` is a superset of the stock SDK — adds `isParamEnabled` and `ParamSource` enum
-- Effects live in `effects/` directory (separate from `source/`) as individual `.cpp` files
-- Has a test suite
-
-**Note:** Source files from this fork were removed from `effects/examples/` because they
-require sthompsonjr's WDF library and extended SDK (`sdk/Patch.h`, `isParamEnabled`,
-`ParamSource`) which aren't present in the stock SDK. Clone the repo directly to use them.
-
----
-
-### andybalham/FxPatchSDK
-**https://github.com/andybalham/FxPatchSDK**  
-**Last push:** March 22, 2026 · ~37 KB · C++ (76.7%) · fork of polyend/FxPatchSDK
-
-Educational fork with clean, well-documented effect implementations. Effects are
-header-only classes in `source/effects/`, selected via compile-time `#define`. Compiles
-against the stock SDK with no extra dependencies — the best starting point if you want
-to lift a working implementation straight into your own repo.
-
-**Effects implemented (6):**
-
-| Effect | What it is |
-|---|---|
-| Reverb | Freeverb (4 comb + 2 all-pass filters); delay lines in working buffer |
-| Flanger | LFO-modulated ring buffer with linear interpolation |
-| Delay | Echo with feedback and wet/dry mix |
-| Distortion | Basic hard-clipping distortion |
-| Saturation | Soft clipping |
-| Bitcrush | Bit reduction and sample-rate decimation |
-
-**Architecture notes:**
-- Each effect is a header file defining a standalone class (no WDF dependencies)
-- Effect selection is a compile-time `#define` in a config header — one binary per effect
-- Very readable code; comments explain the algorithm, not just the code
-- Working buffer usage is well-commented (see reverb as the best example)
-
-**`effects/examples/reverb.cpp`** in this repo is taken from this fork — it compiles
-against the stock SDK with no extra dependencies.
-
----
-
-### rveitch/polyend-endless-effects
-**https://github.com/rveitch/polyend-endless-effects**  
-**Not a fork of FxPatchSDK** — standalone repo
-
-Early-stage collection repo. Has the SDK vendored in as a subdirectory (`example/`)
-alongside a top-level effects directory, suggesting intent to host multiple effects as
-separate projects. At time of research the effects directory was sparse and undocumented.
-Worth watching but not yet a useful reference.
-
----
-
-### scarlton/FxPatchSDK
-**https://github.com/scarlton/FxPatchSDK**  
-**Last push:** January 23, 2026 (initial commit only) · 9 KB
-
-Straight clone of the upstream repo at beta launch, no changes. Not useful as a reference.
-
----
-
-### klausmobi32/FxPatchSDK
-**https://github.com/klausmobi32/FxPatchSDK**  
-Despite the name and description ("Create custom effects for the Polyend Endless pedal"),
-the repo topics and contents are unrelated to audio (Kubernetes, WeChat, proxy tooling).
-Skip.
-
----
-
-### Example files
-
-**[`../effects/examples/`](../effects/examples/)** contains `reverb.cpp` (andybalham),
-the only community example that compiles against the stock SDK.
-The `effects/` directory is also the intended home for custom patches built in this repo —
-see [`../effects/README.md`](../effects/README.md) for the workflow and a patch template.
+If upstream bumps `PATCH_ABI_VERSION`, rebuild every patch before trusting old `.endl`
+artifacts.

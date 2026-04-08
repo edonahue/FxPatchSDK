@@ -1,7 +1,8 @@
 # Effect Examples
 
-Reference implementations collected from community forks.
-Each file here compiles against the stock `polyend/FxPatchSDK` with no extra dependencies.
+Reference implementations collected from community forks. Files kept here must compile
+against the stock `polyend/FxPatchSDK` with no extra dependencies, because the goal of
+this directory is study value, not dependency sprawl.
 
 ---
 
@@ -47,7 +48,7 @@ needs to return the right type), then `make TOOLCHAIN=...`.
 Three additional effects (Optical Compressor, Tubescreamer, Wah) were sourced
 from [sthompsonjr/Endless-FxPatchSDK](https://github.com/sthompsonjr/Endless-FxPatchSDK)
 but removed because they depend on headers and SDK extensions not present in the
-stock SDK:
+stock SDK used by this fork:
 
 - `sdk/Patch.h` — sthompsonjr's modified SDK layout
 - `wdf/Wdf*.h` — Wave Digital Filter circuit headers (25+ files)
@@ -61,7 +62,5 @@ and builds as a self-contained project:
 git clone https://github.com/sthompsonjr/Endless-FxPatchSDK
 ```
 
-That fork has 9 effects total: Optical Compressor, Tubescreamer (TS808/TS9/Klon),
-Cry Baby Wah, Big Muff Pi, ProCo Rat, DOD 250, Dallas Rangemaster, SPX500 Shimmer,
-and Bitcrush. See [docs/endless-reference.md §9](../../docs/endless-reference.md)
-for a full breakdown of all forks.
+That fork is still worth studying if you want to see where this repository could grow:
+it extends the SDK, adds WDF infrastructure, and carries a much broader effect library.

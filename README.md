@@ -1,39 +1,112 @@
-FxPatch SDK (BETA)
-============
+FxPatchSDK Fork for Polyend Endless
+===================================
 
-This is a Software Development Kit for implementing your own effects for the [Polyend Endless](https://polyend.com/endless/) pedal, using hand-crafted code instead of the product's AI-agent capabilities.
+This repository is a development-focused fork of the official
+[`polyend/FxPatchSDK`](https://github.com/polyend/FxPatchSDK) for the
+[Polyend Endless](https://polyend.com/endless/) multi-effects pedal. The official
+SDK is intentionally small: one `Patch` base class, a thin C ABI, and a build
+pipeline that emits `.endl` binaries for drag-and-drop deployment. This fork keeps
+that stock SDK shape, then layers on custom effects, validation scripts, deeper
+notes, and a working knowledge base for future Endless development.
 
-Setup
-----------
+Polyend positions Endless as both a pedal and a platform: you can build effects by
+writing C++ against the SDK, or use the hosted
+[Playground](https://polyend.com/playground/) text-to-effect workflow to generate
+compiled patches. This fork is for the first path: controlled, inspectable, versioned
+development.
 
-Except for your choice of standard tools (editor, IDE, and so on), you only need the [GNU Arm Embedded Toolchain](https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain) for your host. Refer to the toolchain site for installation instructions.
+## Current Repository Status
 
-Develop
-------------
+- `master` is the current branch of record for this fork.
+- `origin/claude/polyend-endless-docs-OJnCb` is an older doc-focused branch whose
+  useful changes are already represented on `master`.
+- The local `source/` tree still matches the stock SDK layout, but this fork adds:
+  - hand-written effects in `effects/`
+  - syntax/lint checks in `tests/`
+  - reverse-engineered notes and build walkthroughs in `docs/`
+  - downloaded Playground example artifacts in `playground/`
 
-The SDK contains an example implementation of a simple bitcrush effect in the [PatchImpl.cpp](source/PatchImpl.cpp) file.
-You need to modify the implementation to create your effect.
+For the audit that produced this rewrite, see
+[`docs/repository-review.md`](docs/repository-review.md).
 
-When implementing your effect, keep in mind:
-* Do not use heap/malloc/dynamic memory allocation. Keep data as members in your Patch implementation, or in the working buffer provided.
-* If you hear artifacts or glitches on output, it's usually caused by one of the following:
-  * Digital clipping of the signal: keep output values in the (-1.0f, 1.0f) range.
-  * processAudio (or any other method of Patch) takes too much time and frames are dropped.
+## Repository Map
 
-Build
-------------
+```text
+source/        public Patch API and the default upstream bitcrusher example
+internal/      C ABI wrapper, image header, linker script, patch entrypoint
+effects/       custom stock-SDK-compatible patches and reference examples
+tests/         host-side syntax and lint validation
+docs/          SDK notes, patch design walkthroughs, branch/repo review
+playground/    compiled Playground examples and supporting artifacts
 ```
+
+## Included Effect Work
+
+This fork currently includes three stock-SDK-compatible custom effects:
+
+- `effects/chorus.cpp`: stereo modulated-delay chorus
+- `effects/mxr_distortion_plus.cpp`: circuit-informed MXR Distortion+ model
+- `effects/wah.cpp`: dual-mode Crybaby/Vox-inspired wah using expression control
+
+There is also one external reference example in `effects/examples/reverb.cpp` that
+compiles against the stock SDK.
+
+## Build and Deploy
+
+Install the GNU Arm Embedded toolchain for your host, then build from the repo root:
+
+```bash
 make TOOLCHAIN=/usr/bin/arm-none-eabi-
 ```
-Or use your preferred tool to build the target binary from the C++ and C files in the `source` and `internal` directories, based on the process in the [Makefile](Makefile).
 
-Deploy to device
-----------
+To build a named output:
 
-The process is the same as with agent-generated binaries. Connect the Endless to your host with a USB cable, then copy the resulting .bin file to the Endless drive.
+```bash
+make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_effect
+```
 
-For more details, refer to the Endless manual.
+The build emits `build/<PATCH_NAME>_<timestamp>.endl`. Deploy by connecting the
+Endless over USB-C and copying the `.endl` file onto the mounted Endless drive.
+
+The default source file at [`source/PatchImpl.cpp`](source/PatchImpl.cpp) is still the
+simple upstream bitcrusher example. To build one of the custom effects in `effects/`,
+copy it into `source/PatchImpl.cpp`, change the include from
+`#include "../source/Patch.h"` to `#include "Patch.h"`, then run `make`.
+
+## Validation
+
+Run the host-side syntax and lint checks before hardware testing:
+
+```bash
+bash tests/check_patches.sh
+```
+
+This confirms that each `effects/*.cpp` file parses cleanly with SDK-like compile
+flags and checks for common mistakes such as heap use, bare double literals, and
+missing `getInstance()` definitions.
+
+## Recommended Reading Order
+
+If you are preparing to add or change code in this fork, start here:
+
+1. [`docs/repository-review.md`](docs/repository-review.md)
+2. [`docs/endless-reference.md`](docs/endless-reference.md)
+3. [`effects/README.md`](effects/README.md)
+4. [`docs/circuit-to-patch-conversion.md`](docs/circuit-to-patch-conversion.md)
+
+Then read the specific walkthroughs for any effect you plan to extend:
+
+- [`docs/mxr-distortion-plus-circuit-analysis.md`](docs/mxr-distortion-plus-circuit-analysis.md)
+- [`docs/wah-build-walkthrough.md`](docs/wah-build-walkthrough.md)
+
+## Official References
+
+- Product page: <https://polyend.com/endless/>
+- Playground: <https://polyend.com/playground/>
+- Downloads/manuals: <https://polyend.com/downloads/endless-downloads/>
+- Official upstream SDK: <https://github.com/polyend/FxPatchSDK>
+- Official forum/community: <https://backstage.polyend.com/>
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License. See [`LICENSE.TXT`](LICENSE.TXT).
