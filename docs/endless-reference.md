@@ -4,7 +4,7 @@ This document is the current technical reference for working in this fork. It co
 verified official product information with repo-local behavior that matters for patch
 development.
 
-For the branch audit and codebase review that informed this document, see
+For the dated branch audit and codebase review that informed this document, see
 [`repository-review.md`](repository-review.md).
 
 ---
@@ -50,14 +50,9 @@ docs/          design notes, walkthroughs, repo review, SDK reference
 playground/    downloaded example artifacts from Polyend Playground creators
 ```
 
-Current branch reality:
-
-- `master` is the branch of record.
-- `origin/claude/polyend-endless-docs-OJnCb` is older and behind `master`.
-- The significant newer work is already on `master`: chorus, MXR Distortion+, wah,
-  test tooling, and the Playground example archive.
-
-The practical consequence is simple: start future development from `master`.
+For current branch and fork-history conclusions, use
+[`repository-review.md`](repository-review.md) as the source of truth. This document is
+the technical reference, not the dated branch-status narrative.
 
 ---
 

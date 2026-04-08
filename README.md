@@ -17,14 +17,10 @@ development.
 
 ## Current Repository Status
 
-- `master` is the current branch of record for this fork.
-- `origin/claude/polyend-endless-docs-OJnCb` is an older doc-focused branch whose
-  useful changes are already represented on `master`.
-- The local `source/` tree still matches the stock SDK layout, but this fork adds:
-  - hand-written effects in `effects/`
-  - syntax/lint checks in `tests/`
-  - reverse-engineered notes and build walkthroughs in `docs/`
-  - downloaded Playground example artifacts in `playground/`
+- `master` is the current baseline for future work in this fork.
+- The local `source/` tree still matches the stock SDK layout.
+- This fork adds hand-written effects in `effects/`, validation in `tests/`,
+  design/reference notes in `docs/`, and compiled Playground artifacts in `playground/`.
 
 For the audit that produced this rewrite, see
 [`docs/repository-review.md`](docs/repository-review.md).

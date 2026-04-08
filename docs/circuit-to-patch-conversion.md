@@ -1,8 +1,8 @@
 # Circuit-to-Patch Conversion: Methodology Guide
 
 This document captures the methodology for converting analog guitar effect circuits into
-Polyend Endless SDK patches. It is written for future LLM sessions and human developers
-who want to replicate or design new effects based on real circuit analysis.
+Polyend Endless SDK patches. It is written for future development sessions and human
+developers who want to replicate or design new effects based on real circuit analysis.
 
 ---
 
@@ -126,7 +126,7 @@ the Cytomic/Andy Simper SVF formulation (more numerically robust but slightly mo
 zero to avoid a transient pop. When sweeping smoothly (expression pedal), do NOT clear —
 the state continuity IS the sweep character.
 
-
+### Amplifier Gain Stage → Scalar Multiply
 
 **Non-inverting configuration:** `gain = 1 + R_feedback / R_input`  
 **Inverting configuration:** `gain = -R_feedback / R_input` (invert sign)
@@ -186,9 +186,9 @@ For reverb, chorus, flanger, echo: use the working buffer provided by the SDK.
 See `source/Patch.h` for `kWorkingBufferSize = 2400000` floats (~9.6 MB).
 
 ```cpp
-void setWorkingBuffer(float* buf, int size) override {
-    delayL_ = buf;          // partition the buffer
-    delayR_ = buf + kLen;
+void setWorkingBuffer(std::span<float, kWorkingBufferSize> buf) override {
+    delayL_ = buf.data();          // partition the buffer
+    delayR_ = buf.data() + kLen;
 }
 ```
 
@@ -247,7 +247,7 @@ the final output does not exceed ±1.0.
 | Single-precision only | All literals must have `f` suffix. `-fsingle-precision-constant` makes bare `3.14` = float, but `-Wdouble-promotion` will warn. |
 | No exceptions / RTTI | `-fno-exceptions -fno-rtti`. Avoid `try/catch`, `dynamic_cast`, `typeid`. |
 | Working buffer | 2,400,000 floats (~9.6 MB). Partition in `setWorkingBuffer()`. Pointer is valid until next call. |
-| Sample rate | `endless::kSampleRate = 48000`. Do not hardcode 48000; use the constant. |
+| Sample rate | `Patch::kSampleRate = 48000`. Do not hardcode 48000; use the constant. |
 | Include path | When in `effects/`: `#include "../source/Patch.h"`. When in `source/PatchImpl.cpp`: `#include "Patch.h"`. |
 | No MIDI | The Endless has no MIDI. All modulation comes from knobs, footswitches, or expression pedal. |
 | CPU budget | ARM Cortex-M7 @ 720 MHz. Per sample budget at 48 kHz is ~15,000 cycles. `tanhf` costs ~40–80 cycles. A stereo 5-stage chain is fine. |
@@ -274,14 +274,13 @@ Filter coefficients (alpha values), gain multipliers, and other parameters deriv
 positions change at human speed. Recompute them once per audio buffer:
 
 ```cpp
-void processAudio(const float* inL, const float* inR,
-                  float* outL, float* outR, int numSamples) override
+void processAudio(std::span<float> left, std::span<float> right) override
 {
     // Recompute from current knob values — once per buffer
     float alpha_lp = computeAlphaLP(tone_);
     float gain     = computeGain(dist_);
 
-    for (int i = 0; i < numSamples; ++i) {
+    for (size_t i = 0; i < left.size(); ++i) {
         // Use precomputed alpha_lp and gain here
     }
 }

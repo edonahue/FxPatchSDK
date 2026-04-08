@@ -68,6 +68,7 @@ Flags: -std=c++20 -fno-exceptions ...
 
 PASS: effects/chorus.cpp
 PASS: effects/mxr_distortion_plus.cpp
+PASS: effects/wah.cpp
 
 === Lint Checks ===
 OK: No heap allocation detected
@@ -76,7 +77,7 @@ OK: No hardcoded sample rate
 OK: All patches define getInstance()
 
 === Summary ===
-Compile: 2 passed, 0 failed
+Compile: 3 passed, 0 failed
 Lint warnings: 0
 
 All patches passed syntax check.

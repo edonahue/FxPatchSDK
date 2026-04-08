@@ -170,8 +170,7 @@ but filter coefficient updates at 48 Hz (once per 1000-sample buffer) rather tha
 costs nothing audible.
 
 ```cpp
-void processAudio(const float* inL, const float* inR,
-                  float* outL, float* outR, int numSamples) override
+void processAudio(std::span<float> left, std::span<float> right) override
 {
     // Compute coefficients once per buffer
     float Ri     = 4700.0f + (1.0f - dist_) * 1e6f;
@@ -184,7 +183,7 @@ void processAudio(const float* inL, const float* inR,
     float alpha_lp = omega_lp / (1.0f + omega_lp);
 
     // Then process each sample using these constants
-    for (int i = 0; i < numSamples; ++i) { ... }
+    for (size_t i = 0; i < left.size(); ++i) { ... }
 }
 ```
 
@@ -248,10 +247,9 @@ the silicon diodes stay below their threshold, producing cleaner amplification t
 At high gain the MXR D+ produces a warmer, more compressed saturation; the DOD 250 produces
 a brighter, slightly rawer tone.
 
-No existing Polyend Endless SDK fork implements either pedal — `effects/mxr_distortion_plus.cpp`
-in this repository is the first known Endless implementation of this circuit family.
-A DOD 250 variant could be implemented by changing the clipping stage and adjusting the `k`
-factor as shown above.
+This repository includes one stock-SDK-compatible implementation of this circuit family in
+`effects/mxr_distortion_plus.cpp`. A DOD 250 variant could be implemented by changing the
+clipping stage and adjusting the `k` factor as shown above.
 
 ---
 

@@ -118,7 +118,7 @@ per-patch configurable in the current SDK version.
 This means **param 2 IS the wah sweep position**, and the Right knob acts as a "parked wah"
 control when no expression pedal is connected.
 
-**The Sweep Range problem:** The original interview question asked for Mix, Q, and a third
+**The Sweep Range problem:** The original design brief asked for Mix, Q, and a third
 creative knob (Sweep Range was selected). However, with Right/param 2 dedicated to the sweep
 position, there is no knob left for a continuous Sweep Range control.
 
@@ -135,8 +135,8 @@ with the footswitch hold rather than adjusting a knob mid-phrase. The final knob
 | Mid | 1 | Q resonance | 0→Q=1.0, 1→Q=10.0 | 0.444 (→ Q≈5) |
 | Right / Exp | 2 | Wah position | 0=heel/350Hz, 1=toe/fc_max | 0.5 (mid/"cocked wah") |
 
-**Future improvement:** Implementing a virtual `isParamEnabled()` method on `Patch.h` (see
-`docs/endless-reference.md §3a`) would allow this patch to declare the expression pedal on a
+**Future improvement:** Implementing a virtual `isParamEnabled()` method on `Patch.h` would
+allow this patch to declare the expression pedal on a
 non-Right knob, freeing param 2 for Sweep Range. Not available in the stock SDK.
 
 ---
@@ -279,8 +279,8 @@ bash tests/check_patches.sh
 1. **Auto-wah LFO:** When no expression pedal is connected, an LFO could sweep `wahPos_`
    automatically. A Rate knob could replace the fixed-position parked wah behavior.
 
-2. **Per-patch expression pedal routing:** Implement virtual `isParamEnabled()` on `Patch.h`
-   (see `docs/endless-reference.md §3a`). This would allow assigning the expression pedal to
+2. **Per-patch expression pedal routing:** Implement virtual `isParamEnabled()` on `Patch.h`.
+   This would allow assigning the expression pedal to
    a different param, freeing param 2 (Right knob) for a Sweep Range control.
 
 3. **Envelope follower (auto-wah):** Use the input signal amplitude to drive `wahPos_`
@@ -295,6 +295,6 @@ bash tests/check_patches.sh
 
 - `effects/wah.cpp` — the patch implementation
 - `docs/circuit-to-patch-conversion.md` — SVF primitive documentation, general methodology
-- `docs/endless-reference.md` — full SDK reference, expression pedal routing (§3a)
+- `docs/endless-reference.md` — full SDK reference, including current expression pedal routing
 - `internal/PatchCppWrapper.cpp` — expression pedal hardcoded to param 2
 - `docs/templates/patch-build-walkthrough.md` — blank template for future patches
