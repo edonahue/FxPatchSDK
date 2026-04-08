@@ -113,15 +113,17 @@ literal stock Sonic Stomp recreation.
 ## Expression Pedal Implications in This Repo
 
 The current SDK wrapper in this repository routes the expression pedal to `param 2`.
-For a strict 3-knob layout, that creates an unavoidable conflict:
+For this patch, that means expression support already exists today:
 
-- if `param 2` is `Midrange`, the expression pedal will control `Midrange`
-- if expression should control a separate overall intensity parameter, that requires more
-  than the current stock fork API allows
+- `param 2` is `Midrange`
+- expression therefore controls `Midrange`
+- the physical Right knob is ignored while the pedal is connected
 
-For this patch family, the most sensible future expression target is still **overall
-enhancer intensity / mix**, but that is a follow-up SDK capability problem, not a reason to
-drop the 3-knob layout in v1.
+This is a reasonable v1 fit because `Midrange` is a musically useful live-performance target.
+It also preserves the 3-knob Lumin-style layout with no SDK changes.
+
+For this patch family, a future alternative could still be **overall enhancer intensity / mix**,
+but that would require a follow-up SDK capability change rather than a patch-only edit.
 
 ## Mimiq-Style Doubler Stretch Goal
 
@@ -150,5 +152,5 @@ The strongest evidence-based design direction is:
 - apply band-specific timing/phase-style correction rather than static EQ only
 - tune the split points for electric guitar, not full-range mastering use
 - expose `Contour`, `Process`, and `Midrange`
-- treat expression as a future SDK enhancement problem
+- use the current repo-global expression routing to make the pedal control `Midrange`
 - keep any doubler mode optional, subtle, and post-enhancer

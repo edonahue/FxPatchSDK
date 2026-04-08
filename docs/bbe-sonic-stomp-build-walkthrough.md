@@ -17,8 +17,8 @@ split, applies band-specific timing corrections, and adds those corrections back
 dry path. The result is meant to feel tighter and clearer rather than obviously filtered.
 
 The core patch uses a Lumin-style 3-knob layout: `Contour`, `Process`, and `Midrange`.
-Because the current repo routes expression to the Right knob globally, expression currently
-controls `Midrange` if plugged in. A subtle stereo doubler is available on footswitch hold
+Because the current repo routes expression to the Right knob globally, expression explicitly
+controls `Midrange` when plugged in. A subtle stereo doubler is available on footswitch hold
 as a stretch goal, but it stays off by default.
 
 ---
@@ -120,10 +120,10 @@ The core design prioritizes the Lumin-style 3-knob layout over expression suppor
 | Right / Exp | 2 | Midrange | bandpass correction amount | 0.5 |
 
 **Constraint:** this repo currently routes expression to `param 2` globally. That means
-expression drives `Midrange`, not an independent overall intensity control.
+expression intentionally drives `Midrange`, not an independent overall intensity control.
 
-**Reasoning:** keeping `Contour + Process + Midrange` is more important for the core patch
-than compromising the layout to support expression in v1.
+**Reasoning:** `Midrange` is a musically useful live target, and this preserves the
+`Contour + Process + Midrange` layout with no SDK changes.
 
 ---
 
@@ -266,6 +266,9 @@ bash tests/check_patches.sh
 - [ ] `Contour` increases low-end firmness/body without flub
 - [ ] `Process` increases clarity/presence without harsh fizz
 - [ ] `Midrange` moves from leaner to fuller guitar body in a useful range
+- [ ] With expression connected, heel-down gives less mid correction and toe-down gives more
+- [ ] With expression connected, `Contour` and `Process` still respond normally on the knobs
+- [ ] With expression connected, the physical Right knob is ignored as expected
 - [ ] Extreme settings do not clip or behave erratically
 - [ ] Bypass engages/disengages cleanly
 - [ ] Hold toggles doubler mode cleanly
@@ -275,7 +278,7 @@ bash tests/check_patches.sh
 
 ## Future Improvements
 
-1. Add per-patch expression routing support so expression can target overall enhancer
+1. Add per-patch expression routing support if expression should later target overall enhancer
    intensity instead of inheriting the global `param 2` mapping.
 2. Add crossover/voicing modes to expose stock-vs-guitar frequency options from the public
    clone ecosystem.

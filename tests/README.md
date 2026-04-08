@@ -121,6 +121,10 @@ fi
 2. **No audio testing:** The script does not run the patch with real audio. Functional
    correctness must still be validated by ear on hardware.
 
+   For `effects/bbe_sonic_stomp.cpp`, hardware validation should explicitly include the
+   expression pedal because this repo routes expression to `param 2` and the patch uses
+   `param 2` as `Midrange`.
+
 3. **Double-literal detection is heuristic:** The grep pattern for double literals may
    produce false positives in comments or string literals. Review warnings manually.
 

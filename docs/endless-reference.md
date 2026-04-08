@@ -169,6 +169,7 @@ does not replace a real ARM build or hardware listening pass.
 
 - guitar-oriented enhancer inspired by the BBE Sonic Stomp / Aion Lumin family
 - uses a dry path plus low/mid/high correction deltas rather than static EQ only
+- expression controls `Midrange` via the repo-global param-2 routing
 - includes an optional long-press stereo doubler mode as a stretch feature
 
 ### `effects/chorus.cpp`

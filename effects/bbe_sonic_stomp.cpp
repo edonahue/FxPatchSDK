@@ -14,7 +14,12 @@
 // Controls:
 //   Left knob  — Contour   (low-band correction amount)
 //   Mid knob   — Process   (high-band correction amount)
-//   Right knob — Midrange  (bandpass correction amount; also expression pedal in this repo)
+//   Right knob — Midrange  (bandpass correction amount)
+//
+// Expression pedal:
+//   In this fork, expression is globally routed to param 2, so this patch treats the pedal
+//   as a Midrange controller. Heel down = less mid correction, toe down = more mid correction.
+//   When expression is connected, the physical Right knob is ignored by the firmware.
 //
 // Footswitch:
 //   Press — bypass toggle
@@ -199,7 +204,7 @@ class SonicStompEnhancer final : public Patch
         {
         case 0: return {0.0f, 1.0f, 0.45f}; // Contour
         case 1: return {0.0f, 1.0f, 0.45f}; // Process
-        case 2: return {0.0f, 1.0f, 0.5f};  // Midrange / current repo expression target
+        case 2: return {0.0f, 1.0f, 0.5f};  // Midrange (also expression in this fork)
         default: return {0.0f, 1.0f, 0.5f};
         }
     }
@@ -210,7 +215,7 @@ class SonicStompEnhancer final : public Patch
         {
         case 0: contour_ = value; break;
         case 1: process_ = value; break;
-        case 2: mid_     = value; break;
+        case 2: mid_     = value; break;    // Right knob or expression pedal
         default: break;
         }
     }
