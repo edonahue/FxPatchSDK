@@ -67,6 +67,7 @@ Compiler: g++ (Ubuntu 12.3.0-1ubuntu1~22.04) 12.3.0
 Flags: -std=c++20 -fno-exceptions ...
 
 PASS: effects/chorus.cpp
+PASS: effects/bbe_sonic_stomp.cpp
 PASS: effects/mxr_distortion_plus.cpp
 PASS: effects/wah.cpp
 
@@ -77,7 +78,7 @@ OK: No hardcoded sample rate
 OK: All patches define getInstance()
 
 === Summary ===
-Compile: 3 passed, 0 failed
+Compile: 4 passed, 0 failed
 Lint warnings: 0
 
 All patches passed syntax check.

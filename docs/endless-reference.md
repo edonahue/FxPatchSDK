@@ -165,6 +165,12 @@ does not replace a real ARM build or hardware listening pass.
 
 ## 6. Included Patch Inventory
 
+### `effects/bbe_sonic_stomp.cpp`
+
+- guitar-oriented enhancer inspired by the BBE Sonic Stomp / Aion Lumin family
+- uses a dry path plus low/mid/high correction deltas rather than static EQ only
+- includes an optional long-press stereo doubler mode as a stretch feature
+
 ### `effects/chorus.cpp`
 
 - stock-SDK-compatible stereo chorus
@@ -190,6 +196,8 @@ does not replace a real ARM build or hardware listening pass.
 
 Related design notes:
 
+- [`bbe-sonic-stomp-research.md`](bbe-sonic-stomp-research.md)
+- [`bbe-sonic-stomp-build-walkthrough.md`](bbe-sonic-stomp-build-walkthrough.md)
 - [`circuit-to-patch-conversion.md`](circuit-to-patch-conversion.md)
 - [`mxr-distortion-plus-circuit-analysis.md`](mxr-distortion-plus-circuit-analysis.md)
 - [`wah-build-walkthrough.md`](wah-build-walkthrough.md)

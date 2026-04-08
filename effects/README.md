@@ -6,6 +6,7 @@ explicitly marked otherwise.
 
 Current inventory:
 
+- `bbe_sonic_stomp.cpp`: guitar-oriented sonic enhancer inspired by BBE Sonic Stomp / Aion Lumin
 - `chorus.cpp`: stereo chorus with modulated delay lines
 - `mxr_distortion_plus.cpp`: circuit-informed distortion patch
 - `wah.cpp`: dual-mode wah with expression-driven sweep
@@ -132,6 +133,10 @@ See [`docs/endless-reference.md`](../docs/endless-reference.md) for the full SDK
 
 These are the best files to read before editing or adding a patch:
 
+- [`docs/bbe-sonic-stomp-build-walkthrough.md`](../docs/bbe-sonic-stomp-build-walkthrough.md) —
+  design log for `bbe_sonic_stomp.cpp`
+- [`docs/bbe-sonic-stomp-research.md`](../docs/bbe-sonic-stomp-research.md) —
+  public circuit and clone research summary for the Sonic Stomp / Lumin family
 - [`docs/wah-build-walkthrough.md`](../docs/wah-build-walkthrough.md) —
   complete design log for `wah.cpp`
 - [`docs/mxr-distortion-plus-circuit-analysis.md`](../docs/mxr-distortion-plus-circuit-analysis.md) —

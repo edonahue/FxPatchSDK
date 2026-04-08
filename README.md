@@ -38,8 +38,9 @@ playground/    compiled Playground examples and supporting artifacts
 
 ## Included Effect Work
 
-This fork currently includes three stock-SDK-compatible custom effects:
+This fork currently includes four stock-SDK-compatible custom effects:
 
+- `effects/bbe_sonic_stomp.cpp`: guitar-oriented sonic enhancer inspired by BBE Sonic Stomp / Aion Lumin
 - `effects/chorus.cpp`: stereo modulated-delay chorus
 - `effects/mxr_distortion_plus.cpp`: circuit-informed MXR Distortion+ model
 - `effects/wah.cpp`: dual-mode Crybaby/Vox-inspired wah using expression control
@@ -92,6 +93,8 @@ If you are preparing to add or change code in this fork, start here:
 
 Then read the specific walkthroughs for any effect you plan to extend:
 
+- [`docs/bbe-sonic-stomp-research.md`](docs/bbe-sonic-stomp-research.md)
+- [`docs/bbe-sonic-stomp-build-walkthrough.md`](docs/bbe-sonic-stomp-build-walkthrough.md)
 - [`docs/mxr-distortion-plus-circuit-analysis.md`](docs/mxr-distortion-plus-circuit-analysis.md)
 - [`docs/wah-build-walkthrough.md`](docs/wah-build-walkthrough.md)
 
