@@ -208,10 +208,48 @@ The Endless has three knobs (Left, Mid, Right) and one expression pedal.
    to make the knob feel even across its travel.
 4. Reserve Right knob (param 2) for level or mix if you want expression pedal control.
 
+### Control-Law Review Checklist
+
+Treat knob mapping and knob taper as separate decisions.
+
+A control can be "correct" in circuit terms and still feel wrong on Endless. The MXR
+Distortion+ patch is the clearest example in this repo: the original analog gain law
+stacked most of the audible change near the end of the knob travel, which felt like a
+dead zone on hardware. When reviewing or designing a patch, answer these four questions
+for every parameter:
+
+1. **Audible sweep:** does the control do useful work across most of the knob travel?
+2. **Taper choice:** should it be linear, logarithmic, exponential/power-law, or bounded?
+3. **Default value:** does the default land on a musically usable sound, not just the numeric midpoint?
+4. **Expression interaction:** if this is param `2`, does the same mapping still make sense from heel to toe?
+
+Use the simplest mapping that matches the job:
+
+- **Linear:** best for blend, mix, and narrow-range offsets
+- **Log taper:** best for frequency, rate, and very wide ratio-based ranges
+- **Power-law / eased curve:** useful when a linear knob feels front-loaded or back-loaded
+- **Bounded / compensated mapping:** useful when one control changes both tone and loudness
+
+### Current Patch Examples
+
+- `chorus.cpp`: good example of a log taper for rate and linear mappings for depth and mix
+- `wah.cpp`: good example of a log frequency sweep because the ear hears pitch movement geometrically
+- `bbe_sonic_stomp.cpp`: uses bounded blend and delay-offset mappings rather than analog-pot emulation
+- `mxr_distortion_plus.cpp`: main cautionary example; raw analog pot math was less usable than an Endless-tuned curve
+- `big_muff.cpp`: shows how to adapt a classic `Volume` control into expression-friendly `Blend` while keeping the tone stack musical
+- `tube_screamer.cpp`: shows when preserving the original `Drive` / `Level` / `Tone` control story matters more than remapping param `2`
+
 **Log taper example:**
 ```cpp
 // Rate knob: 0.1 Hz at 0.0, 5 Hz at 1.0
 float hz = 0.1f * powf(50.0f, rate_);
+```
+
+**Power-law / eased example:**
+```cpp
+// Distortion control: more audible change earlier in the sweep
+float driveCurve = std::pow(dist_, 0.75f);
+float gain = 1.5f + 16.0f * driveCurve;
 ```
 
 **Frequency range mapping:**
@@ -219,6 +257,49 @@ float hz = 0.1f * powf(50.0f, rate_);
 // Tone knob: 3 kHz at 0.0, 20 kHz at 1.0
 float fc = 3000.0f + tone_ * 17000.0f;
 ```
+
+**Level with output compensation:**
+```cpp
+// Keep a level control useful even when another parameter increases loudness
+float levelCurve = level_ * (0.5f + 0.5f * level_);
+float outputTrim = 1.15f - 0.45f * driveCurve;
+float out = shaped * levelCurve * outputTrim;
+```
+
+### Passive Tone Stacks and Blend Compensation
+
+Classic pedals such as the Big Muff use passive tone stacks that lose level while shaping the
+response. That matters twice on Endless:
+
+1. the tone control can sound "dead" if the shaped branches are not compensated enough
+2. if param `2` becomes `Blend` for expression, the wet path cannot jump in level when the pedal
+   goes toe-down
+
+Design guidance:
+
+- if a tone control is implemented as an LP/HP blend, check the midpoint carefully because that is
+  usually where the strongest notch or scoop appears
+- if a passive-style tone stage loses level, add makeup gain after the tone section, not only
+  before it
+- when replacing a literal analog `Volume` knob with `Blend`, prefer equal-power or compensated
+  dry/wet mixing over a plain linear crossfade
+- if an alternate mode bypasses the classic tone stack, keep the middle knob musically relevant
+  unless you have a stronger reason to disable it
+
+### Active Overdrive Tone and Expression
+
+Some classic overdrives, especially the Tube Screamer family, already fit the Endless control
+surface well. In those cases, forcing param `2` to become mix or output level can be the wrong
+move if it breaks the original pedal story.
+
+Design guidance:
+
+- preserve `Drive` / `Tone` / `Level` when that control set is central to the pedal identity
+- if expression must live on `Tone`, keep the sweep bounded enough for heel-to-toe use on guitar
+- when drive and clipping density increase loudness, compensate the output stage so the dedicated
+  `Level` knob remains useful
+- if you add a family-relative alternate mode, keep the same control layout and make the voicing
+  shift obvious but not so large that the patch becomes a different effect
 
 ---
 

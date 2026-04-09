@@ -150,11 +150,11 @@ Implications:
 There is a documented future path to a per-patch `isParamEnabled()` API, but it is not
 implemented in this branch.
 
-### `source/PatchImpl.cpp` is still upstream-style
+### `source/PatchImpl.cpp` is the active build target
 
-The default file in `source/` is a simple bitcrusher example. It is useful as a minimal
-API reference, but it is not the most interesting patch work in this fork. For real
-development patterns, read files in `effects/`.
+In this fork, `source/PatchImpl.cpp` may temporarily mirror whichever custom effect is
+currently being built or tested. Treat `effects/` as the source-of-truth patch library,
+and treat `source/PatchImpl.cpp` as the active deployment target.
 
 ### The host-side test script is only a preflight
 
@@ -165,12 +165,26 @@ does not replace a real ARM build or hardware listening pass.
 
 ## 6. Included Patch Inventory
 
+### `effects/back_talk_reverse_delay.cpp`
+
+- Back Talk-inspired reverse delay with chunk-based reverse playback
+- uses the working buffer for stereo reverse capture and playback
+- expression controls `Mix` via the repo-global param-2 routing
+- demonstrates delay-buffer state management, feedback damping, and a hold-toggle texture mode
+
 ### `effects/bbe_sonic_stomp.cpp`
 
 - guitar-oriented enhancer inspired by the BBE Sonic Stomp / Aion Lumin family
 - uses a dry path plus low/mid/high correction deltas rather than static EQ only
 - expression controls `Midrange` via the repo-global param-2 routing
 - includes an optional long-press stereo doubler mode as a stretch feature
+
+### `effects/big_muff.cpp`
+
+- Ram's Head-inspired Big Muff fuzz with cascaded clipping and a Muff-style LP/HP tone blend
+- uses expression on `Blend` instead of a literal output-volume control
+- long-press toggles a Tone Bypass-inspired mids-lift alternate voice
+- main case study for adapting a classic 3-knob pedal when param `2` must stay performance-friendly
 
 ### `effects/chorus.cpp`
 
@@ -180,9 +194,39 @@ does not replace a real ARM build or hardware listening pass.
 
 ### `effects/mxr_distortion_plus.cpp`
 
-- circuit-informed distortion model
+- MXR Distortion+ inspired distortion model, retuned for Endless usability
 - maps a simple analog topology into HP -> gain -> `tanhf` -> LP -> level
+- expression controls `Level` via the repo-global param-2 routing
 - good example of coefficient precomputation outside the sample loop
+
+### `effects/tube_screamer.cpp`
+
+- TS808-inspired overdrive with a TS9 alternate voice on footswitch hold
+- preserves the classic `Drive` / `Level` / `Tone` control story instead of replacing the third knob
+- expression controls `Tone` via the repo-global param-2 routing
+- main case study for bounded tone sweeps and family-relative overdrive voicing
+
+## 6.1 Control-Law Review Notes
+
+This fork now treats knob taper review as part of patch design, not just polish.
+
+- `mxr_distortion_plus.cpp`: primary control-law case study; the raw analog pot law was less usable than an Endless-tuned curve
+- `big_muff.cpp`: main case study for passive tone-stack behavior, output compensation, and expression-as-blend
+- `tube_screamer.cpp`: main case study for preserving a classic control layout while making expression-on-tone musical
+- `back_talk_reverse_delay.cpp`: log-style time mapping, bounded repetitions, and equal-power expression-as-mix
+- `chorus.cpp`: current mapping looks healthy; log taper for `Rate`, linear `Depth` and `Mix`
+- `wah.cpp`: current mapping looks healthy; log frequency sweep is the right model for wah motion
+- `bbe_sonic_stomp.cpp`: current mapping is intentionally bounded and blend-oriented rather than analog-pot faithful
+
+Current watch-items for future hardware listening:
+
+- confirm `back_talk_reverse_delay.cpp` chunk edges stay click-free across extreme speed settings
+- confirm `back_talk_reverse_delay.cpp` repetitions approach runaway gradually rather than abruptly
+- confirm `big_muff.cpp` sustain rises musically across most of the sweep and the alternate mode is clearly more mid-forward than the core Ram's Head voice
+- confirm `tube_screamer.cpp` tone remains useful heel-to-toe under expression and the TS808/TS9 hold-toggle reads as a close family shift rather than a different pedal
+- confirm `chorus.cpp` depth is still useful near both extremes
+- confirm `wah.cpp` Q remains musical across the full sweep
+- confirm each `bbe_sonic_stomp.cpp` knob produces a distinct audible shift without bunching near the ends
 
 ### `effects/wah.cpp`
 
@@ -197,10 +241,15 @@ does not replace a real ARM build or hardware listening pass.
 
 Related design notes:
 
+- [`back-talk-reverse-delay-build-walkthrough.md`](back-talk-reverse-delay-build-walkthrough.md)
 - [`bbe-sonic-stomp-research.md`](bbe-sonic-stomp-research.md)
 - [`bbe-sonic-stomp-build-walkthrough.md`](bbe-sonic-stomp-build-walkthrough.md)
+- [`big-muff-research.md`](big-muff-research.md)
+- [`big-muff-build-walkthrough.md`](big-muff-build-walkthrough.md)
 - [`circuit-to-patch-conversion.md`](circuit-to-patch-conversion.md)
 - [`mxr-distortion-plus-circuit-analysis.md`](mxr-distortion-plus-circuit-analysis.md)
+- [`tube-screamer-research.md`](tube-screamer-research.md)
+- [`tube-screamer-build-walkthrough.md`](tube-screamer-build-walkthrough.md)
 - [`wah-build-walkthrough.md`](wah-build-walkthrough.md)
 
 ---

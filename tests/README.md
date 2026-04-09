@@ -31,9 +31,9 @@ options that are not available on the host machine. This catches:
 For a real SDK build, use the ARM cross-compiler and the repo Makefile:
 
 ```bash
-cp effects/mxr_distortion_plus.cpp source/PatchImpl.cpp
+cp effects/tube_screamer.cpp source/PatchImpl.cpp
 # Edit include to "Patch.h" (not "../source/Patch.h")
-make TOOLCHAIN=/path/to/arm-none-eabi-
+make TOOLCHAIN=/path/to/arm-none-eabi- PATCH_NAME=tube_screamer
 ```
 
 ### 2. Lint Checks
@@ -68,7 +68,10 @@ Flags: -std=c++20 -fno-exceptions ...
 
 PASS: effects/chorus.cpp
 PASS: effects/bbe_sonic_stomp.cpp
+PASS: effects/back_talk_reverse_delay.cpp
+PASS: effects/big_muff.cpp
 PASS: effects/mxr_distortion_plus.cpp
+PASS: effects/tube_screamer.cpp
 PASS: effects/wah.cpp
 
 === Lint Checks ===
@@ -78,7 +81,7 @@ OK: No hardcoded sample rate
 OK: All patches define getInstance()
 
 === Summary ===
-Compile: 4 passed, 0 failed
+Compile: 7 passed, 0 failed
 Lint warnings: 0
 
 All patches passed syntax check.
@@ -124,6 +127,25 @@ fi
    For `effects/bbe_sonic_stomp.cpp`, hardware validation should explicitly include the
    expression pedal because this repo routes expression to `param 2` and the patch uses
    `param 2` as `Midrange`.
+
+   For `effects/mxr_distortion_plus.cpp`, hardware validation should explicitly check the
+   full Distortion sweep, the audibility of the Tone control, and expression-driven `Level`
+   because those are the main Endless-specific control-law adaptations in that patch.
+
+   For `effects/back_talk_reverse_delay.cpp`, hardware validation should explicitly check
+   chunk-edge smoothness at extreme `Speed` settings, the climb of `Repetitions` into
+   near-runaway behavior, the feel of expression-driven `Mix`, and the contrast between
+   normal and texture modes.
+
+   For `effects/big_muff.cpp`, hardware validation should explicitly check the full
+   `Sustain` sweep, the midpoint and extremes of the Muff-style `Tone` control, the
+   loudness behavior of expression-driven `Blend`, and the contrast between the core
+   Ram's Head voice and the hold-toggle Tone Bypass alternate mode.
+
+   For `effects/tube_screamer.cpp`, hardware validation should explicitly check the full
+   `Drive` sweep, the usable range of `Level` at higher drive settings, the feel of
+   expression-driven `Tone`, and the contrast between the TS808 default voice and the
+   hold-toggle TS9 alternate voice.
 
 3. **Double-literal detection is heuristic:** The grep pattern for double literals may
    produce false positives in comments or string literals. Review warnings manually.

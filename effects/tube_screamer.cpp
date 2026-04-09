@@ -1,4 +1,21 @@
-#include "Patch.h"
+// Tube Screamer-inspired overdrive for Polyend Endless
+//
+// Primary voice:
+//   TS808-inspired mid-hump overdrive with frequency-selective clipping,
+//   controlled bass before clipping, and a musical post-clip tone sweep.
+//
+// Alternate voice:
+//   Hold toggles a TS9-style variant with a slightly brighter, tighter, more
+//   forward upper-mid response while preserving the same control layout.
+//
+// Controls:
+//   Left  knob  — Drive
+//   Mid   knob  — Level
+//   Right knob  — Tone (also expression pedal in this fork)
+//   Footswitch  — Press: bypass, Hold: TS808 / TS9 toggle
+//   LED         — LightGreen/DimGreen TS808, PastelGreen/DarkLime TS9
+
+#include "../source/Patch.h"
 
 #include <cmath>
 
@@ -56,10 +73,30 @@ struct VoiceParams
 VoiceParams getVoiceParams(bool ts9)
 {
     if (ts9) {
-        return {155.0f, 760.0f, 0.78f, 2.85f, 3.35f, 1500.0f, 6100.0f, 1.18f, 0.84f};
+        return {
+            155.0f, // preHpHz
+            760.0f, // splitHz
+            0.78f,  // lowBlend
+            2.85f,  // edgeDrive
+            3.35f,  // clipGain
+            1500.0f,// toneBaseHz
+            6100.0f,// toneRangeHz
+            1.18f,  // brightMix
+            0.84f   // outputTrim
+        };
     }
 
-    return {135.0f, 720.0f, 0.86f, 2.55f, 3.00f, 1250.0f, 5200.0f, 1.05f, 0.80f};
+    return {
+        135.0f, // preHpHz
+        720.0f, // splitHz
+        0.86f,  // lowBlend
+        2.55f,  // edgeDrive
+        3.00f,  // clipGain
+        1250.0f,// toneBaseHz
+        5200.0f,// toneRangeHz
+        1.05f,  // brightMix
+        0.80f   // outputTrim
+    };
 }
 }
 
@@ -79,6 +116,7 @@ public:
 
     void setWorkingBuffer(std::span<float, kWorkingBufferSize> /* buf */) override
     {
+        // No external buffer required.
     }
 
     void processAudio(std::span<float> left, std::span<float> right) override
@@ -97,9 +135,9 @@ public:
 
         const VoiceParams voice = getVoiceParams(ts9Mode_);
 
-        const float preHpAlpha = hpCoeff(voice.preHpHz + 40.0f * driveCurve);
-        const float splitAlpha = lpCoeff(voice.splitHz);
-        const float toneAlpha  = lpCoeff(voice.toneBaseHz + voice.toneRangeHz * toneCurve);
+        const float preHpAlpha  = hpCoeff(voice.preHpHz + 40.0f * driveCurve);
+        const float splitAlpha  = lpCoeff(voice.splitHz);
+        const float toneAlpha   = lpCoeff(voice.toneBaseHz + voice.toneRangeHz * toneCurve);
 
         const float baseDrive = 1.10f + 1.85f * driveCurve;
         const float edgeDrive = 1.25f + voice.edgeDrive * driveCurve;
@@ -125,9 +163,9 @@ public:
     ParameterMetadata getParameterMetadata(int idx) override
     {
         switch (idx) {
-            case 0: return {0.0f, 1.0f, 0.38f};
-            case 1: return {0.0f, 1.0f, 0.62f};
-            case 2: return {0.0f, 1.0f, 0.48f};
+            case 0: return {0.0f, 1.0f, 0.38f}; // Drive
+            case 1: return {0.0f, 1.0f, 0.62f}; // Level
+            case 2: return {0.0f, 1.0f, 0.48f}; // Tone / expression
             default: return {0.0f, 1.0f, 0.5f};
         }
     }
@@ -190,9 +228,12 @@ private:
         const float body = splitLp_[channel];
         const float edge = conditioned - body;
 
-        const float clipInput = body * (lowBlend * baseDrive) + edge * edgeDrive;
+        const float clipInput =
+          body * (lowBlend * baseDrive) + edge * edgeDrive;
         const float clipped = tanhf(clipInput * clipGain);
 
+        // Add a little of the pre-clipped body back to keep the low-mid push and avoid
+        // the patch collapsing into a generic high-gain bright distortion.
         const float overdriveCore = clampUnit(clipped * 0.90f + body * 0.18f);
 
         toneLp_[channel] += toneAlpha * (overdriveCore - toneLp_[channel]);

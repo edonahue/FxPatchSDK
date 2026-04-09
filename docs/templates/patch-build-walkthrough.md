@@ -12,6 +12,8 @@ BEFORE STARTING — checklist:
 [ ] Map the circuit blocks to DSP primitives (see docs/circuit-to-patch-conversion.md)
 [ ] Count required state variables — do you need the working buffer, or are scalars enough?
 [ ] Assign parameters: remember expression pedal = param 2 (Right knob) in this repo
+[ ] Decide each parameter's taper: linear, log, power-law, or bounded/compensated
+[ ] Choose defaults that land on a usable sound, not just 0.5 by habit
 [ ] Choose LED color scheme — verify enum values in source/Patch.h before coding
 [ ] Run bash tests/check_patches.sh after writing the patch
 -->
@@ -103,6 +105,11 @@ BEFORE STARTING — checklist:
 
 <!-- Are any parameters on a log taper (frequency, gain)?
      Any unusual ranges?
+     For each parameter, note:
+     - why the taper is linear/log/power-law/bounded
+     - whether the control does useful work across most of the knob travel
+     - whether the default is a musical setting rather than a numeric midpoint
+     - whether param 2 still makes sense when used by the expression pedal
      Document the formula used. -->
 
 ---
@@ -164,6 +171,7 @@ bash tests/check_patches.sh
 ```
 
 **Manual listening checklist:**
+- [ ] Each knob does useful audible work across most of its travel
 - [ ] [Describe what to listen for at parameter extreme A]
 - [ ] [Describe what to listen for at parameter extreme B]
 - [ ] Bypass engages and disengages cleanly (no pop)

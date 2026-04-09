@@ -38,11 +38,14 @@ playground/    compiled Playground examples and supporting artifacts
 
 ## Included Effect Work
 
-This fork currently includes four stock-SDK-compatible custom effects:
+This fork currently includes seven stock-SDK-compatible custom effects:
 
+- `effects/back_talk_reverse_delay.cpp`: Back Talk-inspired reverse delay with a texture mode and expression-as-mix
 - `effects/bbe_sonic_stomp.cpp`: guitar-oriented sonic enhancer inspired by BBE Sonic Stomp / Aion Lumin
+- `effects/big_muff.cpp`: Ram's Head-inspired Big Muff fuzz with a Tone Bypass alternate voice and expression-as-blend
 - `effects/chorus.cpp`: stereo modulated-delay chorus
-- `effects/mxr_distortion_plus.cpp`: circuit-informed MXR Distortion+ model
+- `effects/mxr_distortion_plus.cpp`: MXR Distortion+ inspired distortion, retuned for smoother Endless control
+- `effects/tube_screamer.cpp`: TS808-inspired overdrive with a TS9 alternate voice and expression-as-tone
 - `effects/wah.cpp`: dual-mode Crybaby/Vox-inspired wah using expression control
 
 There is also one external reference example in `effects/examples/reverb.cpp` that
@@ -65,10 +68,10 @@ make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_effect
 The build emits `build/<PATCH_NAME>_<timestamp>.endl`. Deploy by connecting the
 Endless over USB-C and copying the `.endl` file onto the mounted Endless drive.
 
-The default source file at [`source/PatchImpl.cpp`](source/PatchImpl.cpp) is still the
-simple upstream bitcrusher example. To build one of the custom effects in `effects/`,
-copy it into `source/PatchImpl.cpp`, change the include from
-`#include "../source/Patch.h"` to `#include "Patch.h"`, then run `make`.
+[`source/PatchImpl.cpp`](source/PatchImpl.cpp) is the active build target in this fork
+and may temporarily mirror whichever custom effect is currently being built or tested.
+To build one of the custom effects in `effects/`, copy it into `source/PatchImpl.cpp`,
+change the include from `#include "../source/Patch.h"` to `#include "Patch.h"`, then run `make`.
 
 ## Validation
 
@@ -93,9 +96,14 @@ If you are preparing to add or change code in this fork, start here:
 
 Then read the specific walkthroughs for any effect you plan to extend:
 
+- [`docs/back-talk-reverse-delay-build-walkthrough.md`](docs/back-talk-reverse-delay-build-walkthrough.md)
 - [`docs/bbe-sonic-stomp-research.md`](docs/bbe-sonic-stomp-research.md)
 - [`docs/bbe-sonic-stomp-build-walkthrough.md`](docs/bbe-sonic-stomp-build-walkthrough.md)
+- [`docs/big-muff-research.md`](docs/big-muff-research.md)
+- [`docs/big-muff-build-walkthrough.md`](docs/big-muff-build-walkthrough.md)
 - [`docs/mxr-distortion-plus-circuit-analysis.md`](docs/mxr-distortion-plus-circuit-analysis.md)
+- [`docs/tube-screamer-research.md`](docs/tube-screamer-research.md)
+- [`docs/tube-screamer-build-walkthrough.md`](docs/tube-screamer-build-walkthrough.md)
 - [`docs/wah-build-walkthrough.md`](docs/wah-build-walkthrough.md)
 
 ## Official References

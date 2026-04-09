@@ -6,9 +6,12 @@ explicitly marked otherwise.
 
 Current inventory:
 
+- `back_talk_reverse_delay.cpp`: Back Talk-inspired reverse delay with a hold-toggle texture mode
 - `bbe_sonic_stomp.cpp`: guitar-oriented sonic enhancer inspired by BBE Sonic Stomp / Aion Lumin
+- `big_muff.cpp`: Ram's Head-inspired Big Muff fuzz with a Tone Bypass alternate voice and expression-as-blend
 - `chorus.cpp`: stereo chorus with modulated delay lines
-- `mxr_distortion_plus.cpp`: circuit-informed distortion patch
+- `mxr_distortion_plus.cpp`: MXR Distortion+ inspired distortion with Endless-tuned gain, tone, and level control
+- `tube_screamer.cpp`: TS808-inspired overdrive with a TS9 alternate voice and expression-as-tone
 - `wah.cpp`: dual-mode wah with expression-driven sweep
 - `examples/reverb.cpp`: imported reference example that still compiles against the stock SDK
 
@@ -105,6 +108,28 @@ Rules that matter in practice:
 - No exceptions, no RTTI
 - Write `0.5f` not `0.5` (single-precision only; `-Wdouble-promotion` will catch you)
 
+## Control-Law Review
+
+Patch review in this fork now treats parameter taper as a first-class design choice.
+
+- `mxr_distortion_plus.cpp` is the main cautionary case: literal analog pot math made the
+  hardware controls feel bunched and uneven, so the patch now uses Endless-tuned curves
+- `big_muff.cpp` is the main tone-stack/blend case: classic Muff controls need output
+  compensation and a non-literal third control if expression is meant to stay musical
+- `tube_screamer.cpp` is the main expression-on-tone case: the classic control layout is
+  worth preserving, but the tone sweep must stay musical on both the knob and the pedal
+- `chorus.cpp` is a good positive example: log taper for `Rate`, linear mappings for `Depth` and `Mix`
+- `wah.cpp` is another positive example: log taper for sweep frequency, linear mapping for Q
+- `bbe_sonic_stomp.cpp` uses bounded blend/offset mappings rather than trying to mimic analog-pot laws
+- `back_talk_reverse_delay.cpp` uses a log-style time mapping, bounded feedback, and an equal-power mix to keep expression musical
+
+When adding or reviewing a patch, verify four things for every knob:
+
+- the control does useful audible work across most of its travel
+- the taper matches the job
+- the default lands on a usable sound
+- param `2` still makes sense when expression takes over the Right knob
+
 ---
 
 ## Expression pedal
@@ -133,10 +158,20 @@ See [`docs/endless-reference.md`](../docs/endless-reference.md) for the full SDK
 
 These are the best files to read before editing or adding a patch:
 
+- [`docs/back-talk-reverse-delay-build-walkthrough.md`](../docs/back-talk-reverse-delay-build-walkthrough.md) —
+  design log for `back_talk_reverse_delay.cpp`
 - [`docs/bbe-sonic-stomp-build-walkthrough.md`](../docs/bbe-sonic-stomp-build-walkthrough.md) —
   design log for `bbe_sonic_stomp.cpp`
 - [`docs/bbe-sonic-stomp-research.md`](../docs/bbe-sonic-stomp-research.md) —
   public circuit and clone research summary for the Sonic Stomp / Lumin family
+- [`docs/big-muff-research.md`](../docs/big-muff-research.md) —
+  Electrosmash-grounded variant and control-surface rationale for `big_muff.cpp`
+- [`docs/big-muff-build-walkthrough.md`](../docs/big-muff-build-walkthrough.md) —
+  design log for `big_muff.cpp`
+- [`docs/tube-screamer-research.md`](../docs/tube-screamer-research.md) —
+  ElectroSmash-grounded family and control-surface rationale for `tube_screamer.cpp`
+- [`docs/tube-screamer-build-walkthrough.md`](../docs/tube-screamer-build-walkthrough.md) —
+  design log for `tube_screamer.cpp`
 - [`docs/wah-build-walkthrough.md`](../docs/wah-build-walkthrough.md) —
   complete design log for `wah.cpp`
 - [`docs/mxr-distortion-plus-circuit-analysis.md`](../docs/mxr-distortion-plus-circuit-analysis.md) —

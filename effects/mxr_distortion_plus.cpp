@@ -1,35 +1,46 @@
 // MXR Distortion+ — Polyend Endless SDK patch
 //
-// Analog circuit model based on the MXR M104 Distortion+:
-//   Input → HP filter → LM741 gain → 1N270 diode clip → LP tone → Level → Output
+// Endless-oriented interpretation of the MXR M104 Distortion+ topology:
+//   Input → HP filter → gain → germanium-style clip → tone LP → compensated level → Output
 //
-// See docs/mxr-distortion-plus-circuit-analysis.md for full circuit analysis.
-// See docs/circuit-to-patch-conversion.md for the general DSP methodology.
+// The original pedal couples a huge gain range and the bass-cut corner to the same pot.
+// That pot law is a poor match for Endless knob travel, so this patch keeps the same
+// broad signal flow but remaps the controls for smoother, guitar-friendly behavior.
+//
+// See docs/mxr-distortion-plus-circuit-analysis.md for the full circuit analysis and
+// an explanation of what is preserved vs adapted from the hardware.
 //
 // Controls:
-//   Left  knob  — Distortion (0=clean, 1=maximum gain; also shifts HP cutoff as in hardware)
-//   Mid   knob  — Tone       (0=dark/3kHz LP, 1=bright/20kHz LP)
-//   Right knob  — Level      (0=silent, 1=full; expression pedal heel=0, toe=full)
+//   Left  knob  — Distortion (smooth drive sweep; also tightens the low end at higher settings)
+//   Mid   knob  — Tone       (guitar-voiced post-clip low-pass, dark to bright)
+//   Right knob  — Level      (output level; expression pedal heel=off, toe=full)
 //   Footswitch  — Bypass toggle
 //   LED         — Red (active) / Dim White (bypassed)
 //
 // Signal chain (per sample, stereo):
-//   1. 1-pole IIR HP  (cutoff coupled to Distortion knob, as in hardware R+C network)
-//   2. Op-amp gain    (1 + 1MΩ / Ri) where Ri = 4.7kΩ + (1-dist)*1MΩ
-//   3. tanhf()        (soft germanium diode clip; output bounded to (-1,+1))
-//   4. 1-pole IIR LP  (Tone knob sweeps 3–20 kHz)
-//   5. Level scalar   (Right knob / expression pedal)
+//   1. 1-pole IIR HP  (drive-coupled low-end tightening)
+//   2. Gain stage     (smoothed, Distortion+-style pre-clip drive)
+//   3. tanhf()        (soft germanium-style clipping)
+//   4. 1-pole IIR LP  (Tone knob sweeps a guitar-relevant dark/bright range)
+//   5. Level scalar   (Right knob / expression pedal, with drive compensation)
 
 #include "../source/Patch.h"
 #include <cmath>
 
 namespace {
-    constexpr float kTwoPi    = 6.283185307f;
-    constexpr float kFs       = static_cast<float>(Patch::kSampleRate);
-    constexpr float kC1       = 47e-9f;   // input coupling capacitor (47 nF)
-    constexpr float kR_fixed  = 4700.0f;  // fixed series resistor (4.7 kΩ)
-    constexpr float kR2       = 1e6f;     // feedback resistor (1 MΩ)
-    constexpr float kRV_max   = 1e6f;     // Distortion pot maximum value (1 MΩ)
+    constexpr float kTwoPi = 6.283185307f;
+    constexpr float kFs    = static_cast<float>(Patch::kSampleRate);
+
+    float clamp01(float value)
+    {
+        if (value < 0.0f) {
+            return 0.0f;
+        }
+        if (value > 1.0f) {
+            return 1.0f;
+        }
+        return value;
+    }
 }
 
 class MxrDistortionPlus final : public Patch
@@ -39,9 +50,9 @@ public:
 
     void init() override
     {
-        dist_    = 0.5f;
-        tone_    = 0.5f;
-        level_   = 0.5f;
+        dist_     = 0.35f;
+        tone_     = 0.55f;
+        level_    = 0.65f;
         bypassed_ = false;
 
         // Clear filter state for both channels
@@ -68,24 +79,30 @@ public:
 
         // --- Compute filter coefficients once per buffer (not per sample) ---
 
-        // Distortion knob sets the wiper position of the hardware pot.
-        // RV=0 → maximum distortion (CCW), RV=kRV_max → minimum distortion (CW).
-        // Note: dist_ = 1.0 means "max distortion", so RV = (1-dist_)*kRV_max.
-        float RV  = (1.0f - dist_) * kRV_max;
-        float Ri  = kR_fixed + RV;              // total input resistor
+        // Distortion keeps the Distortion+ coupling between drive and low-end tightening,
+        // but uses Endless-tuned curves instead of the original pot law.
+        float distClamped = clamp01(dist_);
+        float toneClamped = clamp01(tone_);
+        float levelClamped = clamp01(level_);
 
-        // Op-amp gain: non-inverting configuration, gain = 1 + R2/Ri
-        float gain = 1.0f + kR2 / Ri;           // range: ~2× (min) to ~213× (max)
+        float driveCurve = std::pow(distClamped, 0.75f);
+        float gain       = 1.5f + 16.0f * driveCurve;   // ~1.5x to ~17.5x
 
-        // HP cutoff: coupled to Distortion pot (same Ri as gain stage)
-        float fc_hp    = 1.0f / (kTwoPi * kC1 * Ri);  // ~3.4 Hz (min) to ~720 Hz (max)
+        float fc_hp    = 35.0f + 380.0f * distClamped * distClamped;
         float alpha_hp = 1.0f / (1.0f + kTwoPi * fc_hp / kFs);
 
-        // LP cutoff: controlled independently by Tone knob (3–20 kHz)
-        float fc_lp    = 3000.0f + tone_ * 17000.0f;
+        // Move the tone sweep into a much more audible guitar range.
+        float toneCurve = std::pow(toneClamped, 1.25f);
+        float fc_lp     = 800.0f + 7200.0f * toneCurve;
         float omega_lp = kTwoPi * fc_lp / kFs;
         float alpha_lp = omega_lp / (1.0f + omega_lp);
         float alpha_lp_inv = 1.0f - alpha_lp;
+
+        // High drive already increases density and perceived loudness. Pull the level range
+        // back as gain rises so the Right knob remains usable across the whole Distortion sweep.
+        float levelCurve = levelClamped * (0.5f + 0.5f * levelClamped);
+        float outputTrim = 1.15f - 0.45f * driveCurve;
+        float outputGain = levelCurve * outputTrim;
 
         // --- Process each sample ---
         for (int i = 0; i < numSamples; ++i) {
@@ -99,24 +116,18 @@ public:
             xPrevL_    = xL;
             hpPrevL_   = hpL;
 
-            // Stage 2: Op-amp gain
+            // Stage 2: Distortion+-style pre-clip gain
             float gainedL = hpL * gain;
 
-            // Stage 3: Germanium soft clip (1N270 diode model, k=1)
-            //   tanhf(x) with k=1 matches the soft, low-threshold (~0.3V) germanium I-V curve.
-            //   For silicon diodes (1N914 / DOD 250 character), use tanhf(x * 3.0f) for a
-            //   sharper knee. Output bounded to (-1, +1) regardless of input level.
+            // Stage 3: Germanium-style soft clip.
             float clippedL = tanhf(gainedL);
 
-            // Stage 4: 1-pole low-pass filter (tone control + partial aliasing rolloff)
-            //   y[n] = alpha * x[n] + (1-alpha) * y[n-1]
-            //   Note: the LP also attenuates some aliased harmonics introduced by tanhf.
-            //   For full anti-aliasing, 2x oversampling before Stage 3 would be needed.
+            // Stage 4: 1-pole low-pass filter
             float lpL  = alpha_lp * clippedL + alpha_lp_inv * lpPrevL_;
             lpPrevL_   = lpL;
 
             // Stage 5: Level (Right knob / expression pedal)
-            left[i] = lpL * level_;
+            left[i] = lpL * outputGain;
 
             // === RIGHT CHANNEL ===
 
@@ -131,15 +142,18 @@ public:
             float lpR  = alpha_lp * clippedR + alpha_lp_inv * lpPrevR_;
             lpPrevR_   = lpR;
 
-            right[i] = lpR * level_;
+            right[i] = lpR * outputGain;
         }
     }
 
     ParameterMetadata getParameterMetadata(int idx) override
     {
-        // All params: 0.0 to 1.0, default 0.5
-        (void)idx;
-        return { 0.0f, 1.0f, 0.5f };
+        switch (idx) {
+            case 0: return { 0.0f, 1.0f, 0.35f }; // Distortion
+            case 1: return { 0.0f, 1.0f, 0.55f }; // Tone
+            case 2: return { 0.0f, 1.0f, 0.65f }; // Level / expression
+            default: return { 0.0f, 1.0f, 0.5f };
+        }
     }
 
     void setParamValue(int idx, float value) override

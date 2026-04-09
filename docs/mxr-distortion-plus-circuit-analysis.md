@@ -1,285 +1,225 @@
-# MXR Distortion+ Circuit Analysis & DSP Model
+# MXR Distortion+ Circuit Analysis & Endless DSP Model
 
 ## Overview
 
-The MXR Distortion+ (MXR M104) is one of the most studied and widely cloned guitar distortion
-pedals ever made. Its circuit is straightforward — a single op-amp gain stage followed by diode
-clipping — which makes it an excellent reference case for learning circuit-to-DSP conversion.
+The MXR Distortion+ (MXR M104) is one of the canonical single-op-amp distortion pedals:
+input filtering, a gain stage, diode clipping, a simple treble rolloff, and output level.
+That simplicity makes it a useful circuit-to-DSP teaching case.
 
-This document covers the original analog circuit, the component-level analysis that informs the
-DSP model, and the implementation decisions made for `effects/mxr_distortion_plus.cpp`.
+This repository's `effects/mxr_distortion_plus.cpp` keeps that broad topology and the
+germanium-style clipping character, but it no longer copies the original pot law directly.
+On Endless hardware, the literal Distortion+ gain formula made the left knob feel mostly
+inactive until the final quarter-turn, and the earlier tone sweep was too subtle on guitar.
+The current patch is therefore best understood as a **usable Endless-tuned Distortion+ clone**.
 
----
+## Hardware Review Retrospective
 
-## Circuit Topology
+This patch is now the main control-law case study in the repository.
 
+The earlier Endless version failed in three specific ways during guitar testing:
+
+- the Distortion knob behaved like it had a dead zone for most of its sweep, then jumped late
+- the Tone knob technically changed the low-pass cutoff, but did too little in a guitar-useful range
+- the Level knob became hard to use because the gain stage already made the patch much louder at high drive
+
+None of those problems were syntax or DSP-topology bugs. They were **control-law bugs**:
+the analog-inspired formulas were too literal for the Endless control surface.
+
+## Original Circuit Topology
+
+```text
+Input -> HP filter -> LM741 gain stage -> 1N270 diode clip -> LP tone filter -> Level -> Output
 ```
-Input → [HP filter] → [LM741 non-inverting amp] → [1N270 diode clip] → [LP tone filter] → [Level pot] → Output
-```
 
-The circuit has five functional blocks:
+Original analog blocks and current DSP counterparts:
 
-| Block | Analog implementation | DSP equivalent |
+| Block | Original analog idea | Current DSP stage |
 |---|---|---|
-| Input coupling / HP | C1 (47 nF) + R_input (1 MΩ pot + 4.7 kΩ) | 1-pole IIR high-pass |
-| Gain | LM741 non-inverting: `1 + R2/Ri` | Scalar multiply |
-| Clipping | 1N270 germanium diodes to ground | `tanhf()` soft clip |
-| Tone / LP | C2 + resistor network | 1-pole IIR low-pass |
-| Level | 100 kΩ pot | Scalar multiply |
+| Input filtering | coupling capacitor plus distortion-dependent resistance | 1-pole IIR high-pass |
+| Gain | LM741 non-inverting amplifier | scalar pre-clip gain |
+| Clipping | anti-parallel 1N270 germanium diodes | `tanhf()` soft clip |
+| Tone | passive low-pass after clipping | 1-pole IIR low-pass |
+| Level | output pot | scalar output gain |
 
----
+## What The Patch Preserves
 
-## Block-by-Block Analysis
+- Distortion still changes both drive and low-end tightness.
+- Clipping is still smooth and symmetric, aimed at a germanium-like knee.
+- Tone is still a post-clip treble rolloff, not a full EQ.
+- Level is still the final output trim, and remains the expression target because this repo
+  routes expression to param `2`.
 
-### 1. Input High-Pass Filter
+## What The Patch Adapts For Endless
 
-**Analog:** Capacitor C1 = 47 nF in series with the input, forming a high-pass filter. The
-resistive component is the sum of a fixed resistor (4.7 kΩ) and the Distortion potentiometer
-(0–1 MΩ), which couples the HP cutoff to the gain setting.
+### Distortion
 
-**Cutoff frequency:**
+The original Distortion+ uses:
 
+```text
+gain = 1 + 1M / (4.7k + RV)
 ```
-fc_hp = 1 / (2π × C1 × R_total)
-      = 1 / (2π × 47e-9 × (4700 + RV))
+
+where the same pot also pushes the input high-pass cutoff upward. That produces an enormous
+range, from about `2x` to `213x`, with most of the audible change stacked near the end of the
+knob travel.
+
+The current patch keeps the coupling concept but replaces the raw pot law with a smoother
+control curve:
+
+```cpp
+float driveCurve = std::pow(dist_, 0.75f);
+float gain = 1.5f + 16.0f * driveCurve;
 ```
 
-Where `RV` is the wiper position of the Distortion pot (0 Ω = max distortion, 1 MΩ = min distortion).
+Practical result:
 
-**Cutoff range:**
+- low settings now add audible grit instead of staying nearly clean
+- the full sweep is usable with guitar
+- maximum drive is still clearly in Distortion+ territory, but without the runaway jump
 
-| Distortion knob | RV | fc_hp |
+### Low-End Tightening
+
+The hardware raises the input high-pass cutoff dramatically as distortion increases. That is a
+real part of the pedal's sound, but the literal analog range is too extreme for this patch.
+
+The current Endless mapping is:
+
+```cpp
+float fc_hp = 35.0f + 380.0f * dist_ * dist_;
+```
+
+So the left knob still tightens bass as drive rises, but in a controlled range of roughly
+`35 Hz` to `415 Hz` instead of the full analog swing to about `720 Hz`.
+
+### Tone
+
+The earlier SDK version used a very open low-pass sweep:
+
+```cpp
+3000 Hz -> 20000 Hz
+```
+
+On guitar, that often sounded like "almost no tone change." The current patch moves the tone
+control into a more obviously useful range:
+
+```cpp
+float toneCurve = std::pow(tone_, 1.25f);
+float fc_lp = 800.0f + 7200.0f * toneCurve;
+```
+
+That makes the middle knob act like a real dark-to-bright voicing control instead of a mostly
+inaudible anti-fizz adjustment.
+
+### Level
+
+The original design is just an output pot. In the first Endless version, that meant the right
+knob became hard to use once distortion got high because the patch was already much denser and
+louder.
+
+The current level stage adds two Endless-specific decisions:
+
+```cpp
+float levelCurve = level_ * (0.5f + 0.5f * level_);
+float outputTrim = 1.15f - 0.45f * driveCurve;
+float out = clippedAndFiltered * levelCurve * outputTrim;
+```
+
+- the level knob uses a gentler taper
+- output is compensated downward as distortion rises
+
+That keeps the right knob practical across the full drive sweep while preserving enough level
+range for matching or pushing the bypassed signal.
+
+## Hardware Lessons Learned
+
+The MXR patch establishes a few practical rules for future patches in this fork:
+
+1. Do not assume the original analog pot law should be copied directly to a normalized `0.0-1.0` knob.
+2. Treat "does this control do useful work across most of its travel?" as a primary design question.
+3. If one knob changes both saturation and loudness, add output compensation early instead of treating it as a later polish pass.
+4. Prefer a musically useful default setting over a numeric midpoint.
+
+This is why the repository now treats taper and default-value review as part of patch design,
+not just implementation detail.
+
+## Current DSP Signal Chain
+
+Per sample, per channel:
+
+1. High-pass filter to manage low-end build-up as distortion increases
+2. Pre-clip gain stage
+3. `tanhf()` soft clipping for germanium-like saturation
+4. Low-pass tone filter
+5. Level stage with distortion-dependent output compensation
+
+Coefficient and control calculations are still done once per audio buffer, not once per sample.
+That keeps the inner loop small and matches the rest of this repo's DSP practice.
+
+## Expression Pedal Behavior
+
+This repository routes the expression pedal to param `2` globally in
+`internal/PatchCppWrapper.cpp`. For this patch, that means:
+
+- Right knob = `Level`
+- Expression pedal = `Level`
+- When the expression pedal is connected, the physical Right knob is ignored
+
+This is a good fit for the MXR patch because output level is a performance control. It works
+well for rhythm/lead balancing or for taming a brighter, higher-drive setting in real time.
+
+## Tradeoffs and Limitations
+
+| Area | Current choice | Reason |
 |---|---|---|
-| Maximum (knob full CW) | 0 Ω | ~720 Hz |
-| Minimum (knob full CCW) | 1 MΩ | ~3.4 Hz |
+| Gain law | Endless-tuned curve, not literal analog formula | better control sweep on hardware |
+| Bass cut | reduced range vs stock circuit | keeps high-gain settings usable |
+| Tone | guitar-focused LP range | makes the middle knob clearly audible |
+| Diode model | `tanhf()` | simple, stable, stock-SDK-friendly |
+| Oversampling | none | consistent with repo constraints, but aliasing can still appear at extreme settings |
+| Op-amp behavior | no explicit LM741 saturation or slew model | clipping diodes dominate the audible result here |
 
-At maximum distortion, the high-pass corner rises to ~720 Hz, rolling off low-end muddiness.
-This is a key character of the Distortion+ sound at high gain settings.
-
-**DSP (1-pole IIR HP, Euler method):**
-
-```cpp
-float alpha_hp = 1.0f / (1.0f + kTwoPi * fc_hp / kSampleRate);
-// Per sample:
-float hpOut = alpha_hp * (hpPrev + x - xPrev);
-xPrev = x;
-hpPrev = hpOut;
-```
-
-### 2. Op-Amp Gain Stage (LM741)
-
-**Analog:** The LM741 is configured as a non-inverting amplifier. The gain is set by two
-resistors in the feedback network:
-
-```
-gain = 1 + R2 / Ri
-```
-
-Where:
-- R2 = 1 MΩ (fixed feedback resistor)
-- Ri = 4.7 kΩ (fixed) + RV (Distortion pot, 0–1 MΩ)
-
-**Gain range:**
-
-| Distortion | RV | Ri | Gain | dB |
-|---|---|---|---|---|
-| Maximum | 0 Ω | 4.7 kΩ | ~213× | ~46 dB |
-| Minimum | 1 MΩ | 1.0047 MΩ | ~2× | ~6 dB |
-
-The gain and HP cutoff are controlled by the same physical pot, just as in the hardware.
-This coupling is preserved in the DSP model (both computed from the same `dist_` parameter).
-
-**DSP:**
-
-```cpp
-float Ri = 4700.0f + (1.0f - dist_) * 1e6f;
-float gain = 1.0f + 1e6f / Ri;
-float gained = hpOut * gain;
-```
-
-### 3. Diode Clipping (1N270 Germanium)
-
-**Analog:** Two 1N270 germanium diodes connected in anti-parallel (one forward, one reverse)
-from the output of the op-amp to ground. When the signal exceeds the diode forward voltage
-(~0.3 V for germanium vs ~0.6 V for silicon), the diodes conduct and clamp the signal.
-
-**Germanium vs silicon clipping behavior:**
-
-- **Germanium (1N270):** Lower forward voltage, softer knee → smooth, rounded clipping with
-  gradual onset. The diode current rises as a smooth exponential, producing soft saturation.
-- **Silicon (1N914, 1N4148):** Higher forward voltage, sharper knee → harder clipping,
-  closer to hard limiting.
-
-**DSP model:** `tanhf()` is the standard approximation for soft diode/tube saturation. Its
-S-curve shape matches the gradual onset and smooth saturation of germanium diodes reasonably
-well. The output is bounded to (-1, +1).
-
-```cpp
-float clipped = tanhf(gained);
-```
-
-**Why not hard clip (`fminf/fmaxf`):** Hard clipping (squaring off the waveform) produces
-strong odd harmonics with an abrupt transition. Germanium diodes produce a softer spectrum
-more consistent with `tanh`.
-
-**Gain staging note:** Guitar signals at line level after ADC normalization are typically in
-the range ±0.05–0.1. At maximum gain (213×), a 0.1 input reaches 21.3 before `tanhf`, which
-saturates fully to ~1.0. At minimum gain (2×), a 0.1 input reaches 0.2, and `tanhf(0.2) ≈
-0.198`, which is nearly linear. This means the full gain range from clean to hard clip is
-covered with no input prescaling required.
-
-### 4. Output Low-Pass / Tone Filter
-
-**Analog:** A passive RC low-pass filter after the clipping stage. The Tone potentiometer
-sets the cutoff frequency. At the stock position, this is approximately 15.9 kHz.
-
-**DSP (1-pole IIR LP):**
-
-```cpp
-float fc_lp = 3000.0f + tone_ * 17000.0f;  // 3 kHz to 20 kHz
-float omega = kTwoPi * fc_lp / kSampleRate;
-float alpha_lp = omega / (1.0f + omega);
-// Per sample:
-float lpOut = alpha_lp * clipped + (1.0f - alpha_lp) * lpPrev;
-lpPrev = lpOut;
-```
-
-The tone range (3–20 kHz) allows rolling off the harsh upper harmonics produced by heavy
-clipping, approximating the original tone circuit.
-
-### 5. Level
-
-**Analog:** 100 kΩ potentiometer at the output, acting as a simple voltage divider.
-
-**DSP:**
-
-```cpp
-float out = lpOut * level_;
-```
-
-The expression pedal is mapped to this parameter (heel = 0, toe = full level).
-
----
-
-## Filter Coefficient Computation
-
-Both filter alpha values depend on the Distortion and Tone control settings. In the SDK
-implementation, these are computed **once per audio buffer** (outside the sample loop), not
-per sample. This is an important optimization: computing `tanhf` per sample is unavoidable,
-but filter coefficient updates at 48 Hz (once per 1000-sample buffer) rather than 48 kHz
-costs nothing audible.
-
-```cpp
-void processAudio(std::span<float> left, std::span<float> right) override
-{
-    // Compute coefficients once per buffer
-    float Ri     = 4700.0f + (1.0f - dist_) * 1e6f;
-    float gain   = 1.0f + 1e6f / Ri;
-    float fc_hp  = 1.0f / (kTwoPi * 47e-9f * Ri);
-    float alpha_hp = 1.0f / (1.0f + kTwoPi * fc_hp / kSampleRate);
-
-    float fc_lp  = 3000.0f + tone_ * 17000.0f;
-    float omega_lp = kTwoPi * fc_lp / kSampleRate;
-    float alpha_lp = omega_lp / (1.0f + omega_lp);
-
-    // Then process each sample using these constants
-    for (size_t i = 0; i < left.size(); ++i) { ... }
-}
-```
-
----
-
-## Limitations of the DSP Model
-
-| Aspect | Analog behavior | DSP approximation | Fidelity |
-|---|---|---|---|
-| Diode clipping shape | Exponential I-V curve | `tanhf()` | Good — smooth soft-clip |
-| Diode asymmetry | Matched pair, near-symmetric | Fully symmetric | Good |
-| Op-amp saturation | LM741 rail limiting | Not modelled | Minor — diodes clip first |
-| Frequency-dependent clipping | Diode capacitance modifies HF response | Not modelled | Minor |
-| Power supply sag | Voltage droop under heavy load | Not modelled | Minor |
-| Op-amp noise / non-linearity | LM741 characteristic noise floor | Not modelled | Minor |
-| Tone control interaction | Passive network with loading | Simplified LP only | Acceptable |
-| Op-amp nonlinearity (LM741) | Rail-limiting, slew-rate distortion, bandwidth ~1 MHz | Not modelled separately | Minor — diodes clip first |
-| Aliasing from `tanhf` | Harmonic content above Nyquist at max gain | No oversampling applied | Audible at maximum Distortion setting |
-
-For higher fidelity, Wave Digital Filter (WDF) techniques can model the component-level
-behavior more accurately (see sthompsonjr's fork, which uses the `WDF` library). However,
-WDF is not available in the stock SDK.
-
----
-
-## Related Circuits — DOD 250 Comparison
-
-The DOD 250 Overdrive Preamp is the closest circuit relative to the MXR Distortion+. Both
-use an LM741 op-amp in a non-inverting configuration with essentially the same gain formula.
-The critical difference is the clipping diodes:
-
-| Feature | MXR Distortion+ | DOD 250 |
-|---|---|---|
-| Clipping diodes | 1N270 germanium, anti-parallel to ground | 1N914 silicon (some versions asymmetric) |
-| Forward voltage | ~0.3 V | ~0.65 V |
-| Knee character | Soft, gradual onset | Sharper, more abrupt |
-| Tonal character | Warm, smooth overdrive; less output volume | Tighter, more aggressive; stronger as clean boost |
-| DSP model | `tanhf(x)` — k=1 | `tanhf(x * 3.0f)` — higher k for sharper knee |
-
-### DSP implications
-
-The diode type determines the scaling factor `k` in the waveshaper:
-
-```cpp
-// MXR Distortion+ — germanium, soft clip (k=1)
-float clipped = tanhf(gained);
-
-// DOD 250 equivalent — silicon, harder clip (k≈3)
-float clipped = tanhf(gained * 3.0f);
-
-// DOD 250 asymmetric variant (single diode each polarity, unmatched)
-float clipped = (gained >= 0.0f)
-    ? tanhf(gained * 3.0f)
-    : -tanhf(-gained * 2.5f);   // slightly softer negative half
-```
-
-### Character difference
-
-At low distortion settings the DOD 250 functions well as a unity-gain or mild boost pedal —
-the silicon diodes stay below their threshold, producing cleaner amplification than the MXR.
-At high gain the MXR D+ produces a warmer, more compressed saturation; the DOD 250 produces
-a brighter, slightly rawer tone.
-
-This repository includes one stock-SDK-compatible implementation of this circuit family in
-`effects/mxr_distortion_plus.cpp`. A DOD 250 variant could be implemented by changing the
-clipping stage and adjusting the `k` factor as shown above.
-
----
+If future work needs stricter analog fidelity, a Wave Digital Filter or oversampled staged clipper
+would be the next escalation path. That is outside the current stock-SDK-friendly implementation.
 
 ## Parameter Mapping Summary
 
-| Hardware control | Knob | SDK param | Computed value |
-|---|---|---|---|
-| Distortion pot | Left | `kParamLeft` (0) | Controls RV → drives both gain and HP fc |
-| Tone pot | Mid | `kParamMid` (1) | Controls LP cutoff (3–20 kHz) |
-| Level pot | Right | `kParamRight` (2) | Output gain 0–1; also expression pedal |
+| Control | SDK param | Current behavior |
+|---|---|---|
+| Left knob | `0` | `Distortion`: smoother drive plus low-end tightening |
+| Mid knob | `1` | `Tone`: low-pass from about `800 Hz` to `8 kHz` |
+| Right knob / expression | `2` | `Level`: tapered output gain with drive compensation |
 
-Expression pedal: heel down = 0.0 (silent), toe down = 1.0 (full level). This mapping is
-handled by `internal/PatchCppWrapper.cpp` which routes the expression pedal to param 2
-(Right knob) for all patches in this repository.
+Defaults in the current patch:
 
----
+- Distortion: `0.35`
+- Tone: `0.55`
+- Level: `0.65`
+
+These defaults are chosen to land near a moderate, immediately usable guitar setting rather
+than at an arbitrary midpoint.
+
+## Follow-Up Checks For Existing Patches
+
+MXR is the patch that clearly required retuning, but the same review lens should be applied
+to the rest of the repo:
+
+- `chorus.cpp`: current mapping looks sound; verify Depth still feels useful near both extremes
+- `wah.cpp`: current log sweep looks right; verify the Q control stays musical across the full range
+- `bbe_sonic_stomp.cpp`: current bounded blend/offset controls look intentional; verify each knob produces a distinct audible shift without bunching near the ends
+
+At the time of this write-up, those are watch-items, not confirmed retune requirements.
 
 ## References
 
-- ElectroSmash — MXR Distortion+ Analysis: https://www.electrosmash.com/mxr-distortion-plus-analysis
-- 1N270 Germanium Diode datasheet (forward voltage ~0.3 V, soft knee characteristic)
-- LM741 Op-Amp datasheet (non-inverting configuration, open-loop gain ~200 V/mV)
-- Yeh & Abel, "Simplified, Physically-Informed Models of Distortion and Overdrive Guitar Effects Pedals," DAFX 2007 (CCRMA Stanford) — canonical academic reference for this class of circuits: https://ccrma.stanford.edu/~dtyeh/papers/yeh07_dafx_distortion.pdf
-- Plusdistortion VST by Distorque Audio — C++ MXR Distortion+ emulation with 2× oversampling and separate op-amp / diode clipping controls: http://distorqueaudio.com/plugins/plusdistortion.html
-- See also: [`docs/circuit-to-patch-conversion.md`](circuit-to-patch-conversion.md) for the general methodology
-
----
+- ElectroSmash — MXR Distortion+ Analysis: <https://www.electrosmash.com/mxr-distortion-plus-analysis>
+- 1N270 germanium diode datasheets for soft-knee forward-voltage behavior
+- LM741 datasheets for the original non-inverting amplifier topology
+- Yeh & Abel, "Simplified, Physically-Informed Models of Distortion and Overdrive Guitar Effects Pedals," DAFX 2007: <https://ccrma.stanford.edu/~dtyeh/papers/yeh07_dafx_distortion.pdf>
+- Distorque Audio Plusdistortion notes as a practical software reference point for Distortion+ style modeling: <http://distorqueaudio.com/plugins/plusdistortion.html>
+- General methodology: [`docs/circuit-to-patch-conversion.md`](circuit-to-patch-conversion.md)
 
 ## Related Files
 
-- `effects/mxr_distortion_plus.cpp` — SDK patch implementation
-- `docs/circuit-to-patch-conversion.md` — General analog-to-DSP methodology
-- `internal/PatchCppWrapper.cpp` — Expression pedal routing (param 2)
+- `effects/mxr_distortion_plus.cpp`
+- `docs/circuit-to-patch-conversion.md`
+- `internal/PatchCppWrapper.cpp`
