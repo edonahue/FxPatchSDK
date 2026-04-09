@@ -148,8 +148,8 @@ Source: <https://www.electrosmash.com/klon-centaur-analysis>
 - **Endless fit:** good on paper with `Gain`, `Tone`, `Output`
 - **DSP fit:** moderate to good
 - **Risk:** moderate to high; the "transparent but pushed" feel depends on multiple interacting stages and clean/dirty blending
-- **Repository value:** high, but more nuanced than Tube Screamer or Rat as a first build
-- **Status:** `plausible`
+- **Repository value:** now realized in `klon_centaur.cpp` as a stock voice plus Tone Mod family variant
+- **Status:** `implemented`
 
 ### MXR MicroAmp
 
@@ -203,8 +203,8 @@ Source: <https://www.electrosmash.com/mxr-phase-90/pedals/delay/mxr-phase-90.htm
 - **Endless fit:** good if interpreted as `Rate`, `Depth/Feedback`, `Mix`
 - **DSP fit:** moderate to good; digital phasing is straightforward, but the circuit's exact all-pass behavior and feedback flavor deserve care
 - **Risk:** moderate
-- **Repository value:** good because the repo does not yet have a phaser
-- **Status:** `plausible`
+- **Repository value:** now realized in `phase_90.cpp` as a one-knob block/script Phase 90 build
+- **Status:** `implemented`
 
 ### ProCo Rat
 

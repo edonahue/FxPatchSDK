@@ -238,6 +238,8 @@ Use the simplest mapping that matches the job:
 - `mxr_distortion_plus.cpp`: main cautionary example; raw analog pot math was less usable than an Endless-tuned curve
 - `big_muff.cpp`: shows how to adapt a classic `Volume` control into expression-friendly `Blend` while keeping the tone stack musical
 - `tube_screamer.cpp`: shows when preserving the original `Drive` / `Level` / `Tone` control story matters more than remapping param `2`
+- `klon_centaur.cpp`: shows how a gain control can rebalance clean and clipped paths instead of just increasing clip amount
+- `phase_90.cpp`: shows how to keep a one-knob pedal authentic while leaving other controls intentionally unused
 
 **Log taper example:**
 ```cpp
@@ -300,6 +302,48 @@ Design guidance:
   `Level` knob remains useful
 - if you add a family-relative alternate mode, keep the same control layout and make the voicing
   shift obvious but not so large that the patch becomes a different effect
+
+### Clean/Dirty Summing Overdrives
+
+Some overdrives, especially the Klon family, should not be modeled as a single clipped path with
+tone afterward. Their identity depends on how cleaner and dirtier branches are rebalanced as the
+gain control moves.
+
+Design guidance:
+
+- if the original pedal keeps a meaningful clean contribution, make the gain control change both
+  clip intensity and branch balance
+- low-gain settings should still sound open and stackable, not like a weak version of the max-gain tone
+- keep the final sum below runaway loudness before the output stage; the dedicated output control
+  should still do real work
+- if the pedal uses an active treble shelf after summing, model it as a shelf-style split, not a
+  generic one-pole low-pass
+
+### One-Knob Patches and Intentional Unused Controls
+
+Some classic pedals are compelling precisely because they only expose one real control. In those
+cases, filling the Endless surface just because extra knobs exist can weaken the patch.
+
+Design guidance:
+
+- if the original effect is genuinely one-knob, prefer preserving that identity over inventing two
+  bonus parameters
+- document unused controls explicitly so future work does not mistake them for omissions
+- if expression must exist because of repo-global routing, mirror the main control or make the lane
+  inert; do not silently create a second hidden feature
+- mode toggles are a better place to expose historically grounded variants than extra knob functions
+
+### All-Pass Phaser Notes
+
+Classic phasers such as the Phase 90 are best approached as cascaded all-pass stages plus dry
+recombination, not as generic modulation effects.
+
+Design guidance:
+
+- use a bounded LFO rate range; too-fast sweeps stop sounding classic quickly
+- keep left/right channels linked unless you are intentionally building a stereo reinterpretation
+- if a vintage variant removes feedback, let that be the main tonal distinction instead of changing
+  multiple unrelated parameters at once
 
 ---
 

@@ -192,12 +192,26 @@ does not replace a real ARM build or hardware listening pass.
 - uses the working buffer for delay lines
 - demonstrates fractional delay, LFO phase offset, and expression-as-mix
 
+### `effects/klon_centaur.cpp`
+
+- Klon-inspired transparent overdrive with clean/dirty summing and an active treble shelf
+- preserves the classic `Gain` / `Treble` / `Output` control story
+- expression controls `Output` via the repo-global param-2 routing
+- long-press toggles a fuller Tone Mod alternate voice
+
 ### `effects/mxr_distortion_plus.cpp`
 
 - MXR Distortion+ inspired distortion model, retuned for Endless usability
 - maps a simple analog topology into HP -> gain -> `tanhf` -> LP -> level
 - expression controls `Level` via the repo-global param-2 routing
 - good example of coefficient precomputation outside the sample loop
+
+### `effects/phase_90.cpp`
+
+- one-knob Phase 90 phaser with a block voice by default and a script-mod vintage alternate
+- keeps the center knob as the only public control and mirrors speed onto expression
+- demonstrates a linked-stereo all-pass phaser with authentic minimal UI
+- main case study for intentional unused controls and mode-driven voicing changes
 
 ### `effects/tube_screamer.cpp`
 
@@ -212,6 +226,8 @@ This fork now treats knob taper review as part of patch design, not just polish.
 
 - `mxr_distortion_plus.cpp`: primary control-law case study; the raw analog pot law was less usable than an Endless-tuned curve
 - `big_muff.cpp`: main case study for passive tone-stack behavior, output compensation, and expression-as-blend
+- `klon_centaur.cpp`: main case study for gain-dependent clean/dirty summing and expression-as-output
+- `phase_90.cpp`: main case study for one-knob authenticity, log-rate mapping, and intentional unused controls
 - `tube_screamer.cpp`: main case study for preserving a classic control layout while making expression-on-tone musical
 - `back_talk_reverse_delay.cpp`: log-style time mapping, bounded repetitions, and equal-power expression-as-mix
 - `chorus.cpp`: current mapping looks healthy; log taper for `Rate`, linear `Depth` and `Mix`
@@ -223,6 +239,8 @@ Current watch-items for future hardware listening:
 - confirm `back_talk_reverse_delay.cpp` chunk edges stay click-free across extreme speed settings
 - confirm `back_talk_reverse_delay.cpp` repetitions approach runaway gradually rather than abruptly
 - confirm `big_muff.cpp` sustain rises musically across most of the sweep and the alternate mode is clearly more mid-forward than the core Ram's Head voice
+- confirm `klon_centaur.cpp` lower gain settings stay open and stackable, and the Tone Mod hold-toggle feels fuller without turning the patch into a different pedal
+- confirm `phase_90.cpp` speed stays useful across most of the sweep, the script mode is smoother than block mode, and both modes remain near unity
 - confirm `tube_screamer.cpp` tone remains useful heel-to-toe under expression and the TS808/TS9 hold-toggle reads as a close family shift rather than a different pedal
 - confirm `chorus.cpp` depth is still useful near both extremes
 - confirm `wah.cpp` Q remains musical across the full sweep
@@ -247,7 +265,11 @@ Related design notes:
 - [`big-muff-research.md`](big-muff-research.md)
 - [`big-muff-build-walkthrough.md`](big-muff-build-walkthrough.md)
 - [`circuit-to-patch-conversion.md`](circuit-to-patch-conversion.md)
+- [`klon-centaur-research.md`](klon-centaur-research.md)
+- [`klon-centaur-build-walkthrough.md`](klon-centaur-build-walkthrough.md)
 - [`mxr-distortion-plus-circuit-analysis.md`](mxr-distortion-plus-circuit-analysis.md)
+- [`phase-90-research.md`](phase-90-research.md)
+- [`phase-90-build-walkthrough.md`](phase-90-build-walkthrough.md)
 - [`tube-screamer-research.md`](tube-screamer-research.md)
 - [`tube-screamer-build-walkthrough.md`](tube-screamer-build-walkthrough.md)
 - [`wah-build-walkthrough.md`](wah-build-walkthrough.md)

@@ -18,7 +18,7 @@ development.
 ## Current Repository Status
 
 - `master` is the current baseline for future work in this fork.
-- The local `source/` tree still matches the stock SDK layout.
+- The repo keeps the stock SDK shape, but `source/PatchImpl.cpp` is used as the active build target for custom effects.
 - This fork adds hand-written effects in `effects/`, validation in `tests/`,
   design/reference notes in `docs/`, and compiled Playground artifacts in `playground/`.
 
@@ -28,7 +28,7 @@ For the audit that produced this rewrite, see
 ## Repository Map
 
 ```text
-source/        public Patch API and the default upstream bitcrusher example
+source/        public Patch API and the active build target
 internal/      C ABI wrapper, image header, linker script, patch entrypoint
 effects/       custom stock-SDK-compatible patches and reference examples
 tests/         host-side syntax and lint validation
@@ -38,13 +38,15 @@ playground/    compiled Playground examples and supporting artifacts
 
 ## Included Effect Work
 
-This fork currently includes seven stock-SDK-compatible custom effects:
+This fork currently includes nine stock-SDK-compatible custom effects:
 
 - `effects/back_talk_reverse_delay.cpp`: Back Talk-inspired reverse delay with a texture mode and expression-as-mix
 - `effects/bbe_sonic_stomp.cpp`: guitar-oriented sonic enhancer inspired by BBE Sonic Stomp / Aion Lumin
 - `effects/big_muff.cpp`: Ram's Head-inspired Big Muff fuzz with a Tone Bypass alternate voice and expression-as-blend
 - `effects/chorus.cpp`: stereo modulated-delay chorus
+- `effects/klon_centaur.cpp`: Klon-inspired transparent overdrive with a Tone Mod alternate voice and expression-as-output
 - `effects/mxr_distortion_plus.cpp`: MXR Distortion+ inspired distortion, retuned for smoother Endless control
+- `effects/phase_90.cpp`: one-knob Phase 90 phaser with a script-mod vintage alternate voice
 - `effects/tube_screamer.cpp`: TS808-inspired overdrive with a TS9 alternate voice and expression-as-tone
 - `effects/wah.cpp`: dual-mode Crybaby/Vox-inspired wah using expression control
 
@@ -101,7 +103,11 @@ Then read the specific walkthroughs for any effect you plan to extend:
 - [`docs/bbe-sonic-stomp-build-walkthrough.md`](docs/bbe-sonic-stomp-build-walkthrough.md)
 - [`docs/big-muff-research.md`](docs/big-muff-research.md)
 - [`docs/big-muff-build-walkthrough.md`](docs/big-muff-build-walkthrough.md)
+- [`docs/klon-centaur-research.md`](docs/klon-centaur-research.md)
+- [`docs/klon-centaur-build-walkthrough.md`](docs/klon-centaur-build-walkthrough.md)
 - [`docs/mxr-distortion-plus-circuit-analysis.md`](docs/mxr-distortion-plus-circuit-analysis.md)
+- [`docs/phase-90-research.md`](docs/phase-90-research.md)
+- [`docs/phase-90-build-walkthrough.md`](docs/phase-90-build-walkthrough.md)
 - [`docs/tube-screamer-research.md`](docs/tube-screamer-research.md)
 - [`docs/tube-screamer-build-walkthrough.md`](docs/tube-screamer-build-walkthrough.md)
 - [`docs/wah-build-walkthrough.md`](docs/wah-build-walkthrough.md)

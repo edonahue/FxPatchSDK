@@ -1,4 +1,26 @@
-#include "Patch.h"
+// Phase 90-inspired phaser for Polyend Endless
+//
+// Primary voice:
+//   Block-logo Phase 90 style with a more pronounced, chewy sweep driven by
+//   four all-pass stages plus the stronger feedback path.
+//
+// Alternate voice:
+//   Hold toggles a script-mod / vintage voice with the feedback removed for a
+//   smoother, softer sweep closer to the early script-logo units.
+//
+// Controls:
+//   Mid knob    — Speed
+//   Expression  — mirrors Speed in this fork because param 2 is hardwired
+//   Footswitch  — Press: bypass, Hold: block / script toggle
+//   LED         — Blue/DimBlue block, Beige/DimWhite script
+//
+// Notes:
+//   - Left knob is intentionally unused
+//   - Right knob is reserved for the expression lane; if turned without an
+//     expression pedal attached it will mirror Speed rather than expose a
+//     second public control
+
+#include "../source/Patch.h"
 
 #include <cmath>
 
@@ -106,10 +128,10 @@ class Phase90Patch final : public Patch
 public:
     void init() override
     {
-        speed_     = 0.34f;
-        bypassed_  = false;
-        script_    = false;
-        lfoPhase_  = 0.0f;
+        speed_    = 0.34f;
+        bypassed_ = false;
+        script_   = false;
+        lfoPhase_ = 0.0f;
         feedbackL_ = 0.0f;
         feedbackR_ = 0.0f;
         clearState();
@@ -117,6 +139,7 @@ public:
 
     void setWorkingBuffer(std::span<float, kWorkingBufferSize> /* buf */) override
     {
+        // No working buffer required.
     }
 
     void processAudio(std::span<float> left, std::span<float> right) override
@@ -167,9 +190,9 @@ public:
     ParameterMetadata getParameterMetadata(int idx) override
     {
         switch (idx) {
-            case 0: return {0.0f, 1.0f, 0.0f};
-            case 1: return {0.0f, 1.0f, 0.34f};
-            case 2: return {0.0f, 1.0f, 0.34f};
+            case 0: return {0.0f, 1.0f, 0.0f};  // intentionally unused
+            case 1: return {0.0f, 1.0f, 0.34f}; // Speed
+            case 2: return {0.0f, 1.0f, 0.34f}; // Expression mirrors Speed
             default: return {0.0f, 1.0f, 0.5f};
         }
     }

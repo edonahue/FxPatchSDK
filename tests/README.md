@@ -31,9 +31,9 @@ options that are not available on the host machine. This catches:
 For a real SDK build, use the ARM cross-compiler and the repo Makefile:
 
 ```bash
-cp effects/tube_screamer.cpp source/PatchImpl.cpp
+cp effects/phase_90.cpp source/PatchImpl.cpp
 # Edit include to "Patch.h" (not "../source/Patch.h")
-make TOOLCHAIN=/path/to/arm-none-eabi- PATCH_NAME=tube_screamer
+make TOOLCHAIN=/path/to/arm-none-eabi- PATCH_NAME=phase_90
 ```
 
 ### 2. Lint Checks
@@ -70,7 +70,9 @@ PASS: effects/chorus.cpp
 PASS: effects/bbe_sonic_stomp.cpp
 PASS: effects/back_talk_reverse_delay.cpp
 PASS: effects/big_muff.cpp
+PASS: effects/klon_centaur.cpp
 PASS: effects/mxr_distortion_plus.cpp
+PASS: effects/phase_90.cpp
 PASS: effects/tube_screamer.cpp
 PASS: effects/wah.cpp
 
@@ -81,7 +83,7 @@ OK: No hardcoded sample rate
 OK: All patches define getInstance()
 
 === Summary ===
-Compile: 7 passed, 0 failed
+Compile: 9 passed, 0 failed
 Lint warnings: 0
 
 All patches passed syntax check.
@@ -146,6 +148,16 @@ fi
    `Drive` sweep, the usable range of `Level` at higher drive settings, the feel of
    expression-driven `Tone`, and the contrast between the TS808 default voice and the
    hold-toggle TS9 alternate voice.
+
+   For `effects/klon_centaur.cpp`, hardware validation should explicitly check the low-
+   to-mid `Gain` range for clean/dirty openness, the usefulness of the active `Treble`
+   shelf, the feel of expression-driven `Output`, and the contrast between the stock
+   voice and the hold-toggle Tone Mod alternate.
+
+   For `effects/phase_90.cpp`, hardware validation should explicitly check the full
+   center-knob `Speed` sweep, the usefulness of expression-mirrored speed, the stronger
+   block-logo feel versus the smoother script-mode feel, and the absence of volume jumps
+   or pops when toggling the hold voice.
 
 3. **Double-literal detection is heuristic:** The grep pattern for double literals may
    produce false positives in comments or string literals. Review warnings manually.

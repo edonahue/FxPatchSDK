@@ -10,7 +10,9 @@ Current inventory:
 - `bbe_sonic_stomp.cpp`: guitar-oriented sonic enhancer inspired by BBE Sonic Stomp / Aion Lumin
 - `big_muff.cpp`: Ram's Head-inspired Big Muff fuzz with a Tone Bypass alternate voice and expression-as-blend
 - `chorus.cpp`: stereo chorus with modulated delay lines
+- `klon_centaur.cpp`: Klon-inspired transparent overdrive with a Tone Mod alternate voice and expression-as-output
 - `mxr_distortion_plus.cpp`: MXR Distortion+ inspired distortion with Endless-tuned gain, tone, and level control
+- `phase_90.cpp`: one-knob Phase 90 phaser with a block/script voice toggle
 - `tube_screamer.cpp`: TS808-inspired overdrive with a TS9 alternate voice and expression-as-tone
 - `wah.cpp`: dual-mode wah with expression-driven sweep
 - `examples/reverb.cpp`: imported reference example that still compiles against the stock SDK
@@ -116,6 +118,10 @@ Patch review in this fork now treats parameter taper as a first-class design cho
   hardware controls feel bunched and uneven, so the patch now uses Endless-tuned curves
 - `big_muff.cpp` is the main tone-stack/blend case: classic Muff controls need output
   compensation and a non-literal third control if expression is meant to stay musical
+- `klon_centaur.cpp` is the main clean/dirty summing case: the gain control must rebalance
+  internal paths instead of behaving like a single-path drive knob
+- `phase_90.cpp` is the main minimal-UI case: one public knob, intentional unused controls,
+  and a mode switch that changes voicing without adding more UI surface
 - `tube_screamer.cpp` is the main expression-on-tone case: the classic control layout is
   worth preserving, but the tone sweep must stay musical on both the knob and the pedal
 - `chorus.cpp` is a good positive example: log taper for `Rate`, linear mappings for `Depth` and `Mix`
@@ -168,6 +174,14 @@ These are the best files to read before editing or adding a patch:
   Electrosmash-grounded variant and control-surface rationale for `big_muff.cpp`
 - [`docs/big-muff-build-walkthrough.md`](../docs/big-muff-build-walkthrough.md) —
   design log for `big_muff.cpp`
+- [`docs/klon-centaur-research.md`](../docs/klon-centaur-research.md) —
+  ElectroSmash-grounded clean/dirty summing and mod rationale for `klon_centaur.cpp`
+- [`docs/klon-centaur-build-walkthrough.md`](../docs/klon-centaur-build-walkthrough.md) —
+  design log for `klon_centaur.cpp`
+- [`docs/phase-90-research.md`](../docs/phase-90-research.md) —
+  ElectroSmash-grounded one-knob phaser and script-mod rationale for `phase_90.cpp`
+- [`docs/phase-90-build-walkthrough.md`](../docs/phase-90-build-walkthrough.md) —
+  design log for `phase_90.cpp`
 - [`docs/tube-screamer-research.md`](../docs/tube-screamer-research.md) —
   ElectroSmash-grounded family and control-surface rationale for `tube_screamer.cpp`
 - [`docs/tube-screamer-build-walkthrough.md`](../docs/tube-screamer-build-walkthrough.md) —
