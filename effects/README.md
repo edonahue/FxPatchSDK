@@ -19,27 +19,66 @@ Current inventory:
 
 ---
 
+## Quick Control Cheat Sheet
+
+This table is the fast player-facing view of the hand-written SDK patches. In this
+repo, the expression pedal is globally routed to the Right knob lane (`param 2`),
+so the "Right / expression" column tells you what heel-to-toe control actually does.
+
+| Patch | Left knob | Mid knob | Right / expression | Short press | Long press | LED states |
+| --- | --- | --- | --- | --- | --- | --- |
+| `back_talk_reverse_delay.cpp` | `Speed`: moves from tighter reverse flicks to longer reverse phrases. | `Repetitions`: controls how fast the reverse tail dies out or climbs toward near-runaway. | `Mix`: sweeps from mostly dry attack to a fuller reverse bloom. | Bypass toggle. | Toggles `Texture` mode, which layers an older reverse slice for a smoother, dreamier smear. | Normal mode: LightBlue active, DimBlue bypassed. Texture mode: Magenta active, DimCyan bypassed. |
+| `bbe_sonic_stomp.cpp` | `Contour`: low-end alignment and weight correction. | `Process`: top-end clarity and bite. | `Midrange`: pushes the vocal center of the enhancer harder as you move toe-down. | Bypass toggle. | Toggles the subtle stereo doubler. | Enhancer only: LightGreen active, DimGreen bypassed. Enhancer + doubler: LightBlue active, DimBlue bypassed. |
+| `big_muff.cpp` | `Sustain`: more gain, sustain, and density. | `Tone`: moves from darker wool to sharper cut through the Muff stack. | `Blend`: shifts from more dry pick attack to more full-wall fuzz. | Bypass toggle. | Toggles the `Tone Bypass`-style mids-lift voice. | Ram's Head voice: Red active, DarkRed bypassed. Tone Bypass voice: Magenta active, DimCyan bypassed. |
+| `chorus.cpp` | `Rate`: slower swirl to faster shimmer. | `Depth`: shallow thickening to deeper pitch swim. | `Mix`: dry chorus blend to full wet modulation. | Bypass toggle. | Same as short press; hold also toggles bypass. | LightBlue active, DimBlue bypassed. |
+| `klon_centaur.cpp` | `Gain`: pushes from mostly clean boost into fuller clipped drive. | `Treble`: active high shelf, from rounder to brighter and more cutting. | `Output`: live level sweep for boost or pullback. | Bypass toggle. | Toggles the fuller `Tone Mod` variant. | Stock voice: LightYellow active, DimYellow bypassed. Tone Mod voice: Beige active, DimWhite bypassed. |
+| `mxr_distortion_plus.cpp` | `Distortion`: gain plus low-end tightening, from light grit to denser crunch. | `Tone`: darker post-clip rolloff to brighter bite. | `Level`: final output trim, from nearly off at heel to full output at toe. | Bypass toggle. | No long-press action. | Red active, DimWhite bypassed. |
+| `phase_90.cpp` | Unused on purpose. | `Speed`: the main public control, from slow sweep to fast chew. | Mirrors `Speed` for expression; heel is slower, toe is faster. | Bypass toggle. | Toggles `Block` vs `Script` voicing. | Block voice: Blue active, DimBlue bypassed. Script voice: Beige active, DimWhite bypassed. |
+| `tube_screamer.cpp` | `Drive`: more mid-hump push and saturation. | `Level`: final output level. | `Tone`: heel is darker and rounder, toe is brighter and more cutting. | Bypass toggle. | Toggles `TS808` vs `TS9` voice. | TS808 voice: LightGreen active, DimGreen bypassed. TS9 voice: PastelGreen active, DarkLime bypassed. |
+| `wah.cpp` | `Mix`: dry blend to full wet wah. | `Q`: softer resonance to sharper, more vocal peaks. | `Wah position`: heel is bassier/closed, toe is brighter/open. | Bypass toggle. | Toggles `Crybaby` vs `Vox` mode. | Crybaby: Red active, DarkRed bypassed. Vox: LightYellow active, DimYellow bypassed. |
+
+The matching community example cheat sheet lives in
+[`effects/examples/README.md`](examples/README.md).
+
+---
+
 ## Recommended Workflow
 
 Each top-level `effects/*.cpp` file is a self-contained `Patch` implementation.
 
-To build one with the current repo layout:
+For the normal local build flow:
 
-1. Copy the patch file into `source/PatchImpl.cpp`
-2. Change `#include "../source/Patch.h"` to `#include "Patch.h"`
-3. Build:
+1. Run the fast host-side preflight:
    ```bash
-   make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_effect
+   bash tests/check_patches.sh
    ```
-4. Deploy the resulting `.endl` file onto the Endless USB volume
+2. Run the real ARM build check:
+   ```bash
+   bash tests/build_effects.sh
+   ```
+3. Or build all top-level effects directly into local deployment artifacts:
+   ```bash
+   bash scripts/build_effects.sh
+   ```
+4. Pick up the generated `.endl` files from `effects/builds/`
+5. Deploy the chosen `.endl` file onto the Endless USB volume
 
-Or use the VSCode tasks in `.vscode/tasks.json`.
-
-Before hardware testing:
+To build one effect only:
 
 ```bash
-bash tests/check_patches.sh
+bash scripts/build_effects.sh --effect phase_90
 ```
+
+The outputs in `effects/builds/` are local build artifacts and are intentionally not
+tracked in git. See [`effects/builds/README.md`](builds/README.md).
+
+The legacy single-patch Makefile path still works when you want an ad hoc build:
+
+```bash
+make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_effect
+```
+
+Or use the VSCode tasks in `.vscode/tasks.json`.
 
 ---
 
@@ -201,7 +240,10 @@ These are the best files to read before editing or adding a patch:
 
 ```bash
 bash tests/check_patches.sh
+bash tests/build_effects.sh
 ```
 
-This is a host-side preflight, not a replacement for a real ARM build or on-device
-listening test. See [`tests/README.md`](../tests/README.md).
+`check_patches.sh` is the fast host-side syntax/lint preflight.
+`build_effects.sh` is the real ARM `.endl` build verification path for all top-level
+effects. Neither replaces on-device listening validation. See
+[`tests/README.md`](../tests/README.md).

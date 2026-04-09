@@ -18,7 +18,7 @@ development.
 ## Current Repository Status
 
 - `master` is the current baseline for future work in this fork.
-- The repo keeps the stock SDK shape, but `source/PatchImpl.cpp` is used as the active build target for custom effects.
+- The repo keeps the stock SDK shape, but the default SDK target remains `source/PatchImpl.cpp` while helper scripts can build every top-level custom effect without mutating it.
 - This fork adds hand-written effects in `effects/`, validation in `tests/`,
   design/reference notes in `docs/`, compiled Playground artifacts in `playground/`,
   and a documented local sync workflow for the official Polyend Plates archive.
@@ -29,12 +29,13 @@ For the audit that produced this rewrite, see
 ## Repository Map
 
 ```text
-source/        public Patch API and the active build target
+source/        public Patch API and the default single-patch build target
 internal/      C ABI wrapper, image header, linker script, patch entrypoint
 effects/       custom stock-SDK-compatible patches and reference examples
+effects/builds/ local-only generated .endl outputs for hand-written effects
 tests/         host-side syntax and lint validation
 docs/          SDK notes, patch design walkthroughs, branch/repo review
-scripts/       helper utilities such as local Polyend Plates sync
+scripts/       helper utilities such as local Polyend Plates sync and effect builds
 playground/    compiled Playground examples and supporting artifacts
 ```
 
@@ -72,17 +73,28 @@ make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_effect
 The build emits `build/<PATCH_NAME>_<timestamp>.endl`. Deploy by connecting the
 Endless over USB-C and copying the `.endl` file onto the mounted Endless drive.
 
+To build every top-level hand-written effect into local deployment artifacts under
+`effects/builds/`:
+
+```bash
+bash scripts/build_effects.sh
+```
+
 For the official Polyend Plates catalog specifically, see
 [`playground/polyend_plates/README.md`](playground/polyend_plates/README.md). That
 archive documents the full current Plates lineup, keeps only a small sample of
 official binaries tracked in git, and uses
 [`scripts/sync_polyend_plates.sh`](scripts/sync_polyend_plates.sh) for local-only
-sync.
+sync. For fast day-to-day use, it also now includes a Plate-by-Plate control cheat
+sheet. The hand-written SDK patches have a matching quick reference in
+[`effects/README.md`](effects/README.md), and the community reverb example is
+summarized in [`effects/examples/README.md`](effects/examples/README.md).
 
-[`source/PatchImpl.cpp`](source/PatchImpl.cpp) is the active build target in this fork
-and may temporarily mirror whichever custom effect is currently being built or tested.
-To build one of the custom effects in `effects/`, copy it into `source/PatchImpl.cpp`,
-change the include from `#include "../source/Patch.h"` to `#include "Patch.h"`, then run `make`.
+[`source/PatchImpl.cpp`](source/PatchImpl.cpp) remains the default SDK build target for
+ad hoc single-patch work. For repeatable local builds across every hand-written effect,
+use [`scripts/build_effects.sh`](scripts/build_effects.sh) or
+[`tests/build_effects.sh`](tests/build_effects.sh) instead of manually copying files
+into `source/PatchImpl.cpp`.
 
 ## Validation
 
@@ -90,11 +102,13 @@ Run the host-side syntax and lint checks before hardware testing:
 
 ```bash
 bash tests/check_patches.sh
+bash tests/build_effects.sh
 ```
 
-This confirms that each `effects/*.cpp` file parses cleanly with SDK-like compile
-flags and checks for common mistakes such as heap use, bare double literals, and
-missing `getInstance()` definitions.
+This keeps two levels of verification:
+
+- `tests/check_patches.sh`: fast host-side syntax/lint checks
+- `tests/build_effects.sh`: real ARM `.endl` builds for all top-level `effects/*.cpp`
 
 ## Recommended Reading Order
 

@@ -105,7 +105,7 @@ class TubeScreamerPatch final : public Patch
 public:
     void init() override
     {
-        drive_    = 0.38f;
+        drive_    = 0.46f;
         level_    = 0.62f;
         tone_     = 0.48f;
         bypassed_ = false;
@@ -129,7 +129,7 @@ public:
         const float levelClamped = clamp01(level_);
         const float toneClamped  = clamp01(tone_);
 
-        const float driveCurve = powf(driveClamped, 0.78f);
+        const float driveCurve = 0.08f + 0.92f * powf(driveClamped, 1.05f);
         const float toneCurve  = powf(toneClamped, 1.08f);
         const float levelCurve = levelClamped * (0.45f + 0.55f * levelClamped);
 
@@ -139,31 +139,35 @@ public:
         const float splitAlpha  = lpCoeff(voice.splitHz);
         const float toneAlpha   = lpCoeff(voice.toneBaseHz + voice.toneRangeHz * toneCurve);
 
-        const float baseDrive = 1.10f + 1.85f * driveCurve;
-        const float edgeDrive = 1.25f + voice.edgeDrive * driveCurve;
-        const float clipGain  = 1.05f + voice.clipGain * driveCurve;
+        const float baseDrive = 1.55f + 3.15f * driveCurve;
+        const float edgeDrive = 1.70f + voice.edgeDrive * (0.85f + 0.90f * driveCurve);
+        const float clipGain  = 1.45f + voice.clipGain * (0.72f + 1.35f * driveCurve);
+        const float postDrive = 1.05f + 1.30f * driveCurve;
+        const float bodyKeep  = 0.06f + 0.10f * (1.0f - driveCurve);
 
         const float lowToneWeight  = cosf(toneClamped * kHalfPi);
         const float highToneWeight = sinf(toneClamped * kHalfPi);
 
         const float outputTrim =
-          (0.22f + 1.75f * levelCurve) * (voice.outputTrim - 0.12f * driveCurve);
+          (0.18f + 1.45f * levelCurve) * (voice.outputTrim - 0.18f * driveCurve);
 
         for (size_t i = 0; i < left.size(); ++i)
         {
             left[i]  = processSample(0, left[i], preHpAlpha, splitAlpha, toneAlpha,
                                      baseDrive, edgeDrive, clipGain, lowToneWeight,
-                                     highToneWeight, voice.lowBlend, voice.brightMix, outputTrim);
+                                     highToneWeight, voice.lowBlend, voice.brightMix,
+                                     postDrive, bodyKeep, outputTrim);
             right[i] = processSample(1, right[i], preHpAlpha, splitAlpha, toneAlpha,
                                      baseDrive, edgeDrive, clipGain, lowToneWeight,
-                                     highToneWeight, voice.lowBlend, voice.brightMix, outputTrim);
+                                     highToneWeight, voice.lowBlend, voice.brightMix,
+                                     postDrive, bodyKeep, outputTrim);
         }
     }
 
     ParameterMetadata getParameterMetadata(int idx) override
     {
         switch (idx) {
-            case 0: return {0.0f, 1.0f, 0.38f}; // Drive
+            case 0: return {0.0f, 1.0f, 0.46f}; // Drive
             case 1: return {0.0f, 1.0f, 0.62f}; // Level
             case 2: return {0.0f, 1.0f, 0.48f}; // Tone / expression
             default: return {0.0f, 1.0f, 0.5f};
@@ -217,6 +221,8 @@ private:
                         float highToneWeight,
                         float lowBlend,
                         float brightMix,
+                        float postDrive,
+                        float bodyKeep,
                         float outputTrim)
     {
         float conditioned =
@@ -231,10 +237,12 @@ private:
         const float clipInput =
           body * (lowBlend * baseDrive) + edge * edgeDrive;
         const float clipped = tanhf(clipInput * clipGain);
+        const float recovered =
+          tanhf((clipped * postDrive + edge * 0.26f) * (1.0f + 0.55f * postDrive));
 
-        // Add a little of the pre-clipped body back to keep the low-mid push and avoid
-        // the patch collapsing into a generic high-gain bright distortion.
-        const float overdriveCore = clampUnit(clipped * 0.90f + body * 0.18f);
+        // Keep the TS low-mid push, but let the clipped branch dominate much earlier
+        // so lower-output guitars still read as overdrive instead of filtered clean boost.
+        const float overdriveCore = clampUnit(recovered * 0.96f + body * bodyKeep);
 
         toneLp_[channel] += toneAlpha * (overdriveCore - toneLp_[channel]);
         const float lowBranch  = toneLp_[channel];

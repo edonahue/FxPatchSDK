@@ -50,7 +50,7 @@ public:
 
     void init() override
     {
-        dist_     = 0.35f;
+        dist_     = 0.42f;
         tone_     = 0.55f;
         level_    = 0.65f;
         bypassed_ = false;
@@ -85,15 +85,17 @@ public:
         float toneClamped = clamp01(tone_);
         float levelClamped = clamp01(level_);
 
-        float driveCurve = std::pow(distClamped, 0.75f);
-        float gain       = 1.5f + 16.0f * driveCurve;   // ~1.5x to ~17.5x
+        float driveCurve = 0.08f + 0.92f * std::pow(distClamped, 1.08f);
+        float gain       = 2.0f + 18.0f * driveCurve + 10.0f * driveCurve * driveCurve;
+        float clipDrive  = 1.05f + 1.55f * driveCurve;
+        float recoveryDrive = 1.00f + 0.92f * driveCurve;
 
         float fc_hp    = 35.0f + 380.0f * distClamped * distClamped;
         float alpha_hp = 1.0f / (1.0f + kTwoPi * fc_hp / kFs);
 
         // Move the tone sweep into a much more audible guitar range.
-        float toneCurve = std::pow(toneClamped, 1.25f);
-        float fc_lp     = 800.0f + 7200.0f * toneCurve;
+        float toneCurve = std::pow(toneClamped, 1.10f);
+        float fc_lp     = 650.0f + 6800.0f * toneCurve;
         float omega_lp = kTwoPi * fc_lp / kFs;
         float alpha_lp = omega_lp / (1.0f + omega_lp);
         float alpha_lp_inv = 1.0f - alpha_lp;
@@ -101,7 +103,7 @@ public:
         // High drive already increases density and perceived loudness. Pull the level range
         // back as gain rises so the Right knob remains usable across the whole Distortion sweep.
         float levelCurve = levelClamped * (0.5f + 0.5f * levelClamped);
-        float outputTrim = 1.15f - 0.45f * driveCurve;
+        float outputTrim = 1.00f - 0.24f * driveCurve;
         float outputGain = levelCurve * outputTrim;
 
         // --- Process each sample ---
@@ -120,10 +122,12 @@ public:
             float gainedL = hpL * gain;
 
             // Stage 3: Germanium-style soft clip.
-            float clippedL = tanhf(gainedL);
+            float clippedL = tanhf(gainedL * clipDrive);
+            float recoveredL =
+              tanhf((clippedL * recoveryDrive + gainedL * 0.07f) * (1.0f + 0.35f * driveCurve));
 
             // Stage 4: 1-pole low-pass filter
-            float lpL  = alpha_lp * clippedL + alpha_lp_inv * lpPrevL_;
+            float lpL  = alpha_lp * recoveredL + alpha_lp_inv * lpPrevL_;
             lpPrevL_   = lpL;
 
             // Stage 5: Level (Right knob / expression pedal)
@@ -137,9 +141,11 @@ public:
             hpPrevR_   = hpR;
 
             float gainedR  = hpR * gain;
-            float clippedR = tanhf(gainedR);
+            float clippedR = tanhf(gainedR * clipDrive);
+            float recoveredR =
+              tanhf((clippedR * recoveryDrive + gainedR * 0.07f) * (1.0f + 0.35f * driveCurve));
 
-            float lpR  = alpha_lp * clippedR + alpha_lp_inv * lpPrevR_;
+            float lpR  = alpha_lp * recoveredR + alpha_lp_inv * lpPrevR_;
             lpPrevR_   = lpR;
 
             right[i] = lpR * outputGain;
@@ -149,7 +155,7 @@ public:
     ParameterMetadata getParameterMetadata(int idx) override
     {
         switch (idx) {
-            case 0: return { 0.0f, 1.0f, 0.35f }; // Distortion
+            case 0: return { 0.0f, 1.0f, 0.42f }; // Distortion
             case 1: return { 0.0f, 1.0f, 0.55f }; // Tone
             case 2: return { 0.0f, 1.0f, 0.65f }; // Level / expression
             default: return { 0.0f, 1.0f, 0.5f };

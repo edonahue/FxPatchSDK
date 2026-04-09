@@ -1,2 +1,6 @@
 
+__pycache__/
 build*/
+effects/builds/*
+!effects/builds/
+!effects/builds/README.md

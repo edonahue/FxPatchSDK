@@ -8,7 +8,7 @@ Use it as reference material, not as editable source:
 - `.endl` files are compiled patch binaries meant for deployment to Endless
 - PDFs and related files are useful for naming, UX, and creator-output review
 - `examples/` holds archived creator example bundles gathered from external demos
-- `polyend_plates/` documents the official Polyend Plates catalog and supports a local-only full archive sync
+- `polyend_plates/` documents the official Polyend Plates catalog, includes per-plate control cheat sheets, and supports a local-only full archive sync
 - none of these files replace readable C++ source in `effects/`
 
 The practical reason to keep these artifacts in the repo is comparison: they show what
@@ -25,4 +25,4 @@ keep the bulk synced downloads local-only for personal archival/reference use.
 
 See [`playground/examples/SpiralCaster_Examples/README.md`](examples/SpiralCaster_Examples/README.md)
 for the creator archive and [`playground/polyend_plates/README.md`](polyend_plates/README.md)
-for the documented Plates archive.
+for the documented Plates archive and its quick knob / switch reference tables.

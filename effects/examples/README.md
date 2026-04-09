@@ -24,18 +24,17 @@ lengths for stereo width. All delay buffers (~50 KB total) are sub-allocated fro
 the working buffer provided by `setWorkingBuffer()` — a good pattern to study for
 any effect that needs large delay lines.
 
-**Controls:**
+## Quick Control Cheat Sheet
 
-| Knob | Parameter | Range | Default |
-|---|---|---|---|
-| Left | Room Size | 0–1 | 0.6 |
-| Mid | Damping | 0–1 (0=bright, 1=dark) | 0.5 |
-| Right | Dry/Wet Mix | 0–1 | 0.33 |
-
-**Footswitch:** Press or hold → bypass toggle  
-**Expression pedal:** controls Right knob (Mix) — heel = dry, toe = full wet.
-Enabled repo-wide via `PatchCppWrapper.cpp`. No code change needed in the patch itself.  
-**LED:** `kLightBlueColor` = active · `kDimWhite` = bypassed
+| Surface | What it does |
+| --- | --- |
+| Left knob | `Room Size` (`0.6` default): shorter room feel at lower values, longer tail and bigger space as you turn it up. |
+| Mid knob | `Damping` (`0.5` default): lower values keep more top-end in the tail, higher values darken the repeats faster. |
+| Right knob | `Mix` (`0.33` default): blends from dry signal to full wet reverb. |
+| Short press | Bypass toggle. |
+| Long press | Same as short press; hold also toggles bypass. |
+| Expression pedal | Mirrors the Right knob (`Mix`) through the repo-wide `param 2` routing. Heel stays mostly dry; toe moves toward full wet. |
+| LED / colors | `kLightBlueColor` when active, `kDimWhite` when bypassed. There is no alternate long-press mode state. |
 
 **To use:** copy to `source/PatchImpl.cpp`, change the include to `"Patch.h"`,
 rename the class to `PatchImpl` (or leave it as `Reverb` — only `getInstance()`

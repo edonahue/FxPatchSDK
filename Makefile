@@ -2,6 +2,7 @@ TOOLCHAIN ?= arm-none-eabi-
 CUSTOM_COMPILER_OPTIONS ?=
 PATCH_LOAD_ADDR ?= 0x80000000
 PATCH_NAME ?= patch
+PATCH_IMPL_SRC ?= source/PatchImpl.cpp
 
 CC = $(TOOLCHAIN)gcc
 CXX = $(TOOLCHAIN)g++
@@ -19,10 +20,11 @@ COMMON_FLAGS := -Wall -Wextra -Werror -fno-builtin -fno-common -ffunction-sectio
 CFLAGS := $(COMMON_FLAGS) -std=c11 $(CUSTOM_COMPILER_OPTIONS)
 CXXFLAGS := $(COMMON_FLAGS) -std=c++20 -includecstdint -felide-constructors -Wno-psabi -fno-exceptions -fno-rtti $(CUSTOM_COMPILER_OPTIONS)
 
-INCLUDES :=
+INCLUDES := -I source
 
 SRC_C := $(wildcard internal/*.c)
-SRC_CPP := $(wildcard source/*.cpp)
+SRC_CPP := $(filter-out source/PatchImpl.cpp,$(wildcard source/*.cpp))
+SRC_CPP += $(PATCH_IMPL_SRC)
 SRC_CPP += $(wildcard internal/*.cpp)
 OBJ := $(patsubst %.c,$(BUILD_DIR)/%.o,$(SRC_C)) $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SRC_CPP))
 
@@ -48,7 +50,7 @@ else
 endif
 
 PATCH_ELF := $(BUILD_DIR)/$(PATCH_NAME).elf
-PATCH_BIN := $(BUILD_DIR)/$(PATCH_NAME)_$(PATCH_TIMESTAMP).endl
+PATCH_BIN ?= $(BUILD_DIR)/$(PATCH_NAME)_$(PATCH_TIMESTAMP).endl
 
 all: $(PATCH_BIN)
 
@@ -64,6 +66,7 @@ $(PATCH_ELF): $(OBJ) internal/patch_imx.ld | $(BUILD_DIR)
 	$(LD) $(CXXFLAGS) $(OBJ) -o $@ $(LDFLAGS) $(LIBS)
 
 $(PATCH_BIN): $(PATCH_ELF) | $(BUILD_DIR)
+	@$(MKDIR) $(call FIX_PATH,$(dir $@)) 2>$(NULL_DEVICE) || exit 0
 	$(OBJCOPY) -O binary $< $@
 
 $(BUILD_DIR):

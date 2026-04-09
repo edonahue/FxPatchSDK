@@ -104,9 +104,9 @@ class KlonCentaurPatch final : public Patch
 public:
     void init() override
     {
-        gain_       = 0.28f;
+        gain_       = 0.36f;
         treble_     = 0.52f;
-        output_     = 0.66f;
+        output_     = 0.60f;
         bypassed_   = false;
         toneMod_    = false;
 
@@ -128,7 +128,7 @@ public:
         const float trebleClamped = clamp01(treble_);
         const float outputClamped = clamp01(output_);
 
-        const float gainCurve   = powf(gainClamped, 0.82f);
+        const float gainCurve   = 0.04f + 0.96f * powf(gainClamped, 1.05f);
         const float outputCurve = outputClamped * (0.45f + 0.55f * outputClamped);
 
         const VoiceParams voice = getVoiceParams(toneMod_);
@@ -140,34 +140,39 @@ public:
 
         // The dual-gang gain control is the main Klon behavior to preserve:
         // low settings keep a strong clean path, higher settings favor the clipped branch.
-        const float cleanMix = 0.88f - 0.68f * gainCurve;
-        const float dirtyMix = 0.18f + 0.96f * gainCurve;
+        const float cleanMix = 0.72f - 0.58f * gainCurve;
+        const float dirtyMix = 0.36f + 1.48f * gainCurve;
 
-        const float baseDrive = 1.05f + 2.10f * gainCurve;
-        const float clipDrive = 1.20f + 4.40f * gainCurve;
+        const float baseDrive = 1.25f + 3.10f * gainCurve;
+        const float clipDrive = 1.55f + 6.85f * gainCurve;
+        const float cleanBodyBlend = 0.06f + 0.10f * (1.0f - gainCurve);
+        const float dirtyPostDrive = 1.00f + 1.05f * gainCurve;
+        const float sumTrim = 0.84f - 0.08f * gainCurve;
 
         const float shelfGain =
           voice.shelfMinCut + (voice.shelfMaxBoost - voice.shelfMinCut) * trebleClamped;
         const float outputGain =
-          (0.22f + 1.95f * outputCurve) * (voice.outputBaseTrim - 0.08f * gainCurve);
+          (0.18f + 1.55f * outputCurve) * (voice.outputBaseTrim - 0.15f * gainCurve);
 
         for (size_t i = 0; i < left.size(); ++i)
         {
             left[i]  = processSample(0, left[i], clipHpAlpha, cleanLpAlpha, clippedLpAlpha,
                                      shelfLpAlpha, cleanMix, dirtyMix, baseDrive, clipDrive,
-                                     voice.clippedBrightMix, shelfGain, outputGain);
+                                     voice.clippedBrightMix, cleanBodyBlend, dirtyPostDrive,
+                                     sumTrim, shelfGain, outputGain);
             right[i] = processSample(1, right[i], clipHpAlpha, cleanLpAlpha, clippedLpAlpha,
                                      shelfLpAlpha, cleanMix, dirtyMix, baseDrive, clipDrive,
-                                     voice.clippedBrightMix, shelfGain, outputGain);
+                                     voice.clippedBrightMix, cleanBodyBlend, dirtyPostDrive,
+                                     sumTrim, shelfGain, outputGain);
         }
     }
 
     ParameterMetadata getParameterMetadata(int idx) override
     {
         switch (idx) {
-            case 0: return {0.0f, 1.0f, 0.28f}; // Gain
+            case 0: return {0.0f, 1.0f, 0.36f}; // Gain
             case 1: return {0.0f, 1.0f, 0.52f}; // Treble
-            case 2: return {0.0f, 1.0f, 0.66f}; // Output / expression
+            case 2: return {0.0f, 1.0f, 0.60f}; // Output / expression
             default: return {0.0f, 1.0f, 0.5f};
         }
     }
@@ -218,27 +223,33 @@ private:
                         float baseDrive,
                         float clipDrive,
                         float clippedBrightMix,
+                        float cleanBodyBlend,
+                        float dirtyPostDrive,
+                        float sumTrim,
                         float shelfGain,
                         float outputGain)
     {
         const float buffered = input * baseDrive;
 
         cleanLp_[channel] += cleanLpAlpha * (buffered - cleanLp_[channel]);
-        const float cleanPath = input * cleanMix + cleanLp_[channel] * 0.12f;
+        const float cleanPath = input * cleanMix + cleanLp_[channel] * cleanBodyBlend;
 
         float clippedPre =
           clipHpAlpha * (clipHpPrev_[channel] + buffered - clipInputPrev_[channel]);
         clipInputPrev_[channel] = buffered;
         clipHpPrev_[channel] = clippedPre;
 
-        const float clipped = tanhf(clippedPre * clipDrive);
+        const float clipped = tanhf((clippedPre + buffered * 0.12f) * clipDrive);
         clippedLp_[channel] += clippedLpAlpha * (clipped - clippedLp_[channel]);
+        const float dirtyCore =
+          tanhf((clipped * dirtyPostDrive + clippedLp_[channel] * 0.38f) *
+                (1.0f + 0.42f * dirtyMix));
 
         const float dirtyPath =
-          clipped * dirtyMix * clippedBrightMix + clippedLp_[channel] * dirtyMix * 0.24f;
+          dirtyCore * dirtyMix * clippedBrightMix + clippedLp_[channel] * dirtyMix * 0.12f;
 
         // Sum the cleaner and clipped branches before the active treble shelf.
-        const float summed = clampUnit(cleanPath + dirtyPath);
+        const float summed = clampUnit((cleanPath + dirtyPath) * sumTrim);
 
         shelfLp_[channel] += shelfLpAlpha * (summed - shelfLp_[channel]);
         const float lowBranch  = shelfLp_[channel];

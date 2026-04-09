@@ -75,7 +75,7 @@ class BigMuffPatch final : public Patch
 public:
     void init() override
     {
-        sustain_ = 0.56f;
+        sustain_ = 0.62f;
         tone_    = 0.48f;
         blend_   = 0.74f;
 
@@ -100,7 +100,7 @@ public:
         const float toneClamped    = clamp01(tone_);
         const float blendClamped   = clamp01(blend_);
 
-        const float sustainCurve = powf(sustainClamped, 0.72f);
+        const float sustainCurve = 0.12f + 0.88f * powf(sustainClamped, 1.15f);
         const float toneCurve    = powf(toneClamped, 1.10f);
 
         const float inputHpAlpha  = hpCoeff(18.0f + 38.0f * sustainCurve);
@@ -112,9 +112,9 @@ public:
         const float highToneLpAlpha = lpCoeff(1220.0f);
         const float bypassToneAlpha = lpCoeff(1300.0f + 3500.0f * toneCurve);
 
-        const float inputBoost = 1.15f + 3.85f * sustainCurve;
-        const float stage1Gain = 1.80f + 10.20f * sustainCurve;
-        const float stage2Gain = 3.20f + 15.80f * powf(sustainCurve, 1.05f);
+        const float inputBoost = 1.18f + 3.25f * sustainCurve;
+        const float stage1Gain = 1.95f + 8.90f * sustainCurve;
+        const float stage2Gain = 3.35f + 13.80f * powf(sustainCurve, 1.04f);
 
         const float toneLowWeight  = cosf(toneClamped * kHalfPi);
         const float toneHighWeight = sinf(toneClamped * kHalfPi);
@@ -122,8 +122,8 @@ public:
         const float dryGain = equalPowerDry(blendClamped);
         const float wetGain = equalPowerWet(blendClamped);
 
-        const float normalTrim = 0.80f - 0.08f * sustainCurve;
-        const float bypassTrim = 0.95f - 0.10f * sustainCurve;
+        const float normalTrim = 0.84f - 0.04f * sustainCurve;
+        const float bypassTrim = 0.98f - 0.05f * sustainCurve;
 
         for (size_t i = 0; i < left.size(); ++i)
         {
@@ -141,7 +141,7 @@ public:
     ParameterMetadata getParameterMetadata(int idx) override
     {
         switch (idx) {
-            case 0: return {0.0f, 1.0f, 0.56f}; // Sustain
+            case 0: return {0.0f, 1.0f, 0.62f}; // Sustain
             case 1: return {0.0f, 1.0f, 0.48f}; // Tone
             case 2: return {0.0f, 1.0f, 0.74f}; // Blend / expression
             default: return {0.0f, 1.0f, 0.5f};

@@ -28,12 +28,10 @@ options that are not available on the host machine. This catches:
 - Runtime behavior (audio glitches, incorrect filter behavior)
 - Bugs that only appear with specific input signals
 
-For a real SDK build, use the ARM cross-compiler and the repo Makefile:
+For a real SDK build, use the dedicated ARM build script:
 
 ```bash
-cp effects/phase_90.cpp source/PatchImpl.cpp
-# Edit include to "Patch.h" (not "../source/Patch.h")
-make TOOLCHAIN=/path/to/arm-none-eabi- PATCH_NAME=phase_90
+bash tests/build_effects.sh
 ```
 
 ### 2. Lint Checks
@@ -57,7 +55,12 @@ From the repository root:
 
 ```bash
 bash tests/check_patches.sh
+bash tests/build_effects.sh
 ```
+
+`check_patches.sh` stays fast and host-only.
+`build_effects.sh` runs the real ARM toolchain across all top-level `effects/*.cpp`
+files and verifies the generated `.endl` outputs in `effects/builds/`.
 
 Expected output when all patches pass:
 
@@ -91,6 +94,32 @@ All patches passed syntax check.
 
 ---
 
+## build_effects.sh
+
+Builds all top-level `effects/*.cpp` files through the real ARM toolchain and checks
+that each expected output exists at `effects/builds/<effect>.endl` with a valid `PTCH`
+header.
+
+This script verifies the repo's actual deployable build path, not just syntax.
+
+Requirements beyond `check_patches.sh`:
+
+- `arm-none-eabi-g++`
+- `arm-none-eabi-objcopy`
+
+Underlying build helper:
+
+```bash
+bash scripts/build_effects.sh
+```
+
+This helper rewrites each effect's `../source/Patch.h` include into a generated local
+`PatchImpl.cpp` under `build/generated_effects/`, then invokes `make` with
+`PATCH_IMPL_SRC=...` so every top-level effect can be compiled without mutating
+`source/PatchImpl.cpp`.
+
+---
+
 ## Adding New Checks
 
 To add a new lint rule, append to the lint section of `check_patches.sh`:
@@ -112,6 +141,7 @@ fi
 ## Requirements
 
 - `g++` with C++20 support (GCC 10+ or Clang 12+)
+- `arm-none-eabi-g++` and `arm-none-eabi-objcopy` for `tests/build_effects.sh`
 - Run from the repository root (not from `tests/`)
 - The `source/Patch.h` header must be present at `source/Patch.h`
 
@@ -119,11 +149,11 @@ fi
 
 ## Known Limitations
 
-1. **No ARM artifact is produced:** Host `g++` cannot produce the deployed `.endl`
-   image. A patch that passes this check may still fail to link or behave incorrectly
-   on hardware if it uses unsupported calls or relies on undefined ARM ABI behavior.
+1. **Host syntax is still not hardware validation:** `check_patches.sh` uses host `g++`
+   and cannot replace a real ARM build. Use `tests/build_effects.sh` for deployable
+   artifact verification.
 
-2. **No audio testing:** The script does not run the patch with real audio. Functional
+2. **No audio testing:** Neither script runs the patch with real audio. Functional
    correctness must still be validated by ear on hardware.
 
    For `effects/bbe_sonic_stomp.cpp`, hardware validation should explicitly include the
@@ -162,8 +192,8 @@ fi
 3. **Double-literal detection is heuristic:** The grep pattern for double literals may
    produce false positives in comments or string literals. Review warnings manually.
 
-4. **Excludes `effects/examples/`:** Only `effects/*.cpp` is checked, not
-   `effects/examples/*.cpp`. To check examples manually, run:
+4. **Excludes `effects/examples/`:** The automated scripts intentionally target only
+   top-level `effects/*.cpp`, not `effects/examples/*.cpp`. To check examples manually, run:
    ```bash
    g++ -std=c++20 -fno-exceptions -fno-rtti -fsingle-precision-constant \
        -Wdouble-promotion -fsyntax-only -I source effects/examples/reverb.cpp
