@@ -16,3 +16,7 @@ These files are useful as a reference archive for:
 - future listening comparisons against hand-written SDK patches
 
 There is no corresponding editable C++ source in this directory.
+
+This is a creator archive, not the official Polyend Plates catalog. For the official
+Polyend-authored plates archive and local sync notes, see
+[`playground/polyend_plates/README.md`](../../polyend_plates/README.md).

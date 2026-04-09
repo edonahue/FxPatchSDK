@@ -325,15 +325,26 @@ These rules are enforced partly by toolchain flags and partly by discipline.
 
 ## 9. Playground Artifacts in This Repo
 
-`playground/` is not source code. It is a reference archive of compiled creator-made
-Playground effects and related PDFs. These files are useful for:
+`playground/` is not source code. It is a reference archive of:
+
+- compiled creator-made Playground effects and related PDFs
+- the official Polyend Plates catalog documentation
+- a local-only sync target for official Polyend Plates `.endl` downloads
+
+These files are useful for:
 
 - understanding the kind of effects people are getting from Playground
+- understanding Polyend's own naming, categorization, and product-page presentation for Endless plates
 - comparing UX and naming conventions against hand-written SDK patches
 - building a listening/test corpus for future fork development
 
 They are not useful for code extraction or line-by-line reverse engineering in the same
 way that `effects/*.cpp` files are.
+
+For the official Plates catalog and attribution notes, see
+[`playground/polyend_plates/README.md`](../playground/polyend_plates/README.md). To sync
+the current live catalog locally without committing the bulk archive, use
+[`scripts/sync_polyend_plates.sh`](../scripts/sync_polyend_plates.sh).
 
 ---
 

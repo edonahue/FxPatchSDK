@@ -20,7 +20,8 @@ development.
 - `master` is the current baseline for future work in this fork.
 - The repo keeps the stock SDK shape, but `source/PatchImpl.cpp` is used as the active build target for custom effects.
 - This fork adds hand-written effects in `effects/`, validation in `tests/`,
-  design/reference notes in `docs/`, and compiled Playground artifacts in `playground/`.
+  design/reference notes in `docs/`, compiled Playground artifacts in `playground/`,
+  and a documented local sync workflow for the official Polyend Plates archive.
 
 For the audit that produced this rewrite, see
 [`docs/repository-review.md`](docs/repository-review.md).
@@ -33,6 +34,7 @@ internal/      C ABI wrapper, image header, linker script, patch entrypoint
 effects/       custom stock-SDK-compatible patches and reference examples
 tests/         host-side syntax and lint validation
 docs/          SDK notes, patch design walkthroughs, branch/repo review
+scripts/       helper utilities such as local Polyend Plates sync
 playground/    compiled Playground examples and supporting artifacts
 ```
 
@@ -69,6 +71,13 @@ make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_effect
 
 The build emits `build/<PATCH_NAME>_<timestamp>.endl`. Deploy by connecting the
 Endless over USB-C and copying the `.endl` file onto the mounted Endless drive.
+
+For the official Polyend Plates catalog specifically, see
+[`playground/polyend_plates/README.md`](playground/polyend_plates/README.md). That
+archive documents the full current Plates lineup, keeps only a small sample of
+official binaries tracked in git, and uses
+[`scripts/sync_polyend_plates.sh`](scripts/sync_polyend_plates.sh) for local-only
+sync.
 
 [`source/PatchImpl.cpp`](source/PatchImpl.cpp) is the active build target in this fork
 and may temporarily mirror whichever custom effect is currently being built or tested.
@@ -116,6 +125,7 @@ Then read the specific walkthroughs for any effect you plan to extend:
 
 - Product page: <https://polyend.com/endless/>
 - Playground: <https://polyend.com/playground/>
+- Plates: <https://polyend.com/plates/>
 - Downloads/manuals: <https://polyend.com/downloads/endless-downloads/>
 - Official upstream SDK: <https://github.com/polyend/FxPatchSDK>
 - Official forum/community: <https://backstage.polyend.com/>
