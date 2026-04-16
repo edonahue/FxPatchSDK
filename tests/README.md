@@ -76,6 +76,7 @@ PASS: effects/chorus.cpp
 PASS: effects/bbe_sonic_stomp.cpp
 PASS: effects/back_talk_reverse_delay.cpp
 PASS: effects/big_muff.cpp
+PASS: effects/harmonica.cpp
 PASS: effects/klon_centaur.cpp
 PASS: effects/mxr_distortion_plus.cpp
 PASS: effects/phase_90.cpp
@@ -89,7 +90,7 @@ OK: No hardcoded sample rate
 OK: All patches define getInstance()
 
 === Summary ===
-Compile: 9 passed, 0 failed
+Compile: 10 passed, 0 failed
 Lint warnings: 0
 
 All patches passed syntax check.
@@ -222,6 +223,14 @@ fi
    center-knob `Speed` sweep, the usefulness of expression-mirrored speed, the stronger
    block-logo feel versus the smoother script-mode feel, and the absence of volume jumps
    or pops when toggling the hold voice.
+
+   For `effects/harmonica.cpp`, hardware validation should explicitly check the
+   heel-to-toe expression sweep (should read as a hand-cup morph, not a synthy filter),
+   that the `Reed` knob delivers a continuous reed-to-bullet-amp breakup without a
+   sudden level jump, the audible contrast between the Open and Cupped voicings, and
+   the absence of pops on bypass re-engage or voicing toggle. Because the SDK has no
+   pitch shifter, also verify the illusion holds for single-note blues phrasing on the
+   neck pickup and breaks (as expected) on open low strings and chords.
 
 3. **Double-literal detection is heuristic:** The grep pattern for double literals may
    produce false positives in comments or string literals. Review warnings manually.

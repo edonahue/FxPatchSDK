@@ -41,12 +41,13 @@ playground/    compiled Playground examples and supporting artifacts
 
 ## Included Effect Work
 
-This fork currently includes nine stock-SDK-compatible custom effects:
+This fork currently includes ten stock-SDK-compatible custom effects:
 
 - `effects/back_talk_reverse_delay.cpp`: Back Talk-inspired reverse delay with a texture mode and expression-as-mix
 - `effects/bbe_sonic_stomp.cpp`: guitar-oriented sonic enhancer inspired by BBE Sonic Stomp / Aion Lumin
 - `effects/big_muff.cpp`: Ram's Head-inspired Big Muff fuzz with a Tone Bypass alternate voice and expression-as-blend
 - `effects/chorus.cpp`: stereo modulated-delay chorus
+- `effects/harmonica.cpp`: blues bullet-mic harmonica voicing of a guitar, with an Open/Cupped voicing toggle and expression-driven hand-cup sweep
 - `effects/klon_centaur.cpp`: Klon-inspired transparent overdrive with a Tone Mod alternate voice and expression-as-output
 - `effects/mxr_distortion_plus.cpp`: MXR Distortion+ inspired distortion, retuned for smoother Endless control
 - `effects/phase_90.cpp`: one-knob Phase 90 phaser with a script-mod vintage alternate voice
@@ -132,6 +133,7 @@ Then read the specific walkthroughs for any effect you plan to extend:
 - [`docs/bbe-sonic-stomp-build-walkthrough.md`](docs/bbe-sonic-stomp-build-walkthrough.md)
 - [`docs/big-muff-research.md`](docs/big-muff-research.md)
 - [`docs/big-muff-build-walkthrough.md`](docs/big-muff-build-walkthrough.md)
+- [`docs/harmonica-build-walkthrough.md`](docs/harmonica-build-walkthrough.md)
 - [`docs/klon-centaur-research.md`](docs/klon-centaur-research.md)
 - [`docs/klon-centaur-build-walkthrough.md`](docs/klon-centaur-build-walkthrough.md)
 - [`docs/mxr-distortion-plus-circuit-analysis.md`](docs/mxr-distortion-plus-circuit-analysis.md)

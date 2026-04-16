@@ -175,6 +175,10 @@ Patch review in this fork now treats parameter taper as a first-class design cho
   worth preserving, but the tone sweep must stay musical on both the knob and the pedal
 - `chorus.cpp` is a good positive example: log taper for `Rate`, linear mappings for `Depth` and `Mix`
 - `wah.cpp` is another positive example: log taper for sweep frequency, linear mapping for Q
+- `harmonica.cpp` is the main multi-stage filter case: each knob modulates several coupled
+  voicing parameters at once (the base Open/Cupped preset moves eleven of them together),
+  and the expression-swept formant uses a log taper so heel-to-toe motion reads as a
+  natural hand-cup morph rather than a synthy filter ramp
 - `bbe_sonic_stomp.cpp` uses bounded blend/offset mappings rather than trying to mimic analog-pot laws
 - `back_talk_reverse_delay.cpp` uses a log-style time mapping, bounded feedback, and an equal-power mix to keep expression musical
 
@@ -247,6 +251,8 @@ These are the best files to read before editing or adding a patch:
   design log for `tube_screamer.cpp`
 - [`docs/wah-build-walkthrough.md`](../docs/wah-build-walkthrough.md) —
   complete design log for `wah.cpp`
+- [`docs/harmonica-build-walkthrough.md`](../docs/harmonica-build-walkthrough.md) —
+  design log for `harmonica.cpp`
 - [`docs/mxr-distortion-plus-circuit-analysis.md`](../docs/mxr-distortion-plus-circuit-analysis.md) —
   circuit-to-DSP analysis for `mxr_distortion_plus.cpp`
 - [`docs/circuit-to-patch-conversion.md`](../docs/circuit-to-patch-conversion.md) —
