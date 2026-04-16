@@ -73,6 +73,10 @@ struct VoiceParams
 
 VoiceParams getVoiceParams(bool toneMod)
 {
+    // outputBaseTrim raised (0.86/0.82 → 1.00/0.96) so the Output knob can reach
+    // the Centaur's reputed +20+ dB of clean boost at max. The drive-compensation
+    // factor in processAudio (0.15·gainCurve) still keeps the loudness from running
+    // away when Gain is cranked alongside Output.
     if (toneMod) {
         return {
             110.0f, // clipHpHz
@@ -82,7 +86,7 @@ VoiceParams getVoiceParams(bool toneMod)
             0.94f,  // clippedBrightMix
             1.62f,  // shelfMaxBoost
             0.66f,  // shelfMinCut
-            0.86f   // outputBaseTrim
+            1.00f   // outputBaseTrim
         };
     }
 
@@ -94,7 +98,7 @@ VoiceParams getVoiceParams(bool toneMod)
         0.88f,  // clippedBrightMix
         1.55f,  // shelfMaxBoost
         0.58f,  // shelfMinCut
-        0.82f   // outputBaseTrim
+        0.96f   // outputBaseTrim
     };
 }
 }
@@ -151,8 +155,13 @@ public:
 
         const float shelfGain =
           voice.shelfMinCut + (voice.shelfMaxBoost - voice.shelfMinCut) * trebleClamped;
+        // Output law widened: (0.08 + 1.95·outputCurve) gives ≈28 dB of usable
+        // knob range (was ≈18 dB), matching the real Centaur's famously wide
+        // Output pot. Combined with the raised outputBaseTrim above, this lets
+        // the pedal operate as a transparent clean boost at low Gain and reach
+        // commercial-pedal loudness into the amp at max.
         const float outputGain =
-          (0.18f + 1.55f * outputCurve) * (voice.outputBaseTrim - 0.15f * gainCurve);
+          (0.08f + 1.95f * outputCurve) * (voice.outputBaseTrim - 0.10f * gainCurve);
 
         for (size_t i = 0; i < left.size(); ++i)
         {

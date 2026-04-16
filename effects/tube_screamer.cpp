@@ -72,6 +72,9 @@ struct VoiceParams
 
 VoiceParams getVoiceParams(bool ts9)
 {
+    // outputTrim bumped from 0.84 (TS9) / 0.80 (TS808) so the Level knob can
+    // actually approach a commercial pedal's hot output into a clean amp. The
+    // drive-compensation factor in processAudio pulls it back at high gain.
     if (ts9) {
         return {
             155.0f, // preHpHz
@@ -82,7 +85,7 @@ VoiceParams getVoiceParams(bool ts9)
             1500.0f,// toneBaseHz
             6100.0f,// toneRangeHz
             1.18f,  // brightMix
-            0.84f   // outputTrim
+            0.96f   // outputTrim
         };
     }
 
@@ -95,7 +98,7 @@ VoiceParams getVoiceParams(bool ts9)
         1250.0f,// toneBaseHz
         5200.0f,// toneRangeHz
         1.05f,  // brightMix
-        0.80f   // outputTrim
+        0.92f   // outputTrim
     };
 }
 }
@@ -148,8 +151,13 @@ public:
         const float lowToneWeight  = cosf(toneClamped * kHalfPi);
         const float highToneWeight = sinf(toneClamped * kHalfPi);
 
+        // Level law widened for more usable knob range. The (0.12 + 1.72·levelCurve)
+        // term gives ≈24 dB of sweep between knob extremes (was ≈17 dB) and the
+        // reduced drive-compensation coefficient (0.18→0.10) keeps the top of the
+        // knob hot at high gain — the earlier 0.18·drive subtraction was stealing
+        // 2–3 dB of peak level the user expected to be there.
         const float outputTrim =
-          (0.18f + 1.45f * levelCurve) * (voice.outputTrim - 0.18f * driveCurve);
+          (0.12f + 1.72f * levelCurve) * (voice.outputTrim - 0.10f * driveCurve);
 
         for (size_t i = 0; i < left.size(); ++i)
         {

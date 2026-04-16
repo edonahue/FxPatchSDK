@@ -138,9 +138,14 @@ class SonicStompEnhancer final : public Patch
                    0,
                    kEnhanceDelayLen - 1);
 
-        const float contourBlend = 0.85f * contour_;
-        const float processBlend = 0.75f * process_;
-        const float midBlend     = 0.80f * mid_;
+        // Blend caps raised from 0.85/0.75/0.80 → 1.10/1.00/1.05 (≈ +2 dB each).
+        // The earlier caps meant the knobs were effectively always "turned down"
+        // even at max — the enhancer reads audibly on transients but barely
+        // shifts perceived tone on sustained chords. The clampUnit at the output
+        // still protects against peaks if all three are cranked simultaneously.
+        const float contourBlend = 1.10f * contour_;
+        const float processBlend = 1.00f * process_;
+        const float midBlend     = 1.05f * mid_;
 
         const float doublerToneAlpha = lpCoeff(kDoublerToneHz);
         const float phaseIncL = kDoublerRateL / static_cast<float>(kSampleRate);

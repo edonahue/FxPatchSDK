@@ -23,6 +23,8 @@
 //   3. tanhf()        (soft germanium-style clipping)
 //   4. 1-pole IIR LP  (Tone knob sweeps a guitar-relevant dark/bright range)
 //   5. Level scalar   (Right knob / expression pedal, with drive compensation)
+//   6. tanh output soft-clip (catches the ≥1.0 outputGain at max Level without
+//      hard-clipping; also adds a small "hot" character at the top of the knob)
 
 #include "../source/Patch.h"
 #include <cmath>
@@ -100,11 +102,15 @@ public:
         float alpha_lp = omega_lp / (1.0f + omega_lp);
         float alpha_lp_inv = 1.0f - alpha_lp;
 
-        // High drive already increases density and perceived loudness. Pull the level range
-        // back as gain rises so the Right knob remains usable across the whole Distortion sweep.
+        // Level law widened and drive-compensation softened. The earlier
+        // (1.00 - 0.24·drive) compensation pulled the maximum output down to ≈0.76
+        // at max Distortion — well below the real pedal's post-clip output. The
+        // 0.08 coefficient keeps a tiny amount of compensation (so cranking Drive
+        // doesn't jump in perceived loudness by 3+ dB) without gutting the level
+        // range. The (0.10 + 1.80·levelCurve) front-end gives ≈25 dB of knob range.
         float levelCurve = levelClamped * (0.5f + 0.5f * levelClamped);
-        float outputTrim = 1.00f - 0.24f * driveCurve;
-        float outputGain = levelCurve * outputTrim;
+        float outputTrim = 1.00f - 0.08f * driveCurve;
+        float outputGain = (0.10f + 1.80f * levelCurve) * outputTrim;
 
         // --- Process each sample ---
         for (int i = 0; i < numSamples; ++i) {
@@ -130,8 +136,12 @@ public:
             float lpL  = alpha_lp * recoveredL + alpha_lp_inv * lpPrevL_;
             lpPrevL_   = lpL;
 
-            // Stage 5: Level (Right knob / expression pedal)
-            left[i] = lpL * outputGain;
+            // Stage 5: Level (Right knob / expression pedal) + output soft-clip.
+            // The widened outputGain can exceed 1.0 at max Level; tanh saturates
+            // softly near the rails instead of hard-clipping at the DAC, which
+            // also gives a small additional "hot into the amp" character at the
+            // top of the knob rather than a shelf.
+            left[i] = tanhf(lpL * outputGain);
 
             // === RIGHT CHANNEL ===
 
@@ -148,7 +158,7 @@ public:
             float lpR  = alpha_lp * recoveredR + alpha_lp_inv * lpPrevR_;
             lpPrevR_   = lpR;
 
-            right[i] = lpR * outputGain;
+            right[i] = tanhf(lpR * outputGain);
         }
     }
 

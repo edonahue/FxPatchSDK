@@ -330,3 +330,57 @@ For the next implementation pass, the most useful order is:
 4. Revisit `mxr_distortion_plus.cpp` after the first three, using it as the simpler distortion baseline for comparison.
 
 Once those four are moved, collect another round of hardware listening notes patch by patch. At that point the remaining modulation and enhancer patches can be tuned as feel improvements instead of as blockers.
+
+## Second Pass: Level & Intensity Tuning
+
+**Date:** 2026-04-16
+**Scope:** every patch in `effects/*.cpp`
+**Trigger:** post–first-pass hardware listening revealed two remaining shortcomings the harmonic-content rebalance did not address.
+
+### Listening notes driving this pass
+
+1. The wah is filtered and pleasant but not vocal — it lacks the resonant peak and the "growl" that define a real Crybaby/Vox.
+2. The drive/fuzz family (`tube_screamer`, `klon_centaur`, `mxr_distortion_plus`, `big_muff`) reaches commercial-pedal harmonic content by knob mid-travel but never reaches commercial-pedal loudness — `Level`, `Output`, and `Blend` caps are ~2–4 dB below unity into a clean amp.
+3. `phase_90`, `chorus`, and `bbe_sonic_stomp` sit too quietly in the mix even at "full" settings.
+
+### Changes by patch
+
+| Patch | Root cause | Fix |
+|---|---|---|
+| `wah.cpp` | SVF bandpass normalized to unity peak (`2/Q`); defaults Q≈5/3 low; linear mix; no op-amp growl | `bpGain = (2/Q) · 2.8` (≈+9 dB at resonance, Q-independent). Defaults raised Q≈7/4.5. `tanh(x·1.2)/1.2` growl on wet. Equal-power dry/wet. Output soft-clip `tanh(x·0.85)/0.85` |
+| `tube_screamer.cpp` | `outputTrim = (0.18 + 1.45·lc)·(0.80 − 0.18·drive)` capped at ~1.01 and min ~0.144 (~17 dB) | `(0.12 + 1.72·lc)·(voice.trim − 0.10·drive)` with `voice.outputTrim` 0.80→0.92 (TS808) / 0.84→0.96 (TS9) — ~24 dB range and full commercial loudness at max |
+| `klon_centaur.cpp` | Output law `(0.18 + 1.55·oc)·(0.82 − 0.15·gain)` capped ~1.16/min ~0.148 (~18 dB) | `(0.08 + 1.95·oc)·(voice.trim − 0.10·gain)`, `voice.outputBaseTrim` 0.82→0.96 (stock) / 0.86→1.00 (tone-mod) — ~28 dB range matching the real Centaur's famously wide Output |
+| `mxr_distortion_plus.cpp` | `levelCurve · (1 − 0.24·drive)` ≤ 0.76 at max drive | Soften drive compensation: `(1 − 0.08·drive)`. Widen level law to `(0.10 + 1.80·levelCurve)`. Add `tanh(lp · outputGain)` output soft-clip so the top of the knob saturates rather than hard-clipping |
+| `big_muff.cpp` | `equalPowerWet = 0.94·sin(…)` + low `normalTrim 0.84 − 0.04·sustain` capped wet at ≈0.75–0.84 | Remove 0.94 factor from `equalPowerWet`; raise `normalTrim` base 0.84→0.98 and `bypassTrim` base 0.98→1.08. The existing tanh voicing stages already protect against excursions |
+| `phase_90.cpp` | Block feedback 0.36 and wet mix 0.62 — present but not chewy | Block feedback 0.36→0.58 and wet mix 0.62→0.72; script voice untouched beyond a small wet-mix lift (0.58→0.62) |
+| `chorus.cpp` | Depth capped at ±10 ms; linear mix crossfade | Depth range 1–13 ms peak (still safe against 720-sample center); equal-power Mix crossfade |
+| `bbe_sonic_stomp.cpp` | Blend caps 0.85/0.75/0.80 — correction barely reaches audible on sustained chords | Raise caps to 1.10/1.00/1.05 (~+2 dB each). Output clamp catches simultaneous-max excursions |
+| `back_talk_reverse_delay.cpp` | `equalPowerWet = 0.92·sin(…)` prevents full-wet | Remove 0.92 factor so Mix=1 is truly full-wet |
+
+### Gain-staging template adopted
+
+Across the drive family this pass standardizes on:
+
+```
+levelCurve = level · (0.5 + 0.5 · level)              // or level^{1.0–1.1}
+outputGain = (base + span · levelCurve) · (voice.trim − dropoff · driveCurve)
+```
+
+With the empirical ranges:
+
+- `base` ≈ 0.08–0.12 (minimum knob produces a usable small signal, not silence)
+- `span` ≈ 1.70–1.95 (so max knob can push soft-clipped saturation above unity before the limiter)
+- `dropoff` ≈ 0.08–0.10 (mild loudness compensation at max drive, not an aggressive pull-down)
+- `voice.trim` ≈ 0.92–1.00 (per-voice trim; ≥0.92 so max level reaches commercial loudness)
+
+This replaces the earlier `(0.18 + 1.45·lc)·(0.80 − 0.24·drive)` family, which consistently capped peaks in the 0.76–0.84 range.
+
+### Verification for this pass
+
+1. `bash tests/check_patches.sh` — fast host lint/syntax
+2. `bash tests/build_effects.sh` — ARM cross-compile
+3. `bash tests/analyze_effects.sh` — confirm:
+   - drive family peak ≥ 0.92 at max Level on a sustained sine
+   - wah peak ≥ +6 dB over input at center frequency
+   - phaser sweep visibly deeper (FFT notches travel further)
+4. Hardware listening in order: wah (primary) → drive family → phaser → chorus → enhancer → delay

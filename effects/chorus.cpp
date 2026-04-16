@@ -10,19 +10,19 @@
 //
 // Delay parameters:
 //   Center delay:       15 ms  (720 samples @ 48 kHz)
-//   Modulation range:   ±1–10 ms peak deviation (knob-controlled)
+//   Modulation range:   ±1–13 ms peak deviation (knob-controlled)
 //   Delay line length:  2400 samples per channel (~50 ms, uses ~9.4 KB each)
 //   Total working buf:  4800 floats out of 2,400,000 available
 //
 // Fractional delay:
 //   Linear interpolation between adjacent samples. Minimum read distance is
-//   720 - 480 = 240 samples, so the read position is always positive and the
+//   720 - 624 = 96 samples, so the read position is always positive and the
 //   delay line never underruns.
 //
 // Controls:
 //   Left knob  — Rate  (0.1–5 Hz, log taper — feels linear across musical tempos)
-//   Mid knob   — Depth (1–10 ms modulation depth, linear)
-//   Right knob — Mix   (dry/wet blend, 0=dry, 1=full wet)
+//   Mid knob   — Depth (1–13 ms modulation depth, linear)
+//   Right knob — Mix   (dry/wet blend, 0=dry, 1=full wet; equal-power crossfade)
 //
 // Footswitch (press or hold): bypass toggle
 //
@@ -81,11 +81,24 @@ public:
         const float hz       = 0.1f * powf(50.0f, rate_);
         const float phaseInc = hz / static_cast<float>(kSampleRate);
 
-        // Depth: linear 1 ms–10 ms → 48–480 samples peak modulation
-        const float depthSamples = (0.001f + depth_ * 0.009f) * static_cast<float>(kSampleRate);
+        // Depth: linear 1 ms–13 ms → 48–624 samples peak modulation.
+        // Widened from the original 1–10 ms to give a more audible "moving"
+        // character at the top of the knob; 13 ms peak still leaves ≥96 samples
+        // of clearance against the 720-sample center, so the read pointer never
+        // crosses the write pointer.
+        const float depthSamples = (0.001f + depth_ * 0.012f) * static_cast<float>(kSampleRate);
 
         constexpr float kCenter    = 720.0f; // 15 ms center delay
         constexpr float kTwoPi    = 6.283185f;
+        constexpr float kHalfPi   = 1.5707963f;
+
+        // Equal-power crossfade on the Mix knob (was linear). Linear blends
+        // produce a −3 dB dip at mix=0.5; equal-power keeps perceived loudness
+        // constant across the knob so "more wet" actually reads as more chorus
+        // rather than "same level, slightly filtered."
+        const float mixClamped = (mix_ < 0.0f) ? 0.0f : (mix_ > 1.0f ? 1.0f : mix_);
+        const float dryGain    = cosf(mixClamped * kHalfPi);
+        const float wetGain    = sinf(mixClamped * kHalfPi);
 
         for (size_t i = 0; i < left.size(); ++i)
         {
@@ -122,8 +135,8 @@ public:
             if (bypassed_)
                 continue;
 
-            left[i]  = dryL * (1.0f - mix_) + wetL * mix_;
-            right[i] = dryR * (1.0f - mix_) + wetR * mix_;
+            left[i]  = dryL * dryGain + wetL * wetGain;
+            right[i] = dryR * dryGain + wetR * wetGain;
         }
     }
 

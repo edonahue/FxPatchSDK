@@ -362,6 +362,50 @@ the final output does not exceed ±1.0.
 - Is the final level pot applied after all nonlinearities? It should be.
 - Does the clean (bypass) path use the original unmodified input? Yes — store it separately.
 
+### Output/Level knob template (drive family)
+
+From the Second Pass tuning in `docs/effects-deep-dive-audit.md`, the drive patches
+in this repo now standardize on this level-control law:
+
+```cpp
+// knob in [0, 1] → level curve with a soft knee near 0 so quiet positions are usable
+const float levelCurve = level * (0.5f + 0.5f * level);
+
+// base + span·levelCurve gives the primary knob sweep;
+// (voice.trim − dropoff·driveCurve) is a per-voice loudness compensation.
+const float outputGain =
+  (base + span * levelCurve) * (voice.trim - dropoff * driveCurve);
+
+// If span·voice.trim > 1.0, catch max-knob excursions with a soft limiter
+// rather than the DAC's hard clip:
+left[i] = tanhf(processed * outputGain);
+```
+
+Tuned ranges that map to commercial-pedal loudness without overshoot:
+
+| Constant   | Range           | Role |
+|------------|-----------------|------|
+| `base`     | 0.08 – 0.12     | Minimum knob gives a quiet but present signal, not silence |
+| `span`     | 1.70 – 1.95     | Max knob saturates above unity before the soft limiter     |
+| `voice.trim` | 0.92 – 1.00   | Per-voice trim — keep ≥0.92 or the knob never sounds "hot" |
+| `dropoff`  | 0.08 – 0.10     | Mild compensation as drive rises; >0.15 audibly pulls the level down |
+
+### Equal-power dry/wet crossfade (modulation & filter family)
+
+Linear blends (`dry·(1-mix) + wet·mix`) produce a −3 dB dip at `mix = 0.5`. For any
+patch where "more wet" should read as perceptually "more effect" (wah, chorus,
+big_muff, back_talk_reverse_delay all use this now), use an equal-power crossfade:
+
+```cpp
+constexpr float kHalfPi = 1.5707963f;
+const float mix     = clamp01(mix_);
+const float dryGain = cosf(mix * kHalfPi);  // 1.0 at mix=0, 0.0 at mix=1
+const float wetGain = sinf(mix * kHalfPi);  // 0.0 at mix=0, 1.0 at mix=1
+out = dry * dryGain + wet * wetGain;
+```
+
+The `cosf`/`sinf` pair is evaluated once per buffer, so the cost is negligible.
+
 ---
 
 ## Step 5: SDK Constraints

@@ -76,7 +76,11 @@ float equalPowerDry(float mix)
 
 float equalPowerWet(float mix)
 {
-    return 0.92f * std::sin(clamp01(mix) * kHalfPi);
+    // Earlier releases capped the wet leg at 0.92, so turning Mix to max still
+    // left the dry signal audible at the equivalent of ≈ −0.7 dB under the
+    // reversed wet. A real Back Talk can go completely wet. The output
+    // clampUnit downstream catches any peak excursions.
+    return std::sin(clamp01(mix) * kHalfPi);
 }
 
 float feedbackGainFromRepetitions(float repetitions)
