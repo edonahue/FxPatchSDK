@@ -89,6 +89,9 @@ sync. For fast day-to-day use, it also now includes a Plate-by-Plate control che
 sheet. The hand-written SDK patches have a matching quick reference in
 [`effects/README.md`](effects/README.md), and the community reverb example is
 summarized in [`effects/examples/README.md`](effects/examples/README.md).
+The host-side analyzer now also tracks output-control unity position, midband level
+movement, and early limiter pressure so drive retunes are judged against pedal-like
+behavior instead of raw RMS span alone.
 
 [`source/PatchImpl.cpp`](source/PatchImpl.cpp) remains the default SDK build target for
 ad hoc single-patch work. For repeatable local builds across every hand-written effect,
@@ -103,12 +106,15 @@ Run the host-side syntax and lint checks before hardware testing:
 ```bash
 bash tests/check_patches.sh
 bash tests/build_effects.sh
+bash tests/analyze_effects.sh
 ```
 
-This keeps two levels of verification:
+This keeps three levels of verification:
 
 - `tests/check_patches.sh`: fast host-side syntax/lint checks
 - `tests/build_effects.sh`: real ARM `.endl` builds for all top-level `effects/*.cpp`
+- `tests/analyze_effects.sh`: repeatable probe sweeps that check nonlinear growth,
+  unity position, and limiter/headroom behavior for the current control laws
 
 ## Recommended Reading Order
 

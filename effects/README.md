@@ -22,19 +22,20 @@ Current inventory:
 ## Quick Control Cheat Sheet
 
 This table is the fast player-facing view of the hand-written SDK patches. In this
-repo, the expression pedal is globally routed to the Right knob lane (`param 2`),
-so the "Right / expression" column tells you what heel-to-toe control actually does.
+repo's current SDK wrapper, the expression pedal is exposed only on the Right knob lane
+(`param 2`), so the "Right / expression" column tells you what heel-to-toe control
+actually does.
 
 | Patch | Left knob | Mid knob | Right / expression | Short press | Long press | LED states |
 | --- | --- | --- | --- | --- | --- | --- |
-| `back_talk_reverse_delay.cpp` | `Speed`: moves from tighter reverse flicks to longer reverse phrases. | `Repetitions`: controls how fast the reverse tail dies out or climbs toward near-runaway. | `Mix`: sweeps from mostly dry attack to a fuller reverse bloom. | Bypass toggle. | Toggles `Texture` mode, which layers an older reverse slice for a smoother, dreamier smear. | Normal mode: LightBlue active, DimBlue bypassed. Texture mode: Magenta active, DimCyan bypassed. |
+| `back_talk_reverse_delay.cpp` | `Speed`: moves from tighter reverse flicks to longer reverse phrases. | `Repetitions`: controls how fast the reverse tail dies out or climbs toward near-runaway. | `Mix`: sweeps from mostly dry attack to a fuller reverse bloom, with light wet-side makeup so wetter settings stay present. | Bypass toggle. | Toggles `Texture` mode, which layers an older reverse slice for a smoother, dreamier smear. | Normal mode: LightBlue active, DimBlue bypassed. Texture mode: Magenta active, DimCyan bypassed. |
 | `bbe_sonic_stomp.cpp` | `Contour`: low-end alignment and weight correction. | `Process`: top-end clarity and bite. | `Midrange`: pushes the vocal center of the enhancer harder as you move toe-down. | Bypass toggle. | Toggles the subtle stereo doubler. | Enhancer only: LightGreen active, DimGreen bypassed. Enhancer + doubler: LightBlue active, DimBlue bypassed. |
-| `big_muff.cpp` | `Sustain`: more gain, sustain, and density. | `Tone`: moves from darker wool to sharper cut through the Muff stack. | `Blend`: shifts from more dry pick attack to more full-wall fuzz. | Bypass toggle. | Toggles the `Tone Bypass`-style mids-lift voice. | Ram's Head voice: Red active, DarkRed bypassed. Tone Bypass voice: Magenta active, DimCyan bypassed. |
+| `big_muff.cpp` | `Sustain`: more gain, sustain, and density. | `Tone`: moves from darker wool to sharper cut through the Muff stack. | `Blend`: shifts from more dry pick attack to more full-wall fuzz. This is intentionally a texture/wetness control, not a literal Muff-style volume pot. | Bypass toggle. | Toggles the `Tone Bypass`-style mids-lift voice. | Ram's Head voice: Red active, DarkRed bypassed. Tone Bypass voice: Magenta active, DimCyan bypassed. |
 | `chorus.cpp` | `Rate`: slower swirl to faster shimmer. | `Depth`: shallow thickening to deeper pitch swim. | `Mix`: dry chorus blend to full wet modulation. | Bypass toggle. | Same as short press; hold also toggles bypass. | LightBlue active, DimBlue bypassed. |
-| `klon_centaur.cpp` | `Gain`: pushes from mostly clean boost into fuller clipped drive. | `Treble`: active high shelf, from rounder to brighter and more cutting. | `Output`: live level sweep for boost or pullback. | Bypass toggle. | Toggles the fuller `Tone Mod` variant. | Stock voice: LightYellow active, DimYellow bypassed. Tone Mod voice: Beige active, DimWhite bypassed. |
-| `mxr_distortion_plus.cpp` | `Distortion`: gain plus low-end tightening, from light grit to denser crunch. | `Tone`: darker post-clip rolloff to brighter bite. | `Level`: final output trim, from nearly off at heel to full output at toe. | Bypass toggle. | No long-press action. | Red active, DimWhite bypassed. |
+| `klon_centaur.cpp` | `Gain`: pushes from mostly clean boost into fuller clipped drive. | `Treble`: active high shelf, from rounder to brighter and more cutting. | `Output`: re-centered so around noon sits near bypass level and the upper half behaves like a real boost/output stage instead of just harder limiting. | Bypass toggle. | Toggles the fuller `Tone Mod` variant. | Stock voice: LightYellow active, DimYellow bypassed. Tone Mod voice: Beige active, DimWhite bypassed. |
+| `mxr_distortion_plus.cpp` | `Distortion`: gain plus low-end tightening, from light grit to denser crunch. | `Tone`: darker post-clip rolloff to brighter bite. | `Level`: re-centered so around noon is near unity and the upper half adds real post-drive level before the safety limiter matters. | Bypass toggle. | No long-press action. | Red active, DimWhite bypassed. |
 | `phase_90.cpp` | Unused on purpose. | `Speed`: the main public control, from slow sweep to fast chew. | Mirrors `Speed` for expression; heel is slower, toe is faster. | Bypass toggle. | Toggles `Block` vs `Script` voicing. | Block voice: Blue active, DimBlue bypassed. Script voice: Beige active, DimWhite bypassed. |
-| `tube_screamer.cpp` | `Drive`: more mid-hump push and saturation. | `Level`: final output level. | `Tone`: heel is darker and rounder, toe is brighter and more cutting. | Bypass toggle. | Toggles `TS808` vs `TS9` voice. | TS808 voice: LightGreen active, DimGreen bypassed. TS9 voice: PastelGreen active, DarkLime bypassed. |
+| `tube_screamer.cpp` | `Drive`: more mid-hump push and saturation. | `Level`: re-centered so around noon is near bypass level and the upper half behaves like a true output control, not a ceiling driver. | `Tone`: heel is darker and rounder, toe is brighter and more cutting. | Bypass toggle. | Toggles `TS808` vs `TS9` voice. | TS808 voice: LightGreen active, DimGreen bypassed. TS9 voice: PastelGreen active, DarkLime bypassed. |
 | `wah.cpp` | `Mix`: equal-power dry/wet crossfade. | `Q`: softer resonance to sharper, more vocal peaks (default Q≈7 Crybaby / Q≈4.5 Vox). Bandpass boosts ≈+9 dB at the swept resonance with a tanh "op-amp growl" at the peak. | `Wah position`: heel is bassier/closed, toe is brighter/open. | Bypass toggle. | Toggles `Crybaby` vs `Vox` mode. | Crybaby: Red active, DarkRed bypassed. Vox: LightYellow active, DimYellow bypassed. |
 
 The matching community example cheat sheet lives in
@@ -60,8 +61,12 @@ For the normal local build flow:
    ```bash
    bash scripts/build_effects.sh
    ```
-4. Pick up the generated `.endl` files from `effects/builds/`
-5. Deploy the chosen `.endl` file onto the Endless USB volume
+4. Run the host-side behavior probe when retuning controls:
+   ```bash
+   bash tests/analyze_effects.sh
+   ```
+5. Pick up the generated `.endl` files from `effects/builds/`
+6. Deploy the chosen `.endl` file onto the Endless USB volume
 
 To build one effect only:
 
@@ -155,6 +160,9 @@ Patch review in this fork now treats parameter taper as a first-class design cho
 
 - `mxr_distortion_plus.cpp` is the main cautionary case: literal analog pot math made the
   hardware controls feel bunched and uneven, so the patch now uses Endless-tuned curves
+- `tube_screamer.cpp`, `klon_centaur.cpp`, and `mxr_distortion_plus.cpp` are the main
+  output-stage cases: the dedicated output control is tuned for roughly noon = unity,
+  with the final limiter acting as safety only at the top edge of travel
 - `big_muff.cpp` is the main tone-stack/blend case: classic Muff controls need output
   compensation and a non-literal third control if expression is meant to stay musical
 - `klon_centaur.cpp` is the main clean/dirty summing case: the gain control must rebalance
@@ -175,14 +183,24 @@ When adding or reviewing a patch, verify four things for every knob:
 - the default lands on a usable sound
 - param `2` still makes sense when expression takes over the Right knob
 
+For any patch with a dedicated `Level` / `Output` control, also verify three more things:
+
+- bypass-level unity lands near the middle of the knob, not at the first quarter-turn
+- the upper half of the control increases actual post-drive loudness, not just limiter pressure
+- the final clamp or soft limiter is a safety net, not the main output stage
+
 ---
 
 ## Expression pedal
 
-Current repo behavior: expression pedal is hardcoded to param `2` for every patch.
-This is implemented in `internal/PatchCppWrapper.cpp`. Heel down = `0.0f`, toe down
-= `1.0f`, same range as the Right knob. When the pedal is connected, the firmware
-uses pedal values for param `2` and ignores the physical Right knob.
+Current repo behavior: the SDK wrapper in `internal/PatchCppWrapper.cpp` exposes the
+expression pedal only on param `2`. Heel down = `0.0f`, toe down = `1.0f`, same range
+as the Right knob. When the pedal is connected, the firmware uses pedal values for
+param `2` and ignores the physical Right knob.
+
+Important distinction: current Polyend Endless device documentation describes choosing
+which knob the expression pedal controls in pedal setup. This fork does not expose that
+full flexibility yet; it currently models expression only on the Right-knob lane.
 
 Implications for patch design:
 

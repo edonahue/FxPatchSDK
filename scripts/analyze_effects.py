@@ -48,6 +48,7 @@ PATCH_METADATA = {
         "identity": "mid-hump overdrive",
         "main_param": 0,
         "level_param": 1,
+        "level_role": "output",
         "secondary_param": 2,
         "hold_note": "TS808 / TS9 family toggle",
     },
@@ -57,6 +58,7 @@ PATCH_METADATA = {
         "identity": "transparent boost/overdrive",
         "main_param": 0,
         "level_param": 2,
+        "level_role": "output",
         "secondary_param": 1,
         "hold_note": "stock / tone-mod toggle",
     },
@@ -66,6 +68,7 @@ PATCH_METADATA = {
         "identity": "scooped fuzz/sustain",
         "main_param": 0,
         "level_param": 2,
+        "level_role": "blend",
         "secondary_param": 1,
         "hold_note": "tone-bypass mids-lift toggle",
     },
@@ -75,6 +78,7 @@ PATCH_METADATA = {
         "identity": "simple Distortion+ style clipper",
         "main_param": 0,
         "level_param": 2,
+        "level_role": "output",
         "secondary_param": 1,
         "hold_note": "no alternate mode",
     },
@@ -84,6 +88,7 @@ PATCH_METADATA = {
         "identity": "enhancer / exciter",
         "main_param": 1,
         "level_param": 2,
+        "level_role": "balance",
         "secondary_param": 0,
         "hold_note": "enhancer / doubler toggle",
     },
@@ -93,6 +98,7 @@ PATCH_METADATA = {
         "identity": "reverse delay",
         "main_param": 2,
         "level_param": 1,
+        "level_role": "feedback",
         "secondary_param": 0,
         "hold_note": "texture layering toggle",
     },
@@ -102,6 +108,7 @@ PATCH_METADATA = {
         "identity": "4-stage phaser",
         "main_param": 1,
         "level_param": 2,
+        "level_role": "mirror",
         "secondary_param": 0,
         "hold_note": "block / script toggle",
     },
@@ -111,6 +118,7 @@ PATCH_METADATA = {
         "identity": "stereo chorus",
         "main_param": 0,
         "level_param": 2,
+        "level_role": "mix",
         "secondary_param": 1,
         "hold_note": "hold is the same bypass toggle as press",
         "hold_is_bypass": True,
@@ -121,6 +129,7 @@ PATCH_METADATA = {
         "identity": "Crybaby / Vox wah",
         "main_param": 2,
         "level_param": 0,
+        "level_role": "mix",
         "secondary_param": 1,
         "hold_note": "Crybaby / Vox toggle",
     },
@@ -192,6 +201,25 @@ def level_ratio(values: list[float]) -> float:
     return max(filtered) / min(filtered)
 
 
+def closest_sweep_point(points: list[dict], metric_path: tuple[str, ...], reference: float) -> dict | None:
+    if not points:
+        return None
+
+    best_point: dict | None = None
+    best_error = float("inf")
+    for point in points:
+        node = point["metrics"]
+        for key in metric_path:
+            node = node[key]
+        value = float(node)
+        error = abs(value - reference)
+        if error < best_error:
+            best_error = error
+            best_point = point
+
+    return best_point
+
+
 def monotonic_score(values: list[float]) -> float:
     if len(values) < 2:
         return 1.0
@@ -216,6 +244,14 @@ def describe_drive_flags(derived: dict) -> list[str]:
         flags.append("gain sweep has narrow audible-change span")
     if derived["level_ratio_nominal"] < 1.6:
         flags.append("level/output control authority is limited")
+    if derived["expects_centered_output_unity"] and (
+        derived["unity_value_nominal"] < 0.35 or derived["unity_value_nominal"] > 0.65
+    ):
+        flags.append("unity point is poorly centered on the output control")
+    if derived["expects_centered_output_unity"] and derived["hot_ratio_at_unity_nominal"] > 0.08:
+        flags.append("unity point is already spending too much time near the limiter")
+    if derived["expects_centered_output_unity"] and derived["clip_ratio_at_unity_nominal"] > 0.01:
+        flags.append("unity point is clipping against the digital ceiling")
     if derived["hold_diff_nominal"] < 0.10:
         flags.append("hold mode delta is subtle")
     return flags
@@ -266,8 +302,27 @@ def derive_patch_summary(meta: dict, low_run: dict, nominal_run: dict) -> dict:
     main_residual_low = series_values(low_run, main_param, ("sine", "residual_ratio"))
     main_delta_low_burst = series_values(low_run, main_param, ("burst", "delta_ratio"))
     main_delta_low = series_values(low_run, main_param, ("sine", "delta_ratio"))
-    level_rms_nominal = series_values(nominal_run, level_param, ("burst", "output_rms"))
+    level_rms_nominal = series_values(nominal_run, level_param, ("burst", "output_midband_rms"))
     mix_rms_nominal = series_values(nominal_run, secondary_param, ("burst", "output_rms"))
+    level_peak_nominal = series_values(nominal_run, level_param, ("burst", "peak_abs"))
+    level_hot_nominal = series_values(nominal_run, level_param, ("burst", "hot_sample_ratio"))
+    level_clip_nominal = series_values(nominal_run, level_param, ("burst", "clip_sample_ratio"))
+    bypass_midband_nominal = float(nominal_run["bypassed"]["burst"]["output_midband_rms"])
+    unity_point = closest_sweep_point(
+        nominal_run["sweeps"][level_param],
+        ("burst", "output_midband_rms"),
+        bypass_midband_nominal,
+    )
+
+    unity_value = 0.0
+    unity_midband = 0.0
+    unity_hot = 0.0
+    unity_clip = 0.0
+    if unity_point is not None:
+        unity_value = float(unity_point["value"])
+        unity_midband = float(unity_point["metrics"]["burst"]["output_midband_rms"])
+        unity_hot = float(unity_point["metrics"]["burst"]["hot_sample_ratio"])
+        unity_clip = float(unity_point["metrics"]["burst"]["clip_sample_ratio"])
 
     return {
         "low_input_delta": float(low_run["active"]["burst"]["delta_ratio"]),
@@ -279,6 +334,7 @@ def derive_patch_summary(meta: dict, low_run: dict, nominal_run: dict) -> dict:
             float(nominal_run["hold_mode_diff"]["burst_diff_ratio"]),
             float(nominal_run["hold_mode_diff"]["sine_diff_ratio"]),
         ),
+        "expects_centered_output_unity": meta.get("level_role") == "output",
         "tail_rms_nominal": float(nominal_run["active"]["burst"]["tail_rms"]),
         "main_residual_span_low": value_span(main_residual_low),
         "main_burst_delta_span_low": value_span(main_delta_low_burst),
@@ -286,6 +342,14 @@ def derive_patch_summary(meta: dict, low_run: dict, nominal_run: dict) -> dict:
         "main_residual_monotonic_low": monotonic_score(main_residual_low),
         "main_burst_delta_monotonic_low": monotonic_score(main_delta_low_burst),
         "level_ratio_nominal": level_ratio(level_rms_nominal),
+        "level_monotonic_nominal": monotonic_score(level_rms_nominal),
+        "level_peak_max_nominal": max(level_peak_nominal) if level_peak_nominal else 0.0,
+        "level_hot_max_nominal": max(level_hot_nominal) if level_hot_nominal else 0.0,
+        "level_clip_max_nominal": max(level_clip_nominal) if level_clip_nominal else 0.0,
+        "unity_value_nominal": unity_value,
+        "unity_midband_error_nominal": safe_div(abs(unity_midband - bypass_midband_nominal), bypass_midband_nominal),
+        "hot_ratio_at_unity_nominal": unity_hot,
+        "clip_ratio_at_unity_nominal": unity_clip,
         "mix_span_nominal": value_span(mix_rms_nominal),
     }
 
@@ -333,8 +397,8 @@ def write_markdown(summaries: list[dict]) -> None:
         "",
         f"Input scales: low={LOW_INPUT_SCALE:.2f}, nominal={NOMINAL_INPUT_SCALE:.2f}",
         "",
-        "| Patch | Category | Priority | Low input delta | Low input residual | Main span | Level ratio | Hold diff | Flags |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---|",
+        "| Patch | Category | Priority | Low input delta | Low input residual | Main span | Level ratio | Unity | Hold diff | Flags |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
 
     for summary in summaries:
@@ -348,6 +412,7 @@ def write_markdown(summaries: list[dict]) -> None:
             + f"{d['low_input_residual']:.3f} | "
             + f"{d['main_residual_span_low']:.3f} | "
             + f"{d['level_ratio_nominal']:.2f} | "
+            + f"{d['unity_value_nominal']:.2f} | "
             + f"{d['hold_diff_nominal']:.3f} | "
             + (", ".join(summary["flags"]) if summary["flags"] else "none")
             + " |"
@@ -392,7 +457,7 @@ def main() -> int:
     print("")
     print(
         f"{'patch':24} {'cat':12} {'lowΔ':>7} {'lowRes':>7} {'mainSpan':>9} "
-        f"{'lvl×':>6} {'holdΔ':>7} flags"
+        f"{'lvl×':>6} {'unity':>6} {'holdΔ':>7} flags"
     )
     for summary in ordered:
         d = summary["derived"]
@@ -404,6 +469,7 @@ def main() -> int:
             f"{d['low_input_residual']:7.3f} "
             f"{d['main_residual_span_low']:9.3f} "
             f"{d['level_ratio_nominal']:6.2f} "
+            f"{d['unity_value_nominal']:6.2f} "
             f"{d['hold_diff_nominal']:7.3f} "
             f"{flags}"
         )

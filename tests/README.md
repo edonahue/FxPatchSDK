@@ -56,11 +56,14 @@ From the repository root:
 ```bash
 bash tests/check_patches.sh
 bash tests/build_effects.sh
+bash tests/analyze_effects.sh
 ```
 
 `check_patches.sh` stays fast and host-only.
 `build_effects.sh` runs the real ARM toolchain across all top-level `effects/*.cpp`
 files and verifies the generated `.endl` outputs in `effects/builds/`.
+`analyze_effects.sh` runs the host-side probe harness against every top-level effect and
+regenerates the synthetic summary artifacts under `build/effect_analysis/`.
 
 Expected output when all patches pass:
 
@@ -120,6 +123,33 @@ This helper rewrites each effect's `../source/Patch.h` include into a generated 
 
 ---
 
+## analyze_effects.sh
+
+Builds and runs the host-side probe harness for every top-level `effects/*.cpp` patch.
+
+Outputs:
+
+- `build/effect_analysis/summary.json`
+- `build/effect_analysis/summary.md`
+
+This script is useful for:
+
+- comparing before/after patch behavior during retunes
+- checking bypass, hold-mode, and full knob sweeps with repeatable synthetic signals
+- catching “mostly louder” versus “actually more nonlinear” behavior in drive patches
+- checking whether a `Level` / `Output` control reaches unity too early or spends most
+  of its travel leaning on the digital ceiling
+
+The current summaries include:
+
+- ordinary RMS plus a guitar-midband RMS proxy
+- unity-position detection for the designated level/output control
+- `peak_abs`, `hot_sample_ratio`, and `clip_sample_ratio` so limiter abuse shows up in the report
+
+It is still not a substitute for hardware listening.
+
+---
+
 ## Adding New Checks
 
 To add a new lint rule, append to the lint section of `check_patches.sh`:
@@ -156,13 +186,17 @@ fi
 2. **No audio testing:** Neither script runs the patch with real audio. Functional
    correctness must still be validated by ear on hardware.
 
+   `tests/analyze_effects.sh` adds synthetic-signal probing, which is useful for
+   comparative measurements but still does not replace hardware listening.
+
    For `effects/bbe_sonic_stomp.cpp`, hardware validation should explicitly include the
-   expression pedal because this repo routes expression to `param 2` and the patch uses
+   expression pedal because this repo's current SDK wrapper routes expression to `param 2`
+   and the patch uses
    `param 2` as `Midrange`.
 
    For `effects/mxr_distortion_plus.cpp`, hardware validation should explicitly check the
-   full Distortion sweep, the audibility of the Tone control, and expression-driven `Level`
-   because those are the main Endless-specific control-law adaptations in that patch.
+   full Distortion sweep, the audibility of the Tone control, and that expression-driven
+   `Level` reaches near-unity around noon before delivering obvious boost above noon.
 
    For `effects/back_talk_reverse_delay.cpp`, hardware validation should explicitly check
    chunk-edge smoothness at extreme `Speed` settings, the climb of `Repetitions` into
@@ -175,14 +209,14 @@ fi
    Ram's Head voice and the hold-toggle Tone Bypass alternate mode.
 
    For `effects/tube_screamer.cpp`, hardware validation should explicitly check the full
-   `Drive` sweep, the usable range of `Level` at higher drive settings, the feel of
-   expression-driven `Tone`, and the contrast between the TS808 default voice and the
-   hold-toggle TS9 alternate voice.
+   `Drive` sweep, that `Level` reaches near-unity around noon without collapsing into a
+   ceiling-limited shelf, the feel of expression-driven `Tone`, and the contrast between
+   the TS808 default voice and the hold-toggle TS9 alternate voice.
 
    For `effects/klon_centaur.cpp`, hardware validation should explicitly check the low-
    to-mid `Gain` range for clean/dirty openness, the usefulness of the active `Treble`
-   shelf, the feel of expression-driven `Output`, and the contrast between the stock
-   voice and the hold-toggle Tone Mod alternate.
+   shelf, that `Output` reaches near-unity around noon with real boost above it, and the
+   contrast between the stock voice and the hold-toggle Tone Mod alternate.
 
    For `effects/phase_90.cpp`, hardware validation should explicitly check the full
    center-knob `Speed` sweep, the usefulness of expression-mirrored speed, the stronger

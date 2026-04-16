@@ -48,6 +48,18 @@ float clampUnit(float value)
     return value;
 }
 
+float softLimit(float value)
+{
+    const float absValue = fabsf(value);
+    if (absValue <= 0.90f) {
+        return value;
+    }
+
+    const float sign = value < 0.0f ? -1.0f : 1.0f;
+    const float over = (absValue - 0.90f) / 0.25f;
+    return sign * (0.90f + 0.10f * tanhf(over));
+}
+
 float hpCoeff(float fc)
 {
     return 1.0f / (1.0f + kTwoPi * fc / kFs);
@@ -73,10 +85,8 @@ struct VoiceParams
 
 VoiceParams getVoiceParams(bool toneMod)
 {
-    // outputBaseTrim raised (0.86/0.82 → 1.00/0.96) so the Output knob can reach
-    // the Centaur's reputed +20+ dB of clean boost at max. The drive-compensation
-    // factor in processAudio (0.15·gainCurve) still keeps the loudness from running
-    // away when Gain is cranked alongside Output.
+    // Third pass: scale the internal output stage back so Output retains real
+    // boost behavior instead of hitting the digital ceiling too early.
     if (toneMod) {
         return {
             110.0f, // clipHpHz
@@ -86,7 +96,7 @@ VoiceParams getVoiceParams(bool toneMod)
             0.94f,  // clippedBrightMix
             1.62f,  // shelfMaxBoost
             0.66f,  // shelfMinCut
-            1.00f   // outputBaseTrim
+            0.78f   // outputBaseTrim
         };
     }
 
@@ -98,7 +108,7 @@ VoiceParams getVoiceParams(bool toneMod)
         0.88f,  // clippedBrightMix
         1.55f,  // shelfMaxBoost
         0.58f,  // shelfMinCut
-        0.96f   // outputBaseTrim
+        0.74f   // outputBaseTrim
     };
 }
 }
@@ -155,13 +165,12 @@ public:
 
         const float shelfGain =
           voice.shelfMinCut + (voice.shelfMaxBoost - voice.shelfMinCut) * trebleClamped;
-        // Output law widened: (0.08 + 1.95·outputCurve) gives ≈28 dB of usable
-        // knob range (was ≈18 dB), matching the real Centaur's famously wide
-        // Output pot. Combined with the raised outputBaseTrim above, this lets
-        // the pedal operate as a transparent clean boost at low Gain and reach
-        // commercial-pedal loudness into the amp at max.
+        // Third pass: keep the classic "clean boost to clipped drive" feel, but
+        // move the practical unity point closer to noon. The previous hotter law
+        // reached bypass level around 9–10 o'clock and then spent the rest of the
+        // pot mostly forcing the summed signal into the output ceiling.
         const float outputGain =
-          (0.08f + 1.95f * outputCurve) * (voice.outputBaseTrim - 0.10f * gainCurve);
+          (0.08f + 0.68f * outputCurve) * (voice.outputBaseTrim - 0.04f * gainCurve);
 
         for (size_t i = 0; i < left.size(); ++i)
         {
@@ -265,7 +274,7 @@ private:
         const float highBranch = summed - lowBranch;
 
         const float voiced = lowBranch + highBranch * shelfGain;
-        return clampUnit(voiced * outputGain);
+        return softLimit(voiced * outputGain);
     }
 
     void clearState()

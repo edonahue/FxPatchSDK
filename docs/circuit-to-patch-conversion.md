@@ -197,8 +197,12 @@ void setWorkingBuffer(std::span<float, kWorkingBufferSize> buf) override {
 ## Step 3: Determine Control Mappings
 
 The Endless has three knobs (Left, Mid, Right) and one expression pedal.
-`internal/PatchCppWrapper.cpp` in this repository routes the expression pedal to param 2
-(Right knob) for all patches.
+`internal/PatchCppWrapper.cpp` in this repository currently routes the expression pedal
+to param 2 (Right knob) for all patches.
+
+Important distinction: current Polyend Endless device docs describe choosing the target
+knob for expression in pedal setup. This repository's wrapper is narrower and currently
+exposes only the Right-knob lane to patch code.
 
 **Mapping strategy:**
 
@@ -352,8 +356,9 @@ Design guidance:
 The Endless ADC produces signals normalized to approximately ±1.0 full scale for a line-level
 input, with guitar pickups typically ±0.05–0.2 in practice.
 
-**Key principle:** keep your signal in the range (-2, +2) before any waveshaper, and ensure
-the final output does not exceed ±1.0.
+**Key principle:** treat the digital ceiling as a hard product constraint, not as the
+pedal's main output stage. A dedicated `Level` / `Output` control should still have
+headroom to do real work before the final safety limiter matters.
 
 **Checklist:**
 - Is the gain applied before clipping realistic? (e.g., 200× on a 0.1 signal = 20 → tanhf
@@ -361,34 +366,92 @@ the final output does not exceed ±1.0.
 - Does `tanhf` or hard-clip guarantee the output stays in (-1, +1)? Yes.
 - Is the final level pot applied after all nonlinearities? It should be.
 - Does the clean (bypass) path use the original unmodified input? Yes — store it separately.
+- Does the patch still have output headroom after the nonlinear section, or is the
+  "Level" control just pushing an already-maxed digital signal into the ceiling?
+
+### Why a hotter output law can still feel worse
+
+Real pedals document their output controls as actual volume stages:
+
+- Ibanez TS-family product pages describe `Drive`, `Tone`, and `Level` controls.
+- The MXR Distortion+ manual states that the `OUTPUT` knob controls the overall volume
+  of the effect and explicitly tells the player to start with the controls at 12 o'clock.
+- The EHX Nano Big Muff Pi manual states that `VOLUME CONTROL — sets the output level`.
+
+That analog expectation does not transfer automatically to Endless if the patch is already
+using most of the DAC range inside the nonlinear section. In that situation a hotter digital
+output law can look wide in RMS terms while still feeling flat on hardware, because the top
+half of the knob is only increasing limiter pressure instead of post-pedal loudness.
+
+Third-pass rule in this fork:
+
+- keep the nonlinear core comfortably below the digital ceiling at default settings
+- place the dedicated output control after the nonlinear voicing stage
+- aim for bypass-like unity near the middle of the control where that parameter is a true
+  output control
+- let the final limiter catch only the top edge of travel
+
+### Safety-only output limiter template
+
+Use a limiter that is identity through the normal operating range and only compresses the
+top edge:
+
+```cpp
+float softLimit(float value)
+{
+    const float absValue = fabsf(value);
+    if (absValue <= 0.90f) {
+        return value;
+    }
+
+    const float sign = value < 0.0f ? -1.0f : 1.0f;
+    const float over = (absValue - 0.90f) / 0.25f;
+    return sign * (0.90f + 0.10f * tanhf(over));
+}
+```
 
 ### Output/Level knob template (drive family)
 
-From the Second Pass tuning in `docs/effects-deep-dive-audit.md`, the drive patches
-in this repo now standardize on this level-control law:
+From the third pass tuning in `docs/effects-deep-dive-audit.md`, the dedicated output
+controls in this repo now standardize on this shape:
 
 ```cpp
 // knob in [0, 1] → level curve with a soft knee near 0 so quiet positions are usable
 const float levelCurve = level * (0.5f + 0.5f * level);
 
-// base + span·levelCurve gives the primary knob sweep;
-// (voice.trim − dropoff·driveCurve) is a per-voice loudness compensation.
+// base + span·levelCurve gives the primary output sweep;
+// (voice.trim − dropoff·driveCurve) is mild drive-dependent compensation.
 const float outputGain =
   (base + span * levelCurve) * (voice.trim - dropoff * driveCurve);
 
-// If span·voice.trim > 1.0, catch max-knob excursions with a soft limiter
-// rather than the DAC's hard clip:
-left[i] = tanhf(processed * outputGain);
+// The limiter is safety-only, not the audible output stage:
+left[i] = softLimit(processed * outputGain);
 ```
 
-Tuned ranges that map to commercial-pedal loudness without overshoot:
+Current tuned ranges for output controls that target roughly noon = unity:
 
 | Constant   | Range           | Role |
 |------------|-----------------|------|
-| `base`     | 0.08 – 0.12     | Minimum knob gives a quiet but present signal, not silence |
-| `span`     | 1.70 – 1.95     | Max knob saturates above unity before the soft limiter     |
-| `voice.trim` | 0.92 – 1.00   | Per-voice trim — keep ≥0.92 or the knob never sounds "hot" |
-| `dropoff`  | 0.08 – 0.10     | Mild compensation as drive rises; >0.15 audibly pulls the level down |
+| `base`     | 0.06 – 0.10     | Minimum knob gives a quiet but present signal, not silence |
+| `span`     | 0.64 – 0.88     | Gives usable boost above noon without making unity arrive too early |
+| `voice.trim` | 0.74 – 0.82   | Per-voice trim that leaves room for the output control to work |
+| `dropoff`  | 0.04 – 0.05     | Mild compensation as drive rises; stronger dropoff recenters unity too low |
+
+### Measure output controls by unity and limiter pressure, not only span
+
+For this repo, a drive/output retune is not complete until synthetic analysis and hardware
+listening both say the same thing:
+
+- unity lands near the middle of the control
+- the upper half of the control increases actual loudness, not only clipping pressure
+- the limiter-hit ratio stays low until the top edge of travel
+- nonlinear content remains stable during a pure output sweep
+
+The analyzer now supports this with:
+
+- burst RMS and midband RMS
+- unity-position detection for the designated output control
+- `peak_abs`, `hot_sample_ratio`, and `clip_sample_ratio`
 
 ### Equal-power dry/wet crossfade (modulation & filter family)
 
@@ -405,6 +468,22 @@ out = dry * dryGain + wet * wetGain;
 ```
 
 The `cosf`/`sinf` pair is evaluated once per buffer, so the cost is negligible.
+
+### External references used for this doctrine
+
+- [Ibanez TS9 product page](https://www.ibanez.com/jp/products/detail/ts9_99.html):
+  control semantics for `Drive`, `Tone`, `Level`
+- [MXR Distortion+ manual](https://www.jimdunlop.com/content/manuals/M104.pdf):
+  `OUTPUT` is the effect's overall volume and the setup baseline is noon
+- [EHX Nano Big Muff Pi manual](https://www.ehx.com/wp-content/uploads/2021/01/nano-big-muff-pi-manual.pdf):
+  `VOLUME CONTROL — sets the output level`
+- [DAFx paper archive entry for Yeh / Abel / Smith](https://dafx.de/paper-archive/search?author%5B%5D=Smith%2C+J.+O.&author%5B%5D=Yeh%2C+D.+T.&p=1):
+  practical filter → nonlinearity → EQ distortion modeling
+- [Aalto research entry for Paiva et al. 2012](https://research.aalto.fi/fi/publications/emulation-of-operational-amplifiers-and-diodes-in-audio-distortio/):
+  op-amp and diode behavior matter in digital distortion emulation
+- [TI product page listing the output-swing white paper and app note](https://www.ti.com/product/OPA392):
+  real output stages are constrained by rail headroom, which is the analog-side precedent
+  for treating digital headroom as a first-class design constraint here
 
 ---
 

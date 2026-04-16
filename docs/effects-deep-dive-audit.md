@@ -384,3 +384,99 @@ This replaces the earlier `(0.18 + 1.45·lc)·(0.80 − 0.24·drive)` family, wh
    - wah peak ≥ +6 dB over input at center frequency
    - phaser sweep visibly deeper (FFT notches travel further)
 4. Hardware listening in order: wah (primary) → drive family → phaser → chorus → enhancer → delay
+
+## Third Pass: Real-Pedal Output Behavior
+
+**Date:** 2026-04-16  
+**Scope:** drive/output behavior in `tube_screamer.cpp`, `klon_centaur.cpp`, and
+`mxr_distortion_plus.cpp`, plus analyzer and documentation updates that apply repo-wide
+and a small wet-side makeup retune in `back_talk_reverse_delay.cpp`.
+
+### Trigger
+
+Post-rebuild hardware feedback changed the problem statement:
+
+- the drive/fuzz family now has much better harmonic content
+- the remaining failure is that `Level` / `Output` still does not feel like a real
+  pedal output control
+- the likely reason is not "too little numeric range"; it is that the output control
+  arrives at digital full scale too early and then spends the rest of its travel
+  driving the limiter instead of the amp
+
+### What changed in understanding
+
+The second pass assumed that if a drive patch reached higher RMS and peak values, the
+output knob would feel more like a real pedal. That was incomplete.
+
+Official pedal documentation points to the actual user expectation:
+
+- Ibanez Tube Screamer family pedals expose `Drive`, `Tone`, and `Level`
+- the MXR Distortion+ manual says the `OUTPUT` knob controls the overall volume of the
+  effect and tells the player to start with all controls at 12 o'clock
+- the EHX Nano Big Muff Pi manual says `VOLUME CONTROL — sets the output level`
+
+That analog expectation only works digitally if there is still DAC headroom left after
+the nonlinear voice. If the patch is already dense and close to ±1.0 before the output
+stage, a hotter output law mostly creates more limiter pressure, not more usable loudness.
+
+### Analyzer changes for this pass
+
+`tests/effect_probe.cpp` and `scripts/analyze_effects.py` now measure:
+
+- ordinary burst RMS
+- burst midband RMS as a better guitar-centric loudness proxy
+- `peak_abs`
+- `hot_sample_ratio`
+- `clip_sample_ratio`
+- unity-position detection for the designated level/output control
+
+This lets the repo detect the specific failure mode reported by ear: unity arriving too
+early and the upper half of the output control behaving like a shelf instead of a volume
+stage.
+
+### Third-pass DSP rule
+
+For patches with a true `Level` / `Output` control:
+
+1. keep the nonlinear core comfortably below the digital ceiling at defaults
+2. place the output control after the nonlinear voicing stage
+3. aim for unity near the middle of the control
+4. use the final limiter as safety only
+
+That changed the drive-family output law from "commercial loudness at any cost" to
+"pedal-like output behavior within the Endless DAC ceiling."
+
+### Before / After Snapshot
+
+Measured with the updated analyzer at nominal input:
+
+| Patch | Prior unity position | Third-pass unity position | Third-pass max peak abs | Result |
+|---|---:|---:|---:|---|
+| `tube_screamer.cpp` | `0.25` | `0.50` | `0.495` | Level now reaches bypass-like loudness near noon and still has real boost above it without early ceiling pressure |
+| `klon_centaur.cpp` | `0.25` | `0.50` | `0.524` | Output no longer arrives "hot" by the first quarter-turn; the upper half is reserved for actual boost behavior |
+| `mxr_distortion_plus.cpp` | `0.00` | `0.50` | `0.512` | Level now behaves like a real post-drive volume control instead of a narrow loud-at-once range |
+
+At the third-pass unity position for all three patches:
+
+- `hot_sample_ratio = 0.0`
+- `clip_sample_ratio = 0.0`
+
+That is the key validation result for this pass. The output controls are no longer
+reaching unity by already spending meaningful time against the digital ceiling.
+
+### Code changes by patch
+
+| Patch | Root cause | Fix |
+|---|---|---|
+| `tube_screamer.cpp` | Level law was too hot too early and the final clamp was doing audible work | Lower-span output law, lower per-voice output trim, and a safety-only soft limiter |
+| `klon_centaur.cpp` | Output law and per-voice trims made unity arrive too early on a summed clean/dirty signal | Lower-span output law, lower output base trims, and a safety-only soft limiter |
+| `mxr_distortion_plus.cpp` | Level control still leaned on the final output saturator instead of acting like a clean post-drive volume stage | Lower-span output law and replacement of the final `tanh` output stage with a safety-only soft limiter |
+| `back_talk_reverse_delay.cpp` | Higher wet settings still read a little too timid compared with the dry-led region | Add light mix-dependent makeup so wetter settings stay present without changing the control story |
+
+### Implications for future patches
+
+- Do not judge a drive/output retune only by max RMS or max peak level.
+- A useful output control is defined by where unity lands and how much limiter pressure
+  it creates in the process.
+- If a patch needs more "real pedal" output feel, first lower the internal ceiling of
+  the nonlinear voice. Do not start by making the output pot hotter.

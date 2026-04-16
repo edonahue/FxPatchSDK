@@ -46,6 +46,18 @@ float clampUnit(float value)
     return value;
 }
 
+float softLimit(float value)
+{
+    const float absValue = fabsf(value);
+    if (absValue <= 0.90f) {
+        return value;
+    }
+
+    const float sign = value < 0.0f ? -1.0f : 1.0f;
+    const float over = (absValue - 0.90f) / 0.25f;
+    return sign * (0.90f + 0.10f * tanhf(over));
+}
+
 float hpCoeff(float fc)
 {
     return 1.0f / (1.0f + kTwoPi * fc / kFs);
@@ -72,9 +84,8 @@ struct VoiceParams
 
 VoiceParams getVoiceParams(bool ts9)
 {
-    // outputTrim bumped from 0.84 (TS9) / 0.80 (TS808) so the Level knob can
-    // actually approach a commercial pedal's hot output into a clean amp. The
-    // drive-compensation factor in processAudio pulls it back at high gain.
+    // Third pass: pull the internal ceiling back down so Level can behave more
+    // like a real pedal output control instead of immediately leaning on the DAC.
     if (ts9) {
         return {
             155.0f, // preHpHz
@@ -85,7 +96,7 @@ VoiceParams getVoiceParams(bool ts9)
             1500.0f,// toneBaseHz
             6100.0f,// toneRangeHz
             1.18f,  // brightMix
-            0.96f   // outputTrim
+            0.82f   // outputTrim
         };
     }
 
@@ -98,7 +109,7 @@ VoiceParams getVoiceParams(bool ts9)
         1250.0f,// toneBaseHz
         5200.0f,// toneRangeHz
         1.05f,  // brightMix
-        0.92f   // outputTrim
+        0.78f   // outputTrim
     };
 }
 }
@@ -151,13 +162,14 @@ public:
         const float lowToneWeight  = cosf(toneClamped * kHalfPi);
         const float highToneWeight = sinf(toneClamped * kHalfPi);
 
-        // Level law widened for more usable knob range. The (0.12 + 1.72·levelCurve)
-        // term gives ≈24 dB of sweep between knob extremes (was ≈17 dB) and the
-        // reduced drive-compensation coefficient (0.18→0.10) keeps the top of the
-        // knob hot at high gain — the earlier 0.18·drive subtraction was stealing
-        // 2–3 dB of peak level the user expected to be there.
+        // Third pass: re-center the practical unity point near noon and leave
+        // digital headroom for the Level control to act as an actual post-drive
+        // output stage. The earlier hotter law reached unity too early and spent
+        // the upper half of the knob shoving an already-dense signal into the
+        // output clamp. This lower-span law keeps heel useful, noon near bypass
+        // level, and toe available for boost.
         const float outputTrim =
-          (0.12f + 1.72f * levelCurve) * (voice.outputTrim - 0.10f * driveCurve);
+          (0.08f + 0.88f * levelCurve) * (voice.outputTrim - 0.04f * driveCurve);
 
         for (size_t i = 0; i < left.size(); ++i)
         {
@@ -260,7 +272,7 @@ private:
           lowBranch * (0.94f * lowToneWeight) +
           highBranch * (brightMix * highToneWeight);
 
-        return clampUnit(voiced * outputTrim);
+        return softLimit(voiced * outputTrim);
     }
 
     void clearState()

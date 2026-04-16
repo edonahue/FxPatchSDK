@@ -43,6 +43,18 @@ namespace {
         }
         return value;
     }
+
+    float softLimit(float value)
+    {
+        const float absValue = std::fabs(value);
+        if (absValue <= 0.90f) {
+            return value;
+        }
+
+        const float sign = value < 0.0f ? -1.0f : 1.0f;
+        const float over = (absValue - 0.90f) / 0.25f;
+        return sign * (0.90f + 0.10f * std::tanh(over));
+    }
 }
 
 class MxrDistortionPlus final : public Patch
@@ -102,15 +114,14 @@ public:
         float alpha_lp = omega_lp / (1.0f + omega_lp);
         float alpha_lp_inv = 1.0f - alpha_lp;
 
-        // Level law widened and drive-compensation softened. The earlier
-        // (1.00 - 0.24·drive) compensation pulled the maximum output down to ≈0.76
-        // at max Distortion — well below the real pedal's post-clip output. The
-        // 0.08 coefficient keeps a tiny amount of compensation (so cranking Drive
-        // doesn't jump in perceived loudness by 3+ dB) without gutting the level
-        // range. The (0.10 + 1.80·levelCurve) front-end gives ≈25 dB of knob range.
+        // Third pass: re-center the practical unity point near noon and keep the
+        // Level knob out of the final soft clipper until the upper end of travel.
+        // The previous law created a big numeric range, but much of that range was
+        // spent driving the already-clipped output harder rather than increasing
+        // the actual post-DAC loudness the user hears.
         float levelCurve = levelClamped * (0.5f + 0.5f * levelClamped);
-        float outputTrim = 1.00f - 0.08f * driveCurve;
-        float outputGain = (0.10f + 1.80f * levelCurve) * outputTrim;
+        float outputTrim = 0.78f - 0.04f * driveCurve;
+        float outputGain = (0.06f + 0.64f * levelCurve) * outputTrim;
 
         // --- Process each sample ---
         for (int i = 0; i < numSamples; ++i) {
@@ -136,12 +147,10 @@ public:
             float lpL  = alpha_lp * recoveredL + alpha_lp_inv * lpPrevL_;
             lpPrevL_   = lpL;
 
-            // Stage 5: Level (Right knob / expression pedal) + output soft-clip.
-            // The widened outputGain can exceed 1.0 at max Level; tanh saturates
-            // softly near the rails instead of hard-clipping at the DAC, which
-            // also gives a small additional "hot into the amp" character at the
-            // top of the knob rather than a shelf.
-            left[i] = tanhf(lpL * outputGain);
+            // Stage 5: Level (Right knob / expression pedal) into a safety-only
+            // output limiter. Identity holds through most of the useful range;
+            // only the top edge of the knob leans on the limiter.
+            left[i] = softLimit(lpL * outputGain);
 
             // === RIGHT CHANNEL ===
 
@@ -158,7 +167,7 @@ public:
             float lpR  = alpha_lp * recoveredR + alpha_lp_inv * lpPrevR_;
             lpPrevR_   = lpR;
 
-            right[i] = tanhf(lpR * outputGain);
+            right[i] = softLimit(lpR * outputGain);
         }
     }
 

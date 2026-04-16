@@ -143,6 +143,7 @@ public:
         const float feedbackGain = feedbackGainFromRepetitions(repetitions_);
         const float dryGain      = equalPowerDry(mix_);
         const float wetGain      = equalPowerWet(mix_);
+        const float mixMakeup    = 0.96f + 0.16f * clamp01(mix_);
         const int textureOffset  = targetChunkLen / 2;
 
         for (size_t i = 0; i < left.size(); ++i)
@@ -188,8 +189,8 @@ public:
             wetCoreL = clampUnit(wetCoreL);
             wetCoreR = clampUnit(wetCoreR);
 
-            const float outL = clampUnit(dryL * dryGain + wetCoreL * wetGain);
-            const float outR = clampUnit(dryR * dryGain + wetCoreR * wetGain);
+            const float outL = clampUnit((dryL * dryGain + wetCoreL * wetGain) * mixMakeup);
+            const float outR = clampUnit((dryR * dryGain + wetCoreR * wetGain) * mixMakeup);
 
             left[i]  = outL;
             right[i] = outR;

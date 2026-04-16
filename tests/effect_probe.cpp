@@ -30,11 +30,15 @@ struct SignalMetrics
 {
     double inputRms = 0.0;
     double outputRms = 0.0;
+    double outputMidbandRms = 0.0;
     double deltaRatio = 0.0;
     double correlation = 0.0;
     double fundamentalGain = 0.0;
     double residualRatio = 0.0;
     double tailRms = 0.0;
+    double peakAbs = 0.0;
+    double hotSampleRatio = 0.0;
+    double clipSampleRatio = 0.0;
 };
 
 struct ScenarioMetrics
@@ -54,6 +58,68 @@ double rms(const std::vector<float>& values, std::size_t start, std::size_t end)
         const double sample = static_cast<double>(values[i]);
         sum += sample * sample;
     }
+    return std::sqrt(sum / static_cast<double>(end - start));
+}
+
+double peakAbs(const std::vector<float>& values, std::size_t start, std::size_t end)
+{
+    if (start >= end || end > values.size()) {
+        return 0.0;
+    }
+
+    double peak = 0.0;
+    for (std::size_t i = start; i < end; ++i) {
+        peak = std::max(peak, std::fabs(static_cast<double>(values[i])));
+    }
+    return peak;
+}
+
+double ratioAboveAbsThreshold(const std::vector<float>& values,
+                              std::size_t start,
+                              std::size_t end,
+                              double threshold)
+{
+    if (start >= end || end > values.size()) {
+        return 0.0;
+    }
+
+    std::size_t hits = 0;
+    for (std::size_t i = start; i < end; ++i) {
+        if (std::fabs(static_cast<double>(values[i])) >= threshold) {
+            ++hits;
+        }
+    }
+    return static_cast<double>(hits) / static_cast<double>(end - start);
+}
+
+double midbandRms(const std::vector<float>& values, std::size_t start, std::size_t end)
+{
+    if (start >= end || end > values.size()) {
+        return 0.0;
+    }
+
+    constexpr double kTwoPi = 6.28318530717958647692;
+    constexpr double kHpHz = 140.0;
+    constexpr double kLpHz = 3200.0;
+    const double hpAlpha = 1.0 / (1.0 + kTwoPi * kHpHz / static_cast<double>(kSampleRate));
+    const double lpOmega = kTwoPi * kLpHz / static_cast<double>(kSampleRate);
+    const double lpAlpha = lpOmega / (1.0 + lpOmega);
+
+    double hpPrev = 0.0;
+    double xPrev = 0.0;
+    double lpPrev = 0.0;
+    double sum = 0.0;
+
+    for (std::size_t i = start; i < end; ++i) {
+        const double x = static_cast<double>(values[i]);
+        const double hp = hpAlpha * (hpPrev + x - xPrev);
+        xPrev = x;
+        hpPrev = hp;
+
+        lpPrev += lpAlpha * (hp - lpPrev);
+        sum += lpPrev * lpPrev;
+    }
+
     return std::sqrt(sum / static_cast<double>(end - start));
 }
 
@@ -110,9 +176,13 @@ SignalMetrics analyzeBurstSignal(const std::vector<float>& input,
     SignalMetrics metrics;
     metrics.inputRms = rms(input, 0, kBurstActiveSamples);
     metrics.outputRms = rms(output, 0, kBurstActiveSamples);
+    metrics.outputMidbandRms = midbandRms(output, 0, kBurstActiveSamples);
     metrics.deltaRatio = deltaRatio(input, output, 0, kBurstActiveSamples);
     metrics.correlation = correlation(input, output, 0, kBurstActiveSamples);
     metrics.tailRms = rms(output, kBurstActiveSamples, output.size());
+    metrics.peakAbs = peakAbs(output, 0, kBurstActiveSamples);
+    metrics.hotSampleRatio = ratioAboveAbsThreshold(output, 0, kBurstActiveSamples, 0.85);
+    metrics.clipSampleRatio = ratioAboveAbsThreshold(output, 0, kBurstActiveSamples, 0.98);
     return metrics;
 }
 
@@ -125,8 +195,12 @@ SignalMetrics analyzeSineSignal(const std::vector<float>& input,
 
     metrics.inputRms = rms(input, start, end);
     metrics.outputRms = rms(output, start, end);
+    metrics.outputMidbandRms = midbandRms(output, start, end);
     metrics.deltaRatio = deltaRatio(input, output, start, end);
     metrics.correlation = correlation(input, output, start, end);
+    metrics.peakAbs = peakAbs(output, start, end);
+    metrics.hotSampleRatio = ratioAboveAbsThreshold(output, start, end, 0.85);
+    metrics.clipSampleRatio = ratioAboveAbsThreshold(output, start, end, 0.98);
 
     double sumSS = 0.0;
     double sumCC = 0.0;
@@ -350,11 +424,15 @@ void printSignalMetrics(const SignalMetrics& metrics)
     std::cout << "{"
               << "\"input_rms\":" << metrics.inputRms << ","
               << "\"output_rms\":" << metrics.outputRms << ","
+              << "\"output_midband_rms\":" << metrics.outputMidbandRms << ","
               << "\"delta_ratio\":" << metrics.deltaRatio << ","
               << "\"correlation\":" << metrics.correlation << ","
               << "\"fundamental_gain\":" << metrics.fundamentalGain << ","
               << "\"residual_ratio\":" << metrics.residualRatio << ","
-              << "\"tail_rms\":" << metrics.tailRms
+              << "\"tail_rms\":" << metrics.tailRms << ","
+              << "\"peak_abs\":" << metrics.peakAbs << ","
+              << "\"hot_sample_ratio\":" << metrics.hotSampleRatio << ","
+              << "\"clip_sample_ratio\":" << metrics.clipSampleRatio
               << "}";
 }
 
