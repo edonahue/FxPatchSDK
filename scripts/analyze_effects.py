@@ -133,6 +133,16 @@ PATCH_METADATA = {
         "secondary_param": 1,
         "hold_note": "Crybaby / Vox toggle",
     },
+    "harmonica": {
+        "category": "filter",
+        "priority": "secondary",
+        "identity": "blues bullet-mic harmonica voicing",
+        "main_param": 2,
+        "level_param": 1,
+        "level_role": "drive",
+        "secondary_param": 0,
+        "hold_note": "Open / Cupped voicing toggle",
+    },
 }
 
 
