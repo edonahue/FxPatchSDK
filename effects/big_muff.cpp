@@ -66,7 +66,11 @@ float equalPowerDry(float blend)
 
 float equalPowerWet(float blend)
 {
-    return 0.94f * sinf(clamp01(blend) * kHalfPi);
+    // The 0.94 factor in earlier releases capped max Blend loudness at ≈0.75–0.84
+    // after tanh, which left the pedal noticeably quieter than the real Muff at
+    // "Volume = max." The tanh stages downstream already act as soft limiters, so
+    // full-wet can safely hit unity here.
+    return sinf(clamp01(blend) * kHalfPi);
 }
 }
 
@@ -122,8 +126,11 @@ public:
         const float dryGain = equalPowerDry(blendClamped);
         const float wetGain = equalPowerWet(blendClamped);
 
-        const float normalTrim = 0.84f - 0.04f * sustainCurve;
-        const float bypassTrim = 0.98f - 0.05f * sustainCurve;
+        // Trim bases raised so the wet voiced signal reaches a commercial-Muff-level
+        // output at max Blend. The final clampUnit on the mixed output catches any
+        // transient that sneaks through the tanh saturation above.
+        const float normalTrim = 0.98f - 0.04f * sustainCurve;
+        const float bypassTrim = 1.08f - 0.05f * sustainCurve;
 
         for (size_t i = 0; i < left.size(); ++i)
         {

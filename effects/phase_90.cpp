@@ -89,11 +89,16 @@ struct VoiceParams
 
 VoiceParams getVoice(bool scriptMode)
 {
+    // Script voice (no feedback, softer blend) intentionally keeps the gentler
+    // Phase 90 script-logo feel. The block voice got a deeper feedback path
+    // (0.36 → 0.58) and a more forward wet mix (0.62 → 0.72) — the previous
+    // numbers produced a sweep that was audibly present but never really
+    // "chewy" the way the real block-logo pedal is.
     if (scriptMode) {
-        return {0.00f, 110.0f, 1450.0f, 0.78f, 0.58f};
+        return {0.00f, 110.0f, 1450.0f, 0.78f, 0.62f};
     }
 
-    return {0.36f, 120.0f, 1650.0f, 0.76f, 0.62f};
+    return {0.58f, 120.0f, 1650.0f, 0.74f, 0.72f};
 }
 
 struct AllpassStage
