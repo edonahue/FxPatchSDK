@@ -52,7 +52,8 @@ Source: <https://electrosmash.com/back-talk-analysis>
 - **Endless fit:** excellent; the original control set already matches the Endless surface
 - **DSP fit:** excellent; reverse windowing/delay is more natural to do digitally than many analog pedals are to emulate
 - **Risk:** moderate; buffer/window artifacts and feedback feel will need tuning, but the architecture is straightforward
-- **Status:** `shortlisted`
+- **Repository value:** realized in `back_talk_reverse_delay.cpp` as a chunk-based reverse delay with feedback, a hold-toggle texture mode, and equal-power expression-as-mix
+- **Status:** `implemented`
 
 ### Big Muff Pi
 
@@ -247,26 +248,23 @@ Source: <https://www.electrosmash.com/emg81>
 
 ---
 
-## Final Four Recommended Pedals
+## Original Top Four — Status Update
 
-These are the four ElectroSmash pedal listings that translate best into worthwhile Endless
-patches for this repository.
+These were the four ElectroSmash pedal listings that translated best into worthwhile Endless
+patches for this repository. Three of the four are now implemented.
 
-### 1. Tube Screamer
+### 1. Tube Screamer — `implemented`
 
-Why it makes the cut:
+Why it made the cut:
 
 - classic 3-knob control layout already fits Endless
 - circuit blocks are clearly explained by ElectroSmash
 - frequency-selective clipping gives it more identity than a generic overdrive
 - stock-SDK-friendly first implementation path is obvious
 
-Main design opportunity:
+Realized as `tube_screamer.cpp`: TS808 voice with TS9 hold-toggle, expression-on-tone.
 
-- build a Tube Screamer-inspired overdrive that focuses on the active high-pass clipping feel,
-  the mid-hump, and the right `Drive/Tone/Level` control law
-
-### 2. ProCo Rat
+### 2. ProCo Rat — `shortlisted`
 
 Why it makes the cut:
 
@@ -279,44 +277,45 @@ Main design opportunity:
 
 - build a Rat-inspired distortion with careful `Filter` taper and output management
 
-### 3. Big Muff Pi
+**This is the only remaining shortlisted ElectroSmash candidate without an implementation.**
 
-Why it makes the cut:
+### 3. Big Muff Pi — `implemented`
+
+Why it made the cut:
 
 - iconic fuzz/sustain family with a direct 3-knob mapping
 - ElectroSmash explains the stage structure and tone control well
 - adds a true fuzz/sustain voice that this repo does not yet have
 
-Main design opportunity:
+Realized as `big_muff.cpp`: Ram's Head-inspired fuzz, Tone Bypass hold-toggle, expression-as-blend.
 
-- capture sustain, tone-stack feel, and cascading clip density without getting lost in transistor fetishism
+### 4. Back Talk Reverse Delay — `implemented`
 
-### 4. Back Talk Reverse Delay
-
-Why it makes the cut:
+Why it made the cut:
 
 - strongest non-drive candidate
 - original pedal is already fundamentally digital, which plays to Endless strengths
 - 3 knobs already match Endless expectations
 - highly creative without requiring analog black-magic translation
 
-Main design opportunity:
-
-- build a reverse-window delay with musical control over reverse length, repeats, and dry/wet feel
+Realized as `back_talk_reverse_delay.cpp`: chunk-based reverse delay with feedback damping,
+hold-toggle texture mode, and equal-power expression-as-mix.
 
 ---
 
 ## Near Misses
 
-These are good articles and plausible future patches, but they miss the top four for this repo.
+These are good articles and plausible future patches, but they missed the original top four for this repo.
 
 ### Klon Centaur
 
 - very interesting, but harder than Tube Screamer to get "right" because the appeal is in subtle clean/dirty interaction
+- now `implemented` as `klon_centaur.cpp` with a stock voice and a Tone Mod alternate
 
 ### MXR Phase 90
 
-- strong future candidate, but a second modulation-family patch is lower priority than adding Rat, Big Muff, or reverse delay
+- strong future candidate, but a second modulation-family patch was lower priority than adding Rat, Big Muff, or reverse delay
+- now `implemented` as `phase_90.cpp` as a one-knob block/script Phase 90
 
 ### MXR Dyna Comp
 
@@ -356,30 +355,25 @@ These are good articles and plausible future patches, but they miss the top four
 
 ---
 
-## Best First Patch Ranking
+## Remaining Build Priority
 
-If the goal is "what should we build next first," the order should be:
+Of the original top four, only **ProCo Rat** remains unimplemented. The next best
+candidates from the full survey are:
 
-1. **Back Talk Reverse Delay**
-2. **Tube Screamer**
-3. **ProCo Rat**
-4. **Big Muff Pi**
-
-Why this order:
-
-- `Back Talk` is the most aligned with a creative Endless-native result and the expressed interest in time/reverse effects
-- `Tube Screamer` is the safest next implementation if the goal is confidence and fast progress
-- `Rat` is the next best distortion target after that
-- `Big Muff` is highly worthwhile, but more voicing-sensitive than Tube Screamer or Rat
+1. **ProCo Rat** — still the strongest remaining ElectroSmash target: clean `Distortion /
+   Filter / Volume` mapping, very strong sound identity, manageable implementation scope.
+2. **MXR Dyna Comp** — best dynamics candidate; `Sensitivity / Output` with a third control
+   for `Attack` or `Blend` gives a good 3-knob story once the repo has one dynamics example.
+3. **Boss DS-1** — absolutely buildable as a harder-edged complement to the Tube Screamer;
+   lower priority now that the drive family is well represented.
 
 ---
 
 ## Practical Recommendation
 
-If you want the **most distinctive** next patch, build **Back Talk Reverse Delay** first.
+The repo now has strong coverage of overdrive, fuzz, phaser, chorus, wah, and reverse delay.
+The clearest gap is distortion with a distinctive `Filter`-style taper and dynamics processing.
 
-If you want the **safest and cleanest** next patch, build **Tube Screamer** first.
+If you want the **next distinct dirt voice**, build **ProCo Rat** next.
 
-If you want the **heaviest personality-per-line-of-code ratio**, build **ProCo Rat** first.
-
-If you want the **best fuzz/sustain platform**, build **Big Muff Pi** first.
+If you want the **first dynamics patch**, build **MXR Dyna Comp** next.

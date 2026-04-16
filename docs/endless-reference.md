@@ -140,15 +140,13 @@ it is copied onto the pedal.
 That means every patch in this repo currently treats the Right knob as the expression
 pedal target whenever a pedal is connected.
 
-Implications:
-
-- `chorus.cpp`: good fit, because Right is mix
-- `mxr_distortion_plus.cpp`: good fit, because Right is output level
-- `wah.cpp`: required, because Right is the sweep position
-- future patches: be careful if Right is a mode selector or other set-and-forget control
+All nine current patches are designed so that param 2 is a live-performance target
+(mix, level, sweep position, or similar). For the full per-patch control layout, see the
+Quick Control Cheat Sheet in [`effects/README.md`](../effects/README.md).
 
 There is a documented future path to a per-patch `isParamEnabled()` API, but it is not
-implemented in this branch.
+implemented in this branch. Until then, any new patch must ensure that its Right knob
+remains a sensible live-performance control when the expression pedal takes over.
 
 ### `source/PatchImpl.cpp` is the active build target
 
@@ -278,6 +276,28 @@ Related design notes:
 
 ## 7. Build Workflow
 
+### Batch build (preferred)
+
+Build all top-level effects and deposit `.endl` files in `effects/builds/`:
+
+```bash
+bash scripts/build_effects.sh
+```
+
+Build a single effect by name:
+
+```bash
+bash scripts/build_effects.sh --effect phase_90
+```
+
+Verify all `.endl` binaries have a valid `PTCH` header:
+
+```bash
+bash tests/build_effects.sh
+```
+
+### Single-patch manual build
+
 Baseline command:
 
 ```bash
@@ -290,7 +310,7 @@ Named build:
 make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_patch
 ```
 
-Typical custom-patch workflow in this fork:
+Typical workflow for an ad hoc single-patch build:
 
 1. choose a file from `effects/` or write a new one there
 2. copy it into `source/PatchImpl.cpp`
