@@ -72,15 +72,17 @@ Expected output when all patches pass:
 Compiler: g++ (Ubuntu 12.3.0-1ubuntu1~22.04) 12.3.0
 Flags: -std=c++20 -fno-exceptions ...
 
-PASS: effects/chorus.cpp
-PASS: effects/bbe_sonic_stomp.cpp
 PASS: effects/back_talk_reverse_delay.cpp
+PASS: effects/bbe_sonic_stomp.cpp
 PASS: effects/big_muff.cpp
+PASS: effects/big_muff_wdf.cpp
+PASS: effects/chorus.cpp
 PASS: effects/harmonica.cpp
 PASS: effects/klon_centaur.cpp
 PASS: effects/mxr_distortion_plus.cpp
 PASS: effects/phase_90.cpp
 PASS: effects/tube_screamer.cpp
+PASS: effects/tube_screamer_wdf.cpp
 PASS: effects/wah.cpp
 
 === Lint Checks ===
@@ -90,7 +92,7 @@ OK: No hardcoded sample rate
 OK: All patches define getInstance()
 
 === Summary ===
-Compile: 10 passed, 0 failed
+Compile: 12 passed, 0 failed
 Lint warnings: 0
 
 All patches passed syntax check.
@@ -209,10 +211,22 @@ fi
    loudness behavior of expression-driven `Blend`, and the contrast between the core
    Ram's Head voice and the hold-toggle Tone Bypass alternate mode.
 
+   For `effects/big_muff_wdf.cpp`, hardware validation should explicitly compare the
+   same `Sustain` / `Tone` / `Blend` control story against `effects/big_muff.cpp`,
+   checking whether the hybrid WDF-style clip core produces a denser or more pedal-like
+   sustain rise without narrowing the sweep or losing the usefulness of expression-
+   driven `Blend`.
+
    For `effects/tube_screamer.cpp`, hardware validation should explicitly check the full
    `Drive` sweep, that `Level` reaches near-unity around noon without collapsing into a
    ceiling-limited shelf, the feel of expression-driven `Tone`, and the contrast between
    the TS808 default voice and the hold-toggle TS9 alternate voice.
+
+   For `effects/tube_screamer_wdf.cpp`, hardware validation should explicitly check that
+   `Level` behaves like a real post-drive output control from knob noon upward, that the
+   WDF-style clip core is more audible than a loud clean boost at realistic guitar input
+   level, and that the TS808 / TS9 hold-toggle remains a family shift rather than a
+   different pedal class.
 
    For `effects/klon_centaur.cpp`, hardware validation should explicitly check the low-
    to-mid `Gain` range for clean/dirty openness, the usefulness of the active `Treble`

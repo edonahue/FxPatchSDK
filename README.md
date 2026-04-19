@@ -41,17 +41,19 @@ playground/    compiled Playground examples and supporting artifacts
 
 ## Included Effect Work
 
-This fork currently includes ten stock-SDK-compatible custom effects:
+This fork currently includes twelve stock-SDK-compatible custom effects:
 
 - `effects/back_talk_reverse_delay.cpp`: Back Talk-inspired reverse delay with a texture mode and expression-as-mix
 - `effects/bbe_sonic_stomp.cpp`: guitar-oriented sonic enhancer inspired by BBE Sonic Stomp / Aion Lumin
 - `effects/big_muff.cpp`: Ram's Head-inspired Big Muff fuzz with a Tone Bypass alternate voice and expression-as-blend
+- `effects/big_muff_wdf.cpp`: hybrid WDF-style Big Muff sibling that keeps the same `Sustain` / `Tone` / `Blend` control story while replacing the clip core with wave-solved diode-pair stages
 - `effects/chorus.cpp`: stereo modulated-delay chorus
 - `effects/harmonica.cpp`: blues bullet-mic harmonica voicing of a guitar, with an Open/Cupped voicing toggle and expression-driven hand-cup sweep
 - `effects/klon_centaur.cpp`: Klon-inspired transparent overdrive with a Tone Mod alternate voice and expression-as-output
 - `effects/mxr_distortion_plus.cpp`: MXR Distortion+ inspired distortion, retuned for smoother Endless control
 - `effects/phase_90.cpp`: one-knob Phase 90 phaser with a script-mod vintage alternate voice
 - `effects/tube_screamer.cpp`: TS808-inspired overdrive with a TS9 alternate voice and expression-as-tone
+- `effects/tube_screamer_wdf.cpp`: WDF-style Tube Screamer sibling that deliberately tests `Drive` / `Tone` / `Level` with expression-as-level and a TS808 / TS9 hold toggle
 - `effects/wah.cpp`: dual-mode Crybaby/Vox-inspired wah using expression control
 
 There is also one external reference example in `effects/examples/reverb.cpp` that
@@ -139,6 +141,7 @@ Then read the specific walkthroughs for any effect you plan to extend:
 - [`docs/bbe-sonic-stomp-build-walkthrough.md`](docs/bbe-sonic-stomp-build-walkthrough.md)
 - [`docs/big-muff-research.md`](docs/big-muff-research.md)
 - [`docs/big-muff-build-walkthrough.md`](docs/big-muff-build-walkthrough.md)
+- [`docs/big-muff-wdf-build-walkthrough.md`](docs/big-muff-wdf-build-walkthrough.md)
 - [`docs/harmonica-build-walkthrough.md`](docs/harmonica-build-walkthrough.md)
 - [`docs/klon-centaur-research.md`](docs/klon-centaur-research.md)
 - [`docs/klon-centaur-build-walkthrough.md`](docs/klon-centaur-build-walkthrough.md)
@@ -147,6 +150,7 @@ Then read the specific walkthroughs for any effect you plan to extend:
 - [`docs/phase-90-build-walkthrough.md`](docs/phase-90-build-walkthrough.md)
 - [`docs/tube-screamer-research.md`](docs/tube-screamer-research.md)
 - [`docs/tube-screamer-build-walkthrough.md`](docs/tube-screamer-build-walkthrough.md)
+- [`docs/tube-screamer-wdf-build-walkthrough.md`](docs/tube-screamer-wdf-build-walkthrough.md)
 - [`docs/wah-build-walkthrough.md`](docs/wah-build-walkthrough.md)
 
 ## Official References

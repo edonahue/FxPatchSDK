@@ -52,6 +52,16 @@ PATCH_METADATA = {
         "secondary_param": 2,
         "hold_note": "TS808 / TS9 family toggle",
     },
+    "tube_screamer_wdf": {
+        "category": "drive",
+        "priority": "critical",
+        "identity": "WDF-style mid-hump overdrive",
+        "main_param": 0,
+        "level_param": 2,
+        "level_role": "output",
+        "secondary_param": 1,
+        "hold_note": "TS808 / TS9 WDF sibling toggle",
+    },
     "klon_centaur": {
         "category": "drive",
         "priority": "critical",
@@ -71,6 +81,16 @@ PATCH_METADATA = {
         "level_role": "blend",
         "secondary_param": 1,
         "hold_note": "tone-bypass mids-lift toggle",
+    },
+    "big_muff_wdf": {
+        "category": "drive",
+        "priority": "important",
+        "identity": "WDF-hybrid scooped fuzz/sustain",
+        "main_param": 0,
+        "level_param": 2,
+        "level_role": "blend",
+        "secondary_param": 1,
+        "hold_note": "tone-bypass mids-lift WDF sibling toggle",
     },
     "mxr_distortion_plus": {
         "category": "drive",

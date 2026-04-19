@@ -130,7 +130,7 @@ it is copied onto the pedal.
 
 ## 5. Repo-Local Behavior That Will Surprise You
 
-### Expression pedal routing is hardcoded
+### Current wrapper exposes expression only on param `2`
 
 `internal/PatchCppWrapper.cpp` enables:
 
@@ -139,6 +139,10 @@ it is copied onto the pedal.
 
 That means every patch in this repo currently treats the Right knob as the expression
 pedal target whenever a pedal is connected.
+
+Important distinction: the current Polyend Endless guide documents device-level
+expression assignment to a chosen knob in pedal setup. This repo's current SDK wrapper
+is narrower than the hardware and only exposes expression on `param 2`.
 
 Implications:
 
@@ -186,11 +190,25 @@ does not replace a real ARM build or hardware listening pass.
 - long-press toggles a Tone Bypass-inspired mids-lift alternate voice
 - main case study for adapting a classic 3-knob pedal when param `2` must stay performance-friendly
 
+### `effects/big_muff_wdf.cpp`
+
+- hybrid WDF-style Big Muff sibling that keeps the same `Sustain` / `Tone` / `Blend` control surface
+- replaces the original clip core with two wave-solved diode-pair stages plus the same general Muff LP/HP tone-stack story
+- uses expression on `Blend` for an apples-to-apples comparison against `big_muff.cpp`
+- main case study for asking whether WDF-style nonlinear stages improve feel enough to justify the extra math
+
 ### `effects/chorus.cpp`
 
 - stock-SDK-compatible stereo chorus
 - uses the working buffer for delay lines
 - demonstrates fractional delay, LFO phase offset, and expression-as-mix
+
+### `effects/harmonica.cpp`
+
+- blues bullet-mic harmonica voicing built as a timbral transformation, not a pitch shifter
+- uses dual Chamberlin formants, asymmetric reed-style saturation, post-rolloff, tremolo, and subtle micro-chorus
+- expression controls `Waa / Cup sweep` via the repo-global param-2 routing
+- hold toggles `Open` and `Cupped` voicings with different Q, drive, rolloff, and modulation depth
 
 ### `effects/klon_centaur.cpp`
 
@@ -220,17 +238,27 @@ does not replace a real ARM build or hardware listening pass.
 - expression controls `Tone` via the repo-global param-2 routing
 - main case study for bounded tone sweeps and family-relative overdrive voicing
 
+### `effects/tube_screamer_wdf.cpp`
+
+- WDF-style Tube Screamer sibling using a wave-solved diode-pair clip core and body/edge split before tone/output voicing
+- intentionally remaps the surface to `Drive` / `Tone` / `Level`, with expression on `Level`, so the sibling can test a more pedal-like output story
+- hold toggles TS808 and TS9 family voicings through a smoothed morph instead of a hard branch jump
+- main case study for asking whether WDF-style clipping plus an output-focused Right knob is the better Endless interpretation of this pedal family
+
 ## 6.1 Control-Law Review Notes
 
 This fork now treats knob taper review as part of patch design, not just polish.
 
 - `mxr_distortion_plus.cpp`: primary control-law case study; the raw analog pot law was less usable than an Endless-tuned curve
 - `big_muff.cpp`: main case study for passive tone-stack behavior, output compensation, and expression-as-blend
+- `big_muff_wdf.cpp`: matching WDF-style sibling case; compare whether the wave-solved clip core changes sustain feel enough to matter while keeping the same public controls
 - `klon_centaur.cpp`: main case study for gain-dependent clean/dirty summing and expression-as-output
 - `phase_90.cpp`: main case study for one-knob authenticity, log-rate mapping, and intentional unused controls
 - `tube_screamer.cpp`: main case study for preserving a classic control layout while making expression-on-tone musical
+- `tube_screamer_wdf.cpp`: matching WDF-style sibling case; compare expression-on-level and a more circuit-shaped clip stage against the original hand-tuned build
 - `back_talk_reverse_delay.cpp`: log-style time mapping, bounded repetitions, and equal-power expression-as-mix
 - `chorus.cpp`: current mapping looks healthy; log taper for `Rate`, linear `Depth` and `Mix`
+- `harmonica.cpp`: main case study for timbral transformation, coupled voicing trims, and log-formant expression mapping
 - `wah.cpp`: current mapping looks healthy; log frequency sweep is the right model for wah motion
 - `bbe_sonic_stomp.cpp`: current mapping is intentionally bounded and blend-oriented rather than analog-pot faithful
 
@@ -239,10 +267,13 @@ Current watch-items for future hardware listening:
 - confirm `back_talk_reverse_delay.cpp` chunk edges stay click-free across extreme speed settings
 - confirm `back_talk_reverse_delay.cpp` repetitions approach runaway gradually rather than abruptly
 - confirm `big_muff.cpp` sustain rises musically across most of the sweep and the alternate mode is clearly more mid-forward than the core Ram's Head voice
+- confirm `big_muff_wdf.cpp` preserves that same control usefulness while adding enough density or realism to justify the heavier clip core
 - confirm `klon_centaur.cpp` lower gain settings stay open and stackable, and the Tone Mod hold-toggle feels fuller without turning the patch into a different pedal
 - confirm `phase_90.cpp` speed stays useful across most of the sweep, the script mode is smoother than block mode, and both modes remain near unity
 - confirm `tube_screamer.cpp` tone remains useful heel-to-toe under expression and the TS808/TS9 hold-toggle reads as a close family shift rather than a different pedal
+- confirm `tube_screamer_wdf.cpp` level really behaves like a pedal output control and the TS808/TS9 morph is audible without turning the patch into "a louder EQ"
 - confirm `chorus.cpp` depth is still useful near both extremes
+- confirm `harmonica.cpp` reads as a hand-cupped bullet-mic voice on single-note lines, the Open/Cupped hold-toggle is obvious, and the expression sweep feels like hand motion rather than a synth-wah
 - confirm `wah.cpp` Q remains musical across the full sweep
 - confirm each `bbe_sonic_stomp.cpp` knob produces a distinct audible shift without bunching near the ends
 
@@ -264,7 +295,9 @@ Related design notes:
 - [`bbe-sonic-stomp-build-walkthrough.md`](bbe-sonic-stomp-build-walkthrough.md)
 - [`big-muff-research.md`](big-muff-research.md)
 - [`big-muff-build-walkthrough.md`](big-muff-build-walkthrough.md)
+- [`big-muff-wdf-build-walkthrough.md`](big-muff-wdf-build-walkthrough.md)
 - [`circuit-to-patch-conversion.md`](circuit-to-patch-conversion.md)
+- [`harmonica-build-walkthrough.md`](harmonica-build-walkthrough.md)
 - [`klon-centaur-research.md`](klon-centaur-research.md)
 - [`klon-centaur-build-walkthrough.md`](klon-centaur-build-walkthrough.md)
 - [`mxr-distortion-plus-circuit-analysis.md`](mxr-distortion-plus-circuit-analysis.md)
@@ -272,6 +305,7 @@ Related design notes:
 - [`phase-90-build-walkthrough.md`](phase-90-build-walkthrough.md)
 - [`tube-screamer-research.md`](tube-screamer-research.md)
 - [`tube-screamer-build-walkthrough.md`](tube-screamer-build-walkthrough.md)
+- [`tube-screamer-wdf-build-walkthrough.md`](tube-screamer-wdf-build-walkthrough.md)
 - [`wah-build-walkthrough.md`](wah-build-walkthrough.md)
 
 ---
@@ -290,13 +324,21 @@ Named build:
 make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_patch
 ```
 
-Typical custom-patch workflow in this fork:
+Current recommended custom-patch workflow in this fork:
+
+1. run `bash tests/check_patches.sh`
+2. run `bash tests/build_effects.sh` for the real ARM build verification pass
+3. run `bash tests/analyze_effects.sh` when you are retuning controls, gain staging, or expression behavior
+4. or use `bash scripts/build_effects.sh` to generate deployable `.endl` files for all top-level `effects/*.cpp`
+5. pick up the generated `.endl` files from `effects/builds/`
+6. copy the chosen `.endl` onto the Endless USB volume
+
+Legacy/manual single-patch path:
 
 1. choose a file from `effects/` or write a new one there
 2. copy it into `source/PatchImpl.cpp`
 3. change `#include "../source/Patch.h"` to `#include "Patch.h"`
 4. build with `make`
-5. copy the resulting `.endl` onto the Endless USB volume
 
 Useful flags in the current Makefile:
 

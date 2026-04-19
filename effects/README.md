@@ -9,12 +9,14 @@ Current inventory:
 - `back_talk_reverse_delay.cpp`: Back Talk-inspired reverse delay with a hold-toggle texture mode
 - `bbe_sonic_stomp.cpp`: guitar-oriented sonic enhancer inspired by BBE Sonic Stomp / Aion Lumin
 - `big_muff.cpp`: Ram's Head-inspired Big Muff fuzz with a Tone Bypass alternate voice and expression-as-blend
+- `big_muff_wdf.cpp`: hybrid WDF-style Big Muff sibling with the same `Sustain` / `Tone` / `Blend` surface and a more circuit-shaped clip core
 - `chorus.cpp`: stereo chorus with modulated delay lines
 - `harmonica.cpp`: blues bullet-mic harmonica voicing of a guitar input, with a hand-cup expression sweep and an Open/Cupped voicing toggle
 - `klon_centaur.cpp`: Klon-inspired transparent overdrive with a Tone Mod alternate voice and expression-as-output
 - `mxr_distortion_plus.cpp`: MXR Distortion+ inspired distortion with Endless-tuned gain, tone, and level control
 - `phase_90.cpp`: one-knob Phase 90 phaser with a block/script voice toggle
 - `tube_screamer.cpp`: TS808-inspired overdrive with a TS9 alternate voice and expression-as-tone
+- `tube_screamer_wdf.cpp`: WDF-style Tube Screamer sibling with expression-as-level and a TS808 / TS9 family toggle
 - `wah.cpp`: dual-mode wah with expression-driven sweep
 - `examples/reverb.cpp`: imported reference example that still compiles against the stock SDK
 
@@ -32,12 +34,14 @@ actually does.
 | `back_talk_reverse_delay.cpp` | `Speed`: moves from tighter reverse flicks to longer reverse phrases. | `Repetitions`: controls how fast the reverse tail dies out or climbs toward near-runaway. | `Mix`: sweeps from mostly dry attack to a fuller reverse bloom, with light wet-side makeup so wetter settings stay present. | Bypass toggle. | Toggles `Texture` mode, which layers an older reverse slice for a smoother, dreamier smear. | Normal mode: LightBlue active, DimBlue bypassed. Texture mode: Magenta active, DimCyan bypassed. |
 | `bbe_sonic_stomp.cpp` | `Contour`: low-end alignment and weight correction. | `Process`: top-end clarity and bite. | `Midrange`: pushes the vocal center of the enhancer harder as you move toe-down. | Bypass toggle. | Toggles the subtle stereo doubler. | Enhancer only: LightGreen active, DimGreen bypassed. Enhancer + doubler: LightBlue active, DimBlue bypassed. |
 | `big_muff.cpp` | `Sustain`: more gain, sustain, and density. | `Tone`: moves from darker wool to sharper cut through the Muff stack. | `Blend`: shifts from more dry pick attack to more full-wall fuzz. This is intentionally a texture/wetness control, not a literal Muff-style volume pot. | Bypass toggle. | Toggles the `Tone Bypass`-style mids-lift voice. | Ram's Head voice: Red active, DarkRed bypassed. Tone Bypass voice: Magenta active, DimCyan bypassed. |
+| `big_muff_wdf.cpp` | `Sustain`: adds more multi-stage compression and sustain through two wave-solved clip stages; the useful sweep is intentionally stretched so the knob keeps opening up beyond the first quarter-turn. | `Tone`: in the core voice it still moves from darker wool to sharper cut through the Muff-style LP/HP blend; in the alternate voice it becomes a gentler top-end trim on the mids-lift response. | `Blend`: equal-power dry/fuzz mix, heel retaining more pick definition and toe pushing toward full-wall fuzz. This keeps expression on a live texture control rather than a static output trim. | Bypass toggle. | Toggles the hybrid WDF sibling's `Tone Bypass`-style mids-lift voice. | Ram's Head voice: Red active, DarkRed bypassed. Tone Bypass voice: Magenta active, DimCyan bypassed. |
 | `chorus.cpp` | `Rate`: slower swirl to faster shimmer. | `Depth`: shallow thickening to deeper pitch swim. | `Mix`: dry chorus blend to full wet modulation. | Bypass toggle. | Same as short press; hold also toggles bypass. | LightBlue active, DimBlue bypassed. |
 | `harmonica.cpp` | `Tone / Cup`: loose & bright to tight & dark cup trim on top of the base voicing. | `Reed / Drive`: light reed saturation to cranked bullet-mic breakup with asymmetric reed clipping. | `Waa / Cup sweep`: heel is cupped & dark (formant ~320 Hz), toe is open & bright (formant up to ~2.5 kHz) — this is the signature hand-muting gesture, ideal for the expression pedal. | Bypass toggle. | Toggles `Open` vs `Cupped` voicing (different Q, drive, rolloff, and tremolo depth). | Cupped voice: LightYellow active, DimYellow bypassed. Open voice: LightBlue active, DimBlue bypassed. |
 | `klon_centaur.cpp` | `Gain`: pushes from mostly clean boost into fuller clipped drive. | `Treble`: active high shelf, from rounder to brighter and more cutting. | `Output`: re-centered so around noon sits near bypass level and the upper half behaves like a real boost/output stage instead of just harder limiting. | Bypass toggle. | Toggles the fuller `Tone Mod` variant. | Stock voice: LightYellow active, DimYellow bypassed. Tone Mod voice: Beige active, DimWhite bypassed. |
 | `mxr_distortion_plus.cpp` | `Distortion`: gain plus low-end tightening, from light grit to denser crunch. | `Tone`: darker post-clip rolloff to brighter bite. | `Level`: re-centered so around noon is near unity and the upper half adds real post-drive level before the safety limiter matters. | Bypass toggle. | No long-press action. | Red active, DimWhite bypassed. |
 | `phase_90.cpp` | Unused on purpose. | `Speed`: the main public control, from slow sweep to fast chew. | Mirrors `Speed` for expression; heel is slower, toe is faster. | Bypass toggle. | Toggles `Block` vs `Script` voicing. | Block voice: Blue active, DimBlue bypassed. Script voice: Beige active, DimWhite bypassed. |
 | `tube_screamer.cpp` | `Drive`: more mid-hump push and saturation. | `Level`: re-centered so around noon is near bypass level and the upper half behaves like a true output control, not a ceiling driver. | `Tone`: heel is darker and rounder, toe is brighter and more cutting. | Bypass toggle. | Toggles `TS808` vs `TS9` voice. | TS808 voice: LightGreen active, DimGreen bypassed. TS9 voice: PastelGreen active, DarkLime bypassed. |
+| `tube_screamer_wdf.cpp` | `Drive`: more clipped op-amp push, tighter low-end trimming, and stronger diode-pair action as the control rises. Compared with the original sibling, this one is explicitly trying to make the clip core feel more schematic-driven. | `Tone`: darker, rounder mid-push on the left and brighter, tighter bite on the right, bounded so it still works as a normal knob instead of only as a wide filter sweep. | `Level`: re-centered so around noon is near unity and the upper half behaves like a real post-drive output stage. Expression intentionally lives here in the WDF sibling to test whether output control is more useful than expression-on-tone. | Bypass toggle. | Toggles `TS808` vs `TS9` family voicing. | TS808 voice: LightGreen active, DimGreen bypassed. TS9 voice: PastelGreen active, DarkLime bypassed. |
 | `wah.cpp` | `Mix`: equal-power dry/wet crossfade. | `Q`: softer resonance to sharper, more vocal peaks (default Q≈7 Crybaby / Q≈4.5 Vox). Bandpass boosts ≈+9 dB at the swept resonance with a tanh "op-amp growl" at the peak. | `Wah position`: heel is bassier/closed, toe is brighter/open. | Bypass toggle. | Toggles `Crybaby` vs `Vox` mode. | Crybaby: Red active, DarkRed bypassed. Vox: LightYellow active, DimYellow bypassed. |
 
 The matching community example cheat sheet lives in
@@ -172,12 +176,18 @@ Patch review in this fork now treats parameter taper as a first-class design cho
   with the final limiter acting as safety only at the top edge of travel
 - `big_muff.cpp` is the main tone-stack/blend case: classic Muff controls need output
   compensation and a non-literal third control if expression is meant to stay musical
+- `big_muff_wdf.cpp` is the matching WDF-style sibling case: keep the same Endless-friendly
+  `Sustain` / `Tone` / `Blend` surface, but compare a wave-solved diode-pair clip core
+  against the hand-tuned original before adopting broader WDF patterns
 - `klon_centaur.cpp` is the main clean/dirty summing case: the gain control must rebalance
   internal paths instead of behaving like a single-path drive knob
 - `phase_90.cpp` is the main minimal-UI case: one public knob, intentional unused controls,
   and a mode switch that changes voicing without adding more UI surface
 - `tube_screamer.cpp` is the main expression-on-tone case: the classic control layout is
   worth preserving, but the tone sweep must stay musical on both the knob and the pedal
+- `tube_screamer_wdf.cpp` is the matching WDF-style sibling case: it deliberately flips the
+  original repo lesson and puts expression on `Level` so the output-stage behavior can be
+  judged against a more pedal-like control layout
 - `chorus.cpp` is a good positive example: log taper for `Rate`, linear mappings for `Depth` and `Mix`
 - `wah.cpp` is another positive example: log taper for sweep frequency, linear mapping for Q
 - `harmonica.cpp` is the main multi-stage filter case: each knob modulates several coupled
@@ -242,6 +252,8 @@ These are the best files to read before editing or adding a patch:
   Electrosmash-grounded variant and control-surface rationale for `big_muff.cpp`
 - [`docs/big-muff-build-walkthrough.md`](../docs/big-muff-build-walkthrough.md) —
   design log for `big_muff.cpp`
+- [`docs/big-muff-wdf-build-walkthrough.md`](../docs/big-muff-wdf-build-walkthrough.md) —
+  design log for the hybrid WDF-style `big_muff_wdf.cpp` sibling
 - [`docs/klon-centaur-research.md`](../docs/klon-centaur-research.md) —
   ElectroSmash-grounded clean/dirty summing and mod rationale for `klon_centaur.cpp`
 - [`docs/klon-centaur-build-walkthrough.md`](../docs/klon-centaur-build-walkthrough.md) —
@@ -254,6 +266,8 @@ These are the best files to read before editing or adding a patch:
   ElectroSmash-grounded family and control-surface rationale for `tube_screamer.cpp`
 - [`docs/tube-screamer-build-walkthrough.md`](../docs/tube-screamer-build-walkthrough.md) —
   design log for `tube_screamer.cpp`
+- [`docs/tube-screamer-wdf-build-walkthrough.md`](../docs/tube-screamer-wdf-build-walkthrough.md) —
+  design log for the WDF-style `tube_screamer_wdf.cpp` sibling
 - [`docs/wah-build-walkthrough.md`](../docs/wah-build-walkthrough.md) —
   complete design log for `wah.cpp`
 - [`docs/harmonica-build-walkthrough.md`](../docs/harmonica-build-walkthrough.md) —
