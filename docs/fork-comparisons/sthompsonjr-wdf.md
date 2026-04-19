@@ -13,7 +13,11 @@ header-only `dsp/` layer that directly overlap with several of this repo's pedal
 patches. The immediate win is not a wholesale port: it is adopting the primitive-reuse
 discipline, documenting WDF as an optional higher-fidelity path, and running one
 CPU-budgeted experiment on a patch with a direct analog counterpart before deciding
-whether deeper adoption is justified on Endless hardware.
+whether deeper adoption is justified on Endless hardware. That experiment has now begun in
+tree via [`effects/big_muff_wdf.cpp`](../../effects/big_muff_wdf.cpp) and
+[`effects/tube_screamer_wdf.cpp`](../../effects/tube_screamer_wdf.cpp): two sibling
+patches that preserve this repo's control-surface lessons while testing WDF-style
+nonlinear stages locally.
 
 ## What The Fork Actually Is
 
@@ -73,12 +77,14 @@ asset in the `sthompsonjr` fork.
 | [`effects/back_talk_reverse_delay.cpp`](../../effects/back_talk_reverse_delay.cpp) | reverse-chunk delay, bounded feedback, equal-power mix | `dsp/CircularBuffer.h`, `dsp/MultiTapDelay.h`, `dsp/Interpolation.h` | DSP reuse only. WDF is not the main value here. |
 | [`effects/bbe_sonic_stomp.cpp`](../../effects/bbe_sonic_stomp.cpp) | split-band enhancer, phase/weight compensation, optional doubler | `dsp/BiquadFilter.h`, `dsp/OnePoleFilter.h`, `dsp/HaasStereoWidener.h` | Moderate DSP reuse potential, low direct WDF relevance. |
 | [`effects/big_muff.cpp`](../../effects/big_muff.cpp) | cascaded one-pole filters, staged `tanhf`, equal-power dry/wet blend | `wdf/WdfBigMuffCircuit.h` | Highest direct-fidelity opportunity in the repo. The fork encodes transistor stages, diode pair, and named variants more explicitly than our current hand tuning. |
+| [`effects/big_muff_wdf.cpp`](../../effects/big_muff_wdf.cpp) | hybrid WDF-style sibling: wave-solved diode pairs plus repo-native `Sustain` / `Tone` / `Blend` UX | `wdf/WdfBigMuffCircuit.h` | This is the in-repo experiment. The remaining question is not "can it be done?" but whether the audible win justifies the higher per-sample cost and extra code. |
 | [`effects/chorus.cpp`](../../effects/chorus.cpp) | modulated delay-line chorus | `dsp/BBDLine.h`, `dsp/AnalogLfo.h`, `dsp/WindowedSincInterpolator.h` | High DSP reuse potential, but WDF is not the right abstraction. |
 | [`effects/harmonica.cpp`](../../effects/harmonica.cpp) | voiced filter cascade, asymmetric clipping, formant sweep, tremolo | `dsp/StateVariableFilter.h`, `dsp/EnvelopeFollower.h`, `wdf/WdfPnpCircuits.h` | No direct patch counterpart. Selective primitive borrowing may help; full WDF port is not an obvious win. |
 | [`effects/klon_centaur.cpp`](../../effects/klon_centaur.cpp) | clean/dirty parallel sum, soft clipping, tone shelf, output stage | `wdf/WdfTubescreamerCircuit.h` (`KlonClipStage`) | Strong nonlinear reference for the clip stage, but not a full drop-in replacement for the patch's current UI and gain structure. |
 | [`effects/mxr_distortion_plus.cpp`](../../effects/mxr_distortion_plus.cpp) | hand-tuned drive, tone, level, soft limiter | `wdf/DOD250Circuit.h`, `wdf/WdfRatCircuit.h` | Same family of op-amp/diode distortion problems, but not an exact schematic match. Medium-value research target. |
 | [`effects/phase_90.cpp`](../../effects/phase_90.cpp) | hand-authored phaser network, LFO sweep, mode voicing | `dsp/StateVariableFilter.h`, `dsp/AnalogLfo.h`, `dsp/UniVibeLfo.h` | DSP reuse potential exists; WDF is not obviously the best path for this patch. |
 | [`effects/tube_screamer.cpp`](../../effects/tube_screamer.cpp) | split-band drive, one-pole tone shaping, output voicing | `wdf/WdfTubescreamerCircuit.h` | Direct higher-fidelity candidate, especially for clipping and op-amp behavior. |
+| [`effects/tube_screamer_wdf.cpp`](../../effects/tube_screamer_wdf.cpp) | WDF-style sibling: wave-solved diode pair plus a repo-local `Drive` / `Tone` / `Level` control story | `wdf/WdfTubescreamerCircuit.h` | Also now implemented locally. The open question is whether its more pedal-like output control and clip behavior are preferable to the original expression-on-tone build. |
 | [`effects/wah.cpp`](../../effects/wah.cpp) | hand-tuned swept bandpass with soft nonlinear peak behavior | `wdf/WdfWahCircuit.h` | Direct candidate. The fork models the wah as a circuit family rather than a single hand-fit sweep. |
 
 ## Duplication Audit
@@ -173,9 +179,9 @@ noise and make control-law reviews easier to reason about.
 - **The SDK divergence is non-trivial.** The fork's `isParamEnabled(...)` hook solves a
   real problem, but importing it would change this repo's `Patch` ABI and patch template
   expectations.
-- **A bulk migration would be wasteful.** This repo has several patches where WDF is not
-  the dominant need. Porting all ten local effects at once would blur where the actual
-  audible wins came from.
+- **A bulk migration would still be wasteful.** This repo now has twelve top-level custom
+  effects, and several of them do not want WDF at all. Even with two sibling experiments
+  now in tree, a repo-wide migration would still blur where the audible wins came from.
 - **License compatibility is unresolved.** During this survey, no root `LICENSE` file was
   confirmed in the `sthompsonjr` fork. That must be clarified before porting code rather
   than ideas.
@@ -210,16 +216,21 @@ Gate that extraction with:
 
 ### Experiment
 
-Run one scoped pedal-modeling spike before committing to broader WDF adoption:
+Treat the two current sibling patches as phase one of the pedal-modeling spike, not the
+end of the decision:
 
-1. Start with [`effects/big_muff.cpp`](../../effects/big_muff.cpp), because it has the
-   cleanest direct counterpart and the strongest "pedal identity" upside.
-2. Keep the experiment narrow at first: replace or prototype the current clipping stage
-   with a device-parameterized diode family or a minimal WDF sub-stage before attempting
-   a full named-circuit port.
-3. Compare the result with the existing behavior probe plus a listening test.
-4. Only expand to [`effects/tube_screamer.cpp`](../../effects/tube_screamer.cpp) if CPU
-   headroom remains comfortable and the listening result is clearly better.
+1. Compare [`effects/big_muff.cpp`](../../effects/big_muff.cpp) against
+   [`effects/big_muff_wdf.cpp`](../../effects/big_muff_wdf.cpp), because they share the
+   same public controls and differ mainly in the nonlinear core.
+2. Compare [`effects/tube_screamer.cpp`](../../effects/tube_screamer.cpp) against
+   [`effects/tube_screamer_wdf.cpp`](../../effects/tube_screamer_wdf.cpp), focusing on
+   whether the WDF-style sibling's `Level` control and clip texture feel more pedal-like
+   than the original expression-on-tone design.
+3. Use the existing probe harness plus listening tests before extracting any shared WDF
+   infrastructure or patch-local helpers into a repo-wide layer.
+4. Expand only if the CPU budget stays healthy on Cortex-M7, the hardware performance
+   headroom remains comfortable, and the listening result is clearly better than the
+   hand-tuned originals.
 
 ### Defer
 
