@@ -91,6 +91,11 @@ Or use the VSCode tasks in `.vscode/tasks.json`.
 
 ## Patch Authoring Notes
 
+If you want a copyable starting point for a new patch, use
+[`docs/templates/patch-code-skeleton.cpp`](../docs/templates/patch-code-skeleton.cpp)
+and document the design with
+[`docs/templates/patch-build-walkthrough.md`](../docs/templates/patch-build-walkthrough.md).
+
 ```cpp
 #include "Patch.h"
 
@@ -257,8 +262,12 @@ These are the best files to read before editing or adding a patch:
   circuit-to-DSP analysis for `mxr_distortion_plus.cpp`
 - [`docs/circuit-to-patch-conversion.md`](../docs/circuit-to-patch-conversion.md) —
   general methodology for mapping analog pedal ideas into SDK-safe DSP
+- [`docs/fork-comparisons/sthompsonjr-wdf.md`](../docs/fork-comparisons/sthompsonjr-wdf.md) —
+  comparison of this repo's current hand-tuned approach against a WDF-heavy Endless fork
 - [`docs/templates/patch-build-walkthrough.md`](../docs/templates/patch-build-walkthrough.md) —
   starting point for documenting a new patch
+- [`docs/templates/patch-code-skeleton.cpp`](../docs/templates/patch-code-skeleton.cpp) —
+  standalone patch skeleton matching this repo's current `Patch` API and coding style
 
 ---
 

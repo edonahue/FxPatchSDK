@@ -125,6 +125,12 @@ If you are preparing to add or change code in this fork, start here:
 2. [`docs/endless-reference.md`](docs/endless-reference.md)
 3. [`effects/README.md`](effects/README.md)
 4. [`docs/circuit-to-patch-conversion.md`](docs/circuit-to-patch-conversion.md)
+5. [`docs/fork-comparisons/sthompsonjr-wdf.md`](docs/fork-comparisons/sthompsonjr-wdf.md)
+
+If you are starting a new patch rather than editing an existing one, pair
+[`docs/templates/patch-build-walkthrough.md`](docs/templates/patch-build-walkthrough.md)
+with
+[`docs/templates/patch-code-skeleton.cpp`](docs/templates/patch-code-skeleton.cpp).
 
 Then read the specific walkthroughs for any effect you plan to extend:
 

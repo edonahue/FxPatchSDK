@@ -11,7 +11,7 @@ BEFORE STARTING — checklist:
 [ ] Identify the effect's circuit or sonic reference (hardware pedal, synthesis technique)
 [ ] Map the circuit blocks to DSP primitives (see docs/circuit-to-patch-conversion.md)
 [ ] Count required state variables — do you need the working buffer, or are scalars enough?
-[ ] Assign parameters: remember expression pedal = param 2 (Right knob) in this repo
+[ ] Assign parameters: remember this repo's current wrapper exposes expression on param 2 (Right knob)
 [ ] Decide each parameter's taper: linear, log, power-law, or bounded/compensated
 [ ] Choose defaults that land on a usable sound, not just 0.5 by habit
 [ ] Choose LED color scheme — verify enum values in source/Patch.h before coding
@@ -49,6 +49,7 @@ BEFORE STARTING — checklist:
 | Item | Answer |
 |---|---|
 | DSP primitive needed | [SVF / 1-pole IIR / Biquad / Delay / Waveshaper / ...] |
+| Circuit-modeling approach | [Hand-tuned filters + tanh / SPICE-derived parameters + shaped nonlinearity / WDF circuit port] |
 | Working buffer needed? | [Yes (delay lines) / No (scalars only)] |
 | State variable count | [N floats — list them] |
 | Knob 0 (Left) | [parameter name] |
@@ -74,6 +75,23 @@ BEFORE STARTING — checklist:
 **Chose: [Option].** [One or two sentences explaining why.]
 
 **Rejected:** [Other option] — [brief reason].
+
+---
+
+## Decision 1.5 — Circuit Modeling Fidelity
+
+<!-- Before coding, decide how literally the patch should model the source.
+     Recommended framing:
+     - Hand-tuned filters + tanh: fastest path, best when the goal is "pedal-like feel"
+       rather than schematic fidelity
+     - SPICE-derived parameters + shaped nonlinearity: useful when a circuit analysis
+       gives you meaningful breakpoints/Q/gain targets but a full circuit solver would
+       be overkill
+     - WDF circuit port: use only when the circuit topology itself is the sound and you
+       have a reason to spend more CPU on it
+     See docs/fork-comparisons/sthompsonjr-wdf.md for tradeoffs and examples.
+     Record expected CPU pressure here: what runs per sample, what runs per block, and
+     what you expect the most expensive math to be. -->
 
 ---
 
@@ -111,6 +129,20 @@ BEFORE STARTING — checklist:
      - whether the default is a musical setting rather than a numeric midpoint
      - whether param 2 still makes sense when used by the expression pedal
      Document the formula used. -->
+
+---
+
+## Decision 4.5 — Primitive Reuse
+
+<!-- Before adding another local helper, check whether an existing primitive already
+     fits the job or would be a better starting point.
+     Questions to answer:
+     - Is this really a new DSP block, or another copy of clamp/taper/one-pole/mix-law code?
+     - Would a shared primitive make the patch easier to test or review?
+     - If the patch uses a custom helper anyway, why is reuse not the right choice here?
+     See docs/fork-comparisons/sthompsonjr-wdf.md for the current duplication audit.
+     Once this repo grows a shared source/dsp/ layer, link the exact primitive(s) used
+     from here. -->
 
 ---
 
@@ -195,5 +227,5 @@ bash tests/check_patches.sh
 - `effects/[filename].cpp` — the patch implementation
 - `docs/circuit-to-patch-conversion.md` — DSP primitive reference
 - `docs/endless-reference.md` — full SDK reference
-- `internal/PatchCppWrapper.cpp` — expression pedal routing (param 2)
+- `internal/PatchCppWrapper.cpp` — current repo-local expression routing
 <!-- Add any additional links specific to this patch -->
