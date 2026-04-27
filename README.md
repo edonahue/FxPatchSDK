@@ -121,13 +121,16 @@ This keeps three levels of verification:
 
 ## Recommended Reading Order
 
-If you are preparing to add or change code in this fork, start here:
+If you are an LLM coding agent (Claude Code, OpenAI Codex, etc.), start at
+[`CLAUDE.md`](CLAUDE.md) — [`AGENTS.md`](AGENTS.md) redirects there. Human
+readers preparing to add or change code should start here:
 
 1. [`docs/repository-review.md`](docs/repository-review.md)
 2. [`docs/endless-reference.md`](docs/endless-reference.md)
 3. [`effects/README.md`](effects/README.md)
 4. [`docs/circuit-to-patch-conversion.md`](docs/circuit-to-patch-conversion.md)
 5. [`docs/fork-comparisons/sthompsonjr-wdf.md`](docs/fork-comparisons/sthompsonjr-wdf.md)
+6. [`docs/cycle-budget.md`](docs/cycle-budget.md) (if you are budgeting CPU)
 
 If you are starting a new patch rather than editing an existing one, pair
 [`docs/templates/patch-build-walkthrough.md`](docs/templates/patch-build-walkthrough.md)
