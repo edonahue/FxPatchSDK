@@ -84,8 +84,8 @@ useful idea found anywhere in the fork network.
   auditioned in a DAW (or a standalone app) before it is ever flashed to hardware.
   Our repo can syntax-check, ARM-build, and run a synthetic probe, but it has no way
   to *listen* to a patch without the pedal. A desktop wrapper closes that gap.
-  We have decided to adopt this idea; the implementation plan is
-  [`docs/vst-host-plan.md`](../vst-host-plan.md).
+  This idea has been adopted and implemented in [`vst/`](../../vst); the design
+  rationale is [`docs/vst-host-plan.md`](../vst-host-plan.md).
 - **`source/effects/` — six classic effects** (Bitcrush, Saturation, Distortion,
   Delay, Flanger, Reverb) written as header-only `Patch` subclasses. They are
   textbook implementations (Freeverb, LFO-modulated delay, etc.) and not more

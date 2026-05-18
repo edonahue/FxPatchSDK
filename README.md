@@ -37,7 +37,13 @@ tests/         host-side syntax and lint validation
 docs/          SDK notes, patch design walkthroughs, branch/repo review
 scripts/       helper utilities such as local Polyend Plates sync and effect builds
 playground/    compiled Playground examples and supporting artifacts
+vst/           JUCE VST3/Standalone wrapper for auditioning patches on the desktop
 ```
+
+The `vst/` wrapper is a separate CMake build that lets a patch be heard in a DAW
+before hardware deployment; see [`vst/README.md`](vst/README.md) and
+[`docs/vst-host-plan.md`](docs/vst-host-plan.md). It does not affect the firmware
+build.
 
 ## Included Effect Work
 

@@ -1,8 +1,15 @@
-# Plan: JUCE VST3 Wrapper for Desktop Auditioning
+# JUCE VST3 Wrapper for Desktop Auditioning
 
-**Status:** planned, not yet implemented.
+**Status:** implemented in [`vst/`](../vst). This document is the design rationale;
+[`vst/README.md`](../vst/README.md) is the build/use guide.
 **Origin:** the `andybalham/FxPatchSDK` fork — see
 [`docs/fork-comparisons/upstream-and-forks.md`](fork-comparisons/upstream-and-forks.md).
+
+The build was verified on Linux: a clean configure + build produced both a `.vst3`
+bundle and a Standalone app for `tube_screamer`, and reconfiguring with
+`-DFX_EFFECT=chorus` produced a second plugin — confirming the one-effect-per-build
+model. Loading in a DAW / running `pluginval` still needs a desktop environment with
+an audio device and display; that final audition step is the user's to run.
 
 ## Why
 
