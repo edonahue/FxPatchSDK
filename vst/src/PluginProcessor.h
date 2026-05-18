@@ -61,6 +61,15 @@ private:
     int pressSeen_ = 0;  // audio thread only
     int holdSeen_ = 0;   // audio thread only
 
+    // Footswitch is also exposed as bool parameters so LV2 hosts (MOD Audio
+    // Desktop) and DAW automation can drive it. Fired on the rising edge: one
+    // momentary press -> one action. Separate from the editor-button path
+    // above because a momentary GUI click cannot safely pulse a parameter.
+    juce::AudioParameterBool* footswitchPress_ = nullptr;
+    juce::AudioParameterBool* footswitchHold_ = nullptr;
+    bool pressParamPrev_ = false;  // audio thread only
+    bool holdParamPrev_ = false;   // audio thread only
+
     std::atomic<int> ledColor_ {0};
     std::atomic<bool> sampleRateOk_ {false};
 

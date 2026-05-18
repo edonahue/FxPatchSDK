@@ -43,13 +43,19 @@ configure_file(src/EffectConfig.h.in
                "${CMAKE_CURRENT_BINARY_DIR}/generated/EffectConfig.h" @ONLY)
 
 # --- Plugin target ----------------------------------------------------------
+# VST3 + Standalone for DAW / no-DAW auditioning; LV2 so the same effect loads
+# in MOD Audio Desktop and other LV2 hosts. Each effect builds with a distinct
+# LV2 URI so several can be installed side by side.
+# PRODUCT_NAME has no spaces: it becomes the .vst3 / .lv2 bundle directory
+# name, and spaces in an LV2 bundle path break discovery in some hosts.
 juce_add_plugin(FxPatchVST
-    PRODUCT_NAME              "FxPatch ${FX_EFFECT}"
+    PRODUCT_NAME              "FxPatch_${FX_EFFECT}"
     COMPANY_NAME              "FxPatchSDK"
     BUNDLE_ID                 "dev.fxpatchsdk.fxpatchvst"
     PLUGIN_MANUFACTURER_CODE  Fxps
     PLUGIN_CODE               Fxp1
-    FORMATS                   VST3 Standalone
+    FORMATS                   VST3 LV2 Standalone
+    LV2URI                    "urn:fxpatchsdk:${FX_EFFECT}"
     IS_SYNTH                  FALSE
     NEEDS_MIDI_INPUT          FALSE
     NEEDS_MIDI_OUTPUT         FALSE

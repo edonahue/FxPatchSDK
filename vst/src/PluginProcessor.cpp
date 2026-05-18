@@ -30,11 +30,20 @@ FxPatchAudioProcessor::FxPatchAudioProcessor()
         lastKnob_[(size_t) i] = md.defaultValue;
         addParameter(p);
     }
+
+    // Footswitch press/hold as bool parameters -> LV2 control ports a MOD
+    // pedalboard (or DAW automation) can map to a momentary footswitch.
+    footswitchPress_ = new juce::AudioParameterBool(
+        juce::ParameterID("footswitchPress", 1), "Footswitch Press", false);
+    footswitchHold_ = new juce::AudioParameterBool(
+        juce::ParameterID("footswitchHold", 1), "Footswitch Hold", false);
+    addParameter(footswitchPress_);
+    addParameter(footswitchHold_);
 }
 
 const juce::String FxPatchAudioProcessor::getName() const
 {
-    return juce::String("FxPatch ") + FX_EFFECT_NAME;
+    return juce::String("FxPatch_") + FX_EFFECT_NAME;
 }
 
 void FxPatchAudioProcessor::prepareToPlay(double sampleRate, int /*maxBlockSize*/)
@@ -75,13 +84,24 @@ void FxPatchAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     const int numChannels = buffer.getNumChannels();
     const int numSamples = buffer.getNumSamples();
 
-    // Drain footswitch actions queued by the editor.
+    // Drain footswitch actions queued by the editor's momentary buttons.
     const int press = pressRequests_.load(std::memory_order_relaxed);
     for (; pressSeen_ < press; ++pressSeen_)
         patch_->handleAction(static_cast<int>(endless::ActionId::kLeftFootSwitchPress));
     const int hold = holdRequests_.load(std::memory_order_relaxed);
     for (; holdSeen_ < hold; ++holdSeen_)
         patch_->handleAction(static_cast<int>(endless::ActionId::kLeftFootSwitchHold));
+
+    // Footswitch bool parameters (LV2 control ports / DAW automation): fire on
+    // the rising edge so one momentary press maps to exactly one action.
+    const bool pressParam = footswitchPress_->get();
+    if (pressParam && ! pressParamPrev_)
+        patch_->handleAction(static_cast<int>(endless::ActionId::kLeftFootSwitchPress));
+    pressParamPrev_ = pressParam;
+    const bool holdParam = footswitchHold_->get();
+    if (holdParam && ! holdParamPrev_)
+        patch_->handleAction(static_cast<int>(endless::ActionId::kLeftFootSwitchHold));
+    holdParamPrev_ = holdParam;
 
     // Push parameter changes (setParamValue is documented audio-thread-safe).
     for (int i = 0; i < endless::kParams; ++i)

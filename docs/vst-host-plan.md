@@ -1,15 +1,17 @@
-# JUCE VST3 Wrapper for Desktop Auditioning
+# JUCE VST3 / LV2 / Standalone Wrapper for Desktop Auditioning
 
 **Status:** implemented in [`vst/`](../vst). This document is the design rationale;
 [`vst/README.md`](../vst/README.md) is the build/use guide.
 **Origin:** the `andybalham/FxPatchSDK` fork — see
 [`docs/fork-comparisons/upstream-and-forks.md`](fork-comparisons/upstream-and-forks.md).
 
-The build was verified on Linux: a clean configure + build produced both a `.vst3`
-bundle and a Standalone app for `tube_screamer`, and reconfiguring with
-`-DFX_EFFECT=chorus` produced a second plugin — confirming the one-effect-per-build
-model. Loading in a DAW / running `pluginval` still needs a desktop environment with
-an audio device and display; that final audition step is the user's to run.
+The build was verified on Linux: a clean configure + build produces a `.vst3`
+bundle, an `.lv2` bundle, and a Standalone app for the selected effect; the LV2
+bundle is discovered and parsed cleanly by `lv2ls` / `lv2info`; and reconfiguring
+with a different `-DFX_EFFECT` produces a second plugin — confirming the
+one-effect-per-build model. Loading in a DAW or MOD Audio Desktop, and running
+`pluginval`, still needs a desktop environment with an audio device and display;
+that final audition step is the user's to run.
 
 ## Why
 
@@ -43,7 +45,7 @@ reason).
 the host probe already drops them. `-fsingle-precision-constant` is applied to the
 effect TU only, so float-literal behavior still matches firmware.
 
-## Proposed `vst/` layout
+## `vst/` layout
 
 ```
 vst/
@@ -70,8 +72,10 @@ under `vst/` shadows a repo file. The root `Makefile`, `internal/`, `source/`, a
 - JUCE via `FetchContent_Declare(juce GIT_REPOSITORY ... GIT_TAG <pinned-tag> GIT_SHALLOW TRUE)`
   — pin a specific JUCE 8 release tag, never a branch. JUCE is downloaded per-clone, never
   vendored.
-- `juce_add_plugin(... FORMATS VST3 Standalone ...)` — Standalone gives a no-DAW audition
-  path.
+- `juce_add_plugin(... FORMATS VST3 LV2 Standalone ... LV2URI "urn:fxpatchsdk:${FX_EFFECT}")`
+  — VST3 for DAWs, LV2 for MOD Audio Desktop and other LV2 hosts, Standalone for a
+  no-DAW path. The LV2 URI is per-effect so several effects coexist. `PRODUCT_NAME` is
+  kept space-free because it becomes the `.vst3` / `.lv2` bundle directory name.
 - `target_sources` = `PluginProcessor.cpp` + `PluginEditor.cpp` + `effects/${FX_EFFECT}.cpp`.
 - `target_include_directories` += `source/` (parity with `-I source`) and the build dir
   (for generated `EffectConfig.h`).
@@ -90,11 +94,29 @@ under `vst/` shadows a repo file. The root `Makefile`, `internal/`, `source/`, a
 | `getParameterMetadata(i)` | builds 3 `juce::AudioParameterFloat` from `{min,max,default}` |
 | `setParamValue(i,v)` | called from `processBlock` when a parameter changed (SDK documents it as audio-thread-safe) |
 | `processAudio(L,R)` | called from `processBlock` with `getWritePointer` spans (in-place, matches the SDK contract) |
-| `handleAction(0/1)` | footswitch press/hold; editor buttons push an int into a lock-free FIFO drained at the top of `processBlock` (do not call from the UI thread) |
+| `handleAction(0/1)` | footswitch press/hold, driven two ways: the editor's momentary buttons push an int into a lock-free FIFO; and two `AudioParameterBool`s (`Footswitch Press` / `Footswitch Hold`) fire on their rising edge. Both are drained/checked at the top of `processBlock`. The parameter form is what a DAW or a MOD pedalboard maps a real footswitch to. |
 | `getStateLedColor()` | polled by a `juce::Timer` for an LED indicator; map the 16-value `Color` enum through a lookup table |
 
 Call order in `prepareToPlay()` mirrors `tests/effect_probe.cpp`: `setWorkingBuffer()` →
 `init()` → re-push all three `setParamValue()` (because `init()` resets effect state).
+
+## LV2 output and MOD Audio Desktop
+
+The same build also emits an LV2 bundle, so an effect can run in MOD Audio Desktop
+(and on the MOD Dwarf / Duo, and in other LV2 hosts). Design notes:
+
+- JUCE 8 exposes plugin parameters through the LV2 `patch:` parameter extension
+  (atom-message based), not legacy `lv2:ControlPort`s. MOD supports LV2 parameters
+  from MOD OS v1.10 onward, which MOD Desktop is well past.
+- The footswitch is exposed as two `AudioParameterBool`s precisely so it becomes a
+  mappable parameter. MOD's pedalboard UI builds controls from parameters, not from
+  the JUCE editor, so an editor-only button would be unreachable there. Firing on
+  the rising edge means one momentary footswitch press maps to one `handleAction`.
+- Each effect builds with a distinct LV2 URI (`urn:fxpatchsdk:<effect>`), and the
+  bundle name is space-free, so installs into `~/.lv2` neither collide nor trip
+  host-discovery bugs.
+- MOD Desktop runs at 48 kHz over JACK by default, which matches the patch
+  sample-rate assumption — the dry-passthrough fallback below does not engage.
 
 ## Sample rate and buffer contract
 
@@ -124,7 +146,9 @@ JUCE itself is never committed; FetchContent re-downloads it per clone.
 ## Verification
 
 1. `cmake -S vst -B vst/build -DFX_EFFECT=tube_screamer -DCMAKE_BUILD_TYPE=Release`
-   then `cmake --build vst/build`. Expect a `.vst3` and a Standalone app.
+   then `cmake --build vst/build`. Expect a `.vst3`, an `.lv2`, and a Standalone app.
+   Validate the LV2 bundle: with `LV2_PATH` pointing at the build's `LV2/` directory,
+   `lv2ls` should list `urn:fxpatchsdk:<effect>` and `lv2info` should load it cleanly.
 2. Compare against the probe: run `bash tests/analyze_effects.sh` for the same effect;
    the VST at 48 kHz should match the probe's measured behavior.
 3. Run JUCE `pluginval` (strictness 8–10) — it exercises random block sizes, sample
@@ -151,4 +175,7 @@ JUCE itself is never committed; FetchContent re-downloads it per clone.
   flip bools.
 - **Resampler scope.** Open question whether non-48 kHz auditioning is needed at all. If
   not, drop the resampler entirely and just require a 48 kHz DAW project.
+- **LV2 parameter model.** JUCE 8 exposes parameters as LV2 `patch:` parameters, not
+  control ports. This is standard and works in modern hosts, including MOD OS >= 1.10,
+  but a very old LV2 host that only understands control ports would show no controls.
 - **JUCE tag.** Pin to the latest verified JUCE 8 release tag at implementation time.
