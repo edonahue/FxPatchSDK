@@ -21,8 +21,11 @@ If you are preparing to add or change code, read in this order:
    cheat sheet
 4. [`docs/circuit-to-patch-conversion.md`](docs/circuit-to-patch-conversion.md)
    — circuit-to-DSP mapping playbook
-5. [`docs/fork-comparisons/sthompsonjr-wdf.md`](docs/fork-comparisons/sthompsonjr-wdf.md)
-   — what the `sthompsonjr` fork does, what we adopted, what we declined
+5. [`docs/fork-comparisons/`](docs/fork-comparisons) — fork survey:
+   [`upstream-and-forks.md`](docs/fork-comparisons/upstream-and-forks.md)
+   tracks the upstream repo and the fork network;
+   [`sthompsonjr-wdf.md`](docs/fork-comparisons/sthompsonjr-wdf.md) is the
+   deep-dive on the `sthompsonjr` fork — what we adopted, what we declined
 
 If you are starting a new patch rather than editing one, also pair
 [`docs/templates/patch-build-walkthrough.md`](docs/templates/patch-build-walkthrough.md)
@@ -115,8 +118,16 @@ Do not "helpfully" re-introduce them without explicit direction:
   remain the only WDF-style local patches until a CPU-budget experiment
   on Endless hardware says otherwise.
 - No code ports from the fork until its license status is resolved (no
-  `LICENSE` file confirmed there as of 2026-04-27). Idea-level borrowing
-  via the comparison doc is fine; copying source is not.
+  `LICENSE` file confirmed in the `sthompsonjr` fork as of 2026-05-18).
+  Idea-level borrowing via the comparison doc is fine; copying source is
+  not.
+
+One fork idea *has* been accepted: a JUCE VST3 wrapper for auditioning
+patches on the desktop, from the `andybalham` fork. It is planned but not
+built — see [`docs/vst-host-plan.md`](docs/vst-host-plan.md). Upstream
+`polyend/FxPatchSDK` is dormant and this fork is fully caught up with it;
+[`docs/fork-comparisons/upstream-and-forks.md`](docs/fork-comparisons/upstream-and-forks.md)
+is the place to confirm that before spending time on an upstream sync.
 
 ## Operational notes for agents
 

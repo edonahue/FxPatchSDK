@@ -129,7 +129,8 @@ readers preparing to add or change code should start here:
 2. [`docs/endless-reference.md`](docs/endless-reference.md)
 3. [`effects/README.md`](effects/README.md)
 4. [`docs/circuit-to-patch-conversion.md`](docs/circuit-to-patch-conversion.md)
-5. [`docs/fork-comparisons/sthompsonjr-wdf.md`](docs/fork-comparisons/sthompsonjr-wdf.md)
+5. [`docs/fork-comparisons/upstream-and-forks.md`](docs/fork-comparisons/upstream-and-forks.md)
+   and [`docs/fork-comparisons/sthompsonjr-wdf.md`](docs/fork-comparisons/sthompsonjr-wdf.md)
 6. [`docs/cycle-budget.md`](docs/cycle-budget.md) (if you are budgeting CPU)
 
 If you are starting a new patch rather than editing an existing one, pair

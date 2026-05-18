@@ -30,6 +30,21 @@ of thumb rather than a contract. If a patch lands close to the ceiling on
 real hardware, that is the data we should record here, not the rule of
 thumb.
 
+## No DTCM/ITCM placement lever
+
+The Cortex-M7 has tightly-coupled memory (DTCM/ITCM) that is faster and
+more deterministic than general RAM, and the `sthompsonjr` fork has begun
+annotating hot data for DTCM placement. **That technique does not transfer
+to this repo.** This SDK's linker script
+([`internal/patch_imx.ld`](../internal/patch_imx.ld)) places the entire
+patch image — `.text`, `.rodata`, `.data`, and `.bss` — into one
+contiguous 512 KB `RAM` region at `0x80000000`, with no separate DTCM
+output section. A patch here is a relocatable image dropped at a fixed
+address by the firmware loader; the author cannot choose DTCM placement.
+So the available cycle-budget levers are algorithmic (cheaper math, less
+per-sample work), not memory-placement. Do not chase DTCM annotations
+unless the linker model changes.
+
 ## What we measure today
 
 [`scripts/analyze_effects.py`](../scripts/analyze_effects.py) and

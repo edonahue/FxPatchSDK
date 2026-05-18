@@ -1,12 +1,16 @@
 # `sthompsonjr/Endless-FxPatchSDK` WDF Comparison
 
-**Last surveyed:** 2026-05-01 — see [Changes In The Fork Since Last Investigation](#changes-in-the-fork-since-last-investigation)
+**Last surveyed:** 2026-05-18 — see [Changes In The Fork Since Last Investigation](#changes-in-the-fork-since-last-investigation)
 for the most recent delta.
 
 This note evaluates whether the `sthompsonjr/Endless-FxPatchSDK` fork should change how
 this repo authors Polyend Endless effects. The focus is practical: which ideas are worth
 stealing, which API divergences should stay out of this repo for now, and where WDF
 (Wave Digital Filter) modeling is likely to help more than it hurts.
+
+This is the deep-dive on one fork. For the upstream `polyend/FxPatchSDK` tracking status
+and the survey of the other forks (`andybalham`, plus three near-empty clones), see
+[`upstream-and-forks.md`](upstream-and-forks.md).
 
 ## TL;DR
 
@@ -36,14 +40,14 @@ SDK repo, but it is substantially broader than this repo in two areas:
 The fork's generated inventories
 ([`INVENTORY.md`](https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/INVENTORY.md),
 [`library_inventory.txt`](https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/library_inventory.txt))
-plus a tree walk on 2026-05-01 report:
+plus a tree walk on 2026-05-18 report:
 
-| Area | Reported scope (2026-05-01) | Why it matters here |
+| Area | Reported scope (2026-05-18) | Why it matters here |
 | --- | --- | --- |
-| `dsp/` | 23 primitives (unchanged since 2026-04-27) | overlaps with our repeated one-pole, mix-law, taper, and smoothing helpers; the fork's most recent dsp addition is `DmmCompander.h` (NE570 model) |
-| `wdf/` | 31 files, including named pedal circuits | directly relevant to our Big Muff, Tube Screamer, Klon, Wah, and Dist+/DOD/RAT-adjacent work; the fork has a Deluxe Memory Man family (`DmmCircuits.h`, `DmmBbdCore.h`, `DmmFeedbackLoop.h`, `DmmDelayCircuit.h`) and a five-variant Big Muff stack (`WdfOpAmpBigMuffCircuit.h`, `WdfBigMuffToneStack.h`) |
-| `effects/` | 11 completed patches | shows how the fork author composes those primitives into real Endless patches; the most recent additions are `PatchImpl_DeluxeMemoryMan.cpp` and `PatchImpl_PowerPuff.cpp` plus a `PowerPuffParams.h` header |
-| `tests/` | 24 native test harnesses (was 23 at the previous walk) | useful precedent for isolated primitive validation before on-device listening; the new entry is `tests/test_DeluxeMemoryMan_wdf.cpp`, which lands together with two CSV reference fixtures (`tests/dmm_freq_response.csv`, `tests/dmm_param_sweep.csv`) |
+| `dsp/` | 23 primitives | overlaps with our repeated one-pole, mix-law, taper, and smoothing helpers; the fork's most recent dsp addition is `DmmCompander.h` (NE570 model) |
+| `wdf/` | 35 header files (an earlier walk under-counted this as 31; a direct tree walk on 2026-05-18 counts 35) | directly relevant to our Big Muff, Tube Screamer, Klon, Wah, and Dist+/DOD/RAT-adjacent work; the fork has a Deluxe Memory Man family (`DmmCircuits.h`, `DmmBbdCore.h`, `DmmFeedbackLoop.h`, `DmmDelayCircuit.h`) and a five-variant Big Muff stack (`WdfOpAmpBigMuffCircuit.h`, `WdfBigMuffToneStack.h`) |
+| `effects/` | 11 completed patches (12 files incl. `PowerPuffParams.h`) | shows how the fork author composes those primitives into real Endless patches; the Deluxe Memory Man patch reached completion on 2026-05-06 |
+| `tests/` | 24 native test harnesses (+ 2 CSV reference fixtures, + `run_all_tests.sh`) | useful precedent for isolated primitive validation before on-device listening; `tests/test_DeluxeMemoryMan_wdf.cpp` lands with CSV fixtures (`tests/dmm_freq_response.csv`, `tests/dmm_param_sweep.csv`) |
 | `build_pipeline.txt` | hand-maintained Tier 1–4 status tracker with `[READY]` / `[PENDING INTEGRATION]` / `[DONE — TESTS FAILING]` / `[BLOCKED]` states | not adopted locally, but useful as a lookahead: the fork's current `[READY]` candidate is a Flanger (using `Lfo` + `ParameterSmoother` + `AllpassDelay`), and `[PENDING INTEGRATION]` items include a "Shoegaze" chain (Big Muff → SoftFocus reverb, footswitch reverses order) and a Coloursound Overdriver |
 
 Those counts are useful orientation, but they are self-reported from generated inventory
@@ -85,7 +89,29 @@ it.
 
 This section is a delta only. The earlier survey (captured by the rest of this document)
 remains the baseline; what follows is what landed on the fork's `master` over the last
-two walks (2026-04-27 and 2026-05-01).
+three walks (2026-04-27, 2026-05-01, and 2026-05-18).
+
+### Deluxe Memory Man completed; DTCM annotations added (2026-05-06)
+
+The 2026-05-18 walk found only five new commits since the previous survey, all of them
+finishing the Deluxe Memory Man (DMM) effort that earlier walks had tracked as in
+progress: tests 4–6 appended to `tests/test_DeluxeMemoryMan_wdf.cpp`, a documentation
+pass, and a `power_puff` fix. The fork now treats DMM as a complete patch with a
+self-reported budget of roughly **53 cycles/sample**.
+
+One commit message in that batch is worth a specific note: it mentions adding **DTCM
+annotations**. DTCM (Data Tightly-Coupled Memory) is the Cortex-M7's low-latency on-core
+RAM. The fork is evidently placing hot DMM state there to cut access latency.
+
+**This does not transfer to our repo, and that is itself the useful finding.** This
+repo's linker script
+([`internal/patch_imx.ld`](../../internal/patch_imx.ld)) places the *entire* patch
+image — `.text`, `.rodata`, `.data`, and `.bss` — into one contiguous 512 KB `RAM`
+region at `0x80000000`. There is no separate DTCM output section, and patch code is a
+relocatable image dropped at a fixed address by the firmware loader, so a patch author
+here cannot choose DTCM placement for hot data. Treat the fork's DTCM annotations as
+inapplicable to this SDK unless the linker model changes; see
+[`docs/cycle-budget.md`](../cycle-budget.md) for the same note in budget context.
 
 ### WDF Sallen-Key was unstable, replaced with bilinear-transform biquad (2026-04-30)
 
