@@ -6,6 +6,11 @@
 **Reference voice / inspiration:** Shure Green Bullet cupped into a cranked tube amp — Chicago blues harmonica (Little Walter, Sonny Boy Williamson II)
 **Template:** [`docs/templates/patch-build-walkthrough.md`](templates/patch-build-walkthrough.md)
 
+> **2026-06-13 update:** the 1-pole filter helpers, the safety soft-limit,
+> and the DC blocker now come from [`source/dsp/`](../source/dsp). The DC
+> blocker switched from inline state arrays to two `dsp::DcBlocker` instances
+> with alpha set per block. Behavior is unchanged.
+
 ---
 
 ## Overview

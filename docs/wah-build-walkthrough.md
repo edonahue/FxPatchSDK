@@ -6,6 +6,9 @@
 **Modes:** Dunlop Crybaby GCB-95 · Vox V847  
 **Template:** [`docs/templates/patch-build-walkthrough.md`](templates/patch-build-walkthrough.md)
 
+> **2026-06-13 update:** the Mix-knob equal-power crossfade now uses
+> `dsp::equalPower` from [`source/dsp/`](../source/dsp); behavior is unchanged.
+
 ---
 
 ## Overview

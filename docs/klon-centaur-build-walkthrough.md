@@ -8,6 +8,10 @@
 **Mod context:** <https://www.coda-effects.com/p/klon-centaur-mods-and-tweaks.html>  
 **Template:** [`docs/templates/patch-build-walkthrough.md`](templates/patch-build-walkthrough.md)
 
+> **2026-06-13 update:** the 1-pole filter helpers (`hpCoeff` / `lpCoeff`) and
+> the `softLimit` safety stage now live in [`source/dsp/`](../source/dsp);
+> behavior is unchanged.
+
 ---
 
 ## Overview
