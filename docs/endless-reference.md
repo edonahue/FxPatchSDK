@@ -452,3 +452,38 @@ patches within them rather than around them.
 - **No runtime sample rate.** `Patch::kSampleRate` is fixed at 48000. Patches that need
   to run anywhere else (e.g. a desktop host) must resample around `processAudio`; see
   [`vst-host-plan.md`](vst-host-plan.md).
+
+---
+
+## 12. Ecosystem and Community
+
+The Endless ecosystem is wider than upstream's dormant GitHub repo suggests; a
+new contributor should know where to look.
+
+- **Polyend Plates** (<https://polyend.com/plates/>) — the official catalog of
+  curated and community-contributed effect plates loaded over USB onto an
+  Endless. Polyend ships their own plates (granular, ambient, glitch,
+  experimental, and a growing roster of pedal-style emulations) and accepts
+  community submissions. Useful as a reference for what an "Endless effect"
+  can be, including categories this fork's own [`effects/`](../effects/) does
+  not cover.
+- **Polyend Backstage forum** (<https://backstage.polyend.com>) — the active
+  community hub for Endless and other Polyend hardware. Threads on Playground
+  prompts, feature requests (notably momentary-footswitch / tap-tempo mode,
+  more LED colors, a desktop plugin), and shared pedalboards live here, not on
+  GitHub. The official upstream `polyend/FxPatchSDK` repo has GitHub
+  Discussions *disabled*, so questions about SDK use are answered on Backstage
+  or not at all.
+- **Polyend Playground** — the company's AI-assisted patch-generation flow,
+  token-purchased. This fork explicitly positions itself as a counterpoint to
+  Playground: a craft-and-best-practices reference for handcrafting Endless
+  patches. A dedicated `docs/patch-authoring-best-practices.md` is planned to
+  crystallize that rationale.
+- **Upstream license** — `polyend/FxPatchSDK` is MIT (commit `284a60f`,
+  2026-03-17). This fork inherits MIT. Forks within the network differ:
+  `andybalham/FxPatchSDK` is MIT (LICENSE.TXT present); `sthompsonjr/Endless-FxPatchSDK`
+  has no LICENSE file as of 2026-06-13, so its substantial WDF/DSP work is
+  study-only for this repo (see [`fork-comparisons/sthompsonjr-wdf.md`](fork-comparisons/sthompsonjr-wdf.md)).
+- **Hardware context** — the Endless shipped February 2026 and won Best in
+  Show at NAMM 2026. Commercial activity around the pedal is real even where
+  the open-source SDK looks dormant.

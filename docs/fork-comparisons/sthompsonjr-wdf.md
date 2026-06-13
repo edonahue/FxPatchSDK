@@ -1,7 +1,10 @@
 # `sthompsonjr/Endless-FxPatchSDK` WDF Comparison
 
-**Last surveyed:** 2026-05-18 — see [Changes In The Fork Since Last Investigation](#changes-in-the-fork-since-last-investigation)
-for the most recent delta.
+**Last surveyed:** 2026-06-13 — see [Changes In The Fork Since Last Investigation](#changes-in-the-fork-since-last-investigation)
+for the most recent delta. The 2026-06-13 walk found the fork unchanged since
+2026-05-06 (no new commits) and the LICENSE situation unchanged (no LICENSE
+file). The substantive update from this walk is the full enumeration of the 23
+`dsp/` primitive names, recorded below for in-repo lookup.
 
 This note evaluates whether the `sthompsonjr/Endless-FxPatchSDK` fork should change how
 this repo authors Polyend Endless effects. The focus is practical: which ideas are worth
@@ -89,7 +92,60 @@ it.
 
 This section is a delta only. The earlier survey (captured by the rest of this document)
 remains the baseline; what follows is what landed on the fork's `master` over the last
-three walks (2026-04-27, 2026-05-01, and 2026-05-18).
+four walks (2026-04-27, 2026-05-01, 2026-05-18, and 2026-06-13).
+
+### 2026-06-13 walk — fork is stalled; `dsp/` primitives enumerated
+
+No new commits since 2026-05-06. The DMM effort that the previous walk found
+in progress is the terminus — there has been no follow-up work. The fork
+appears episodically driven (Claude-aided sessions), and no session has run
+in ~five weeks. Treat the fork as effectively dormant unless a future walk
+shows otherwise.
+
+LICENSE status: still none. A direct check at
+`https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/LICENSE` returns
+404 as of 2026-06-13. Our "no code ports until license is resolved" stance
+holds.
+
+For in-repo lookup: the fork's `dsp/` directory contains **23 header files**.
+Earlier walks reported only the count; this walk records each name so this
+repo's own planned `source/dsp/` primitive-extraction effort can cross-reference
+shape and naming intent without revisiting GitHub:
+
+| File | What it is (per file's top comment) |
+| --- | --- |
+| `AllpassDelay.h` | All-pass delay line |
+| `AnalogLfo.h` | Voltage-swept LFO (UniVibe-style) |
+| `BBDLine.h` | Bucket-brigade delay-line emulation (used by DMM) |
+| `BiquadFilter.h` | Direct Form II Transposed biquad |
+| `CircularBuffer.h` | Generic ring buffer |
+| `DmmCompander.h` | NE570-style compander used in DMM |
+| `EnvelopeFollower.h` | Envelope detector |
+| `GrainEnvelope.h` | Grain envelope shaping |
+| `GrainScheduler.h` | Granular scheduler |
+| `HaasStereoWidener.h` | Haas-effect stereo widener |
+| `Interpolation.h` | Lookup helpers (linear, cubic, etc.) |
+| `Lfo.h` | Standard sine/triangle LFO |
+| `MultiTapDelay.h` | Multi-tap delay primitive |
+| `OnePoleFilter.h` | One-pole low-pass / high-pass |
+| `ParameterSmoother.h` | Single-pole smoother on knob inputs |
+| `PitchDetector.h` | Monophonic pitch follower |
+| `ReverbPrimitives.h` | Comb / all-pass building blocks |
+| `Saturation.h` | Soft-clip / saturation curves |
+| `SoftFocusCircuit.h` | Yamaha SPX500 shimmer-reverb-style circuit |
+| `StateVariableFilter.h` | Chamberlin SVF |
+| `UniVibeLfo.h` | UniVibe-specific LFO |
+| `WindowedSincInterpolator.h` | High-quality sinc resampler |
+| `dsp.h` | Meta-include header |
+
+The set lines up almost one-to-one with the duplicated idioms our own 2026-06-13
+local audit (Agent 1) found across `effects/*.cpp`: `OnePoleFilter` corresponds
+to our `lpCoeff`/`hpCoeff` duplication, `ParameterSmoother` to our
+`ParamSmoother` duplication, `Saturation` to our `softLimit`, `Lfo` to our
+sine/triangle LFO, `Interpolation` + `CircularBuffer` to our fractional-delay
+and ring-buffer patterns. This repo's `source/dsp/` extraction draws on the
+same naming intent without copying any code, since the LICENSE blocker
+prevents source ports.
 
 ### Deluxe Memory Man completed; DTCM annotations added (2026-05-06)
 
