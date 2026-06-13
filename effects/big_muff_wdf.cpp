@@ -16,6 +16,10 @@
 //   LED         — Red/DarkRed Ram's Head, Magenta/DimCyan Tone Bypass
 
 #include "../source/Patch.h"
+#include "../source/dsp/crossfade.h"
+#include "../source/dsp/filter_coeff.h"
+#include "../source/dsp/parameter_smoother.h"
+#include "../source/dsp/soft_limit.h"
 
 #include <cmath>
 
@@ -23,6 +27,19 @@ namespace {
 constexpr float kTwoPi  = 6.283185307f;
 constexpr float kHalfPi = 1.57079632679f;
 constexpr float kFs     = static_cast<float>(Patch::kSampleRate);
+
+using dsp::hpCoeff;
+using dsp::lpCoeff;
+using SmoothedValue = dsp::ParamSmoother;
+
+// Per-effect tuning of the safety soft-limit: (0.92, 0.24, 0.08) gives a
+// slightly higher knee and tighter knee shape than the (0.90, 0.25, 0.10)
+// default. Kept here so the tuning is visible at the call site instead of
+// duplicated inside a near-identical helper.
+inline float softLimit(float value)
+{
+    return dsp::softLimit(value, 0.92f, 0.24f, 0.08f);
+}
 
 float clamp01(float value)
 {
@@ -50,72 +67,6 @@ float clampUnit(float value)
 {
     return clampSigned(value, 1.0f);
 }
-
-float softLimit(float value)
-{
-    const float absValue = fabsf(value);
-    if (absValue <= 0.92f) {
-        return value;
-    }
-
-    const float sign = value < 0.0f ? -1.0f : 1.0f;
-    const float over = (absValue - 0.92f) / 0.24f;
-    return sign * (0.92f + 0.08f * tanhf(over));
-}
-
-float hpCoeff(float fc)
-{
-    return 1.0f / (1.0f + kTwoPi * fc / kFs);
-}
-
-float lpCoeff(float fc)
-{
-    const float omega = kTwoPi * fc / kFs;
-    return omega / (1.0f + omega);
-}
-
-float equalPowerDry(float blend)
-{
-    return cosf(clamp01(blend) * kHalfPi);
-}
-
-float equalPowerWet(float blend)
-{
-    return sinf(clamp01(blend) * kHalfPi);
-}
-
-class SmoothedValue
-{
-public:
-    void init(float value, float timeMs)
-    {
-        current_ = value;
-        target_  = value;
-        setTimeMs(timeMs);
-    }
-
-    void setTimeMs(float timeMs)
-    {
-        const float samples = 0.001f * timeMs * kFs;
-        coeff_ = samples <= 1.0f ? 0.0f : expf(-1.0f / samples);
-    }
-
-    void setTarget(float value)
-    {
-        target_ = value;
-    }
-
-    float process()
-    {
-        current_ = target_ + coeff_ * (current_ - target_);
-        return current_;
-    }
-
-private:
-    float current_ = 0.0f;
-    float target_  = 0.0f;
-    float coeff_   = 0.0f;
-};
 
 class OnePoleLowpass
 {
@@ -251,8 +202,9 @@ public:
             const float bypassToneAlpha  = lpCoeff(1220.0f + 3600.0f * toneCurve);
             const float toneLowWeight    = cosf(toneValue * kHalfPi);
             const float toneHighWeight   = sinf(toneValue * kHalfPi);
-            const float dryGain          = equalPowerDry(blendValue);
-            const float wetGain          = equalPowerWet(blendValue);
+            const auto  blendGains       = dsp::equalPower(blendValue);
+            const float dryGain          = blendGains.dry;
+            const float wetGain          = blendGains.wet;
             const float wetMakeup        = 0.98f + 0.08f * blendValue;
 
             left[i]  = processSample(0, left[i], inputHpAlpha, stageHpAlpha, stage1LpAlpha,

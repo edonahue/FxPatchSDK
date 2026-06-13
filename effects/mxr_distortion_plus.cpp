@@ -27,6 +27,7 @@
 //      hard-clipping; also adds a small "hot" character at the top of the knob)
 
 #include "../source/Patch.h"
+#include "../source/dsp/soft_limit.h"
 #include <cmath>
 
 namespace {
@@ -44,17 +45,7 @@ namespace {
         return value;
     }
 
-    float softLimit(float value)
-    {
-        const float absValue = std::fabs(value);
-        if (absValue <= 0.90f) {
-            return value;
-        }
-
-        const float sign = value < 0.0f ? -1.0f : 1.0f;
-        const float over = (absValue - 0.90f) / 0.25f;
-        return sign * (0.90f + 0.10f * std::tanh(over));
-    }
+    using dsp::softLimit;
 }
 
 class MxrDistortionPlus final : public Patch

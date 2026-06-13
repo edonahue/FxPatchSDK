@@ -32,6 +32,7 @@
 //   DimBlue    = enhancer + doubler, bypassed
 
 #include "../source/Patch.h"
+#include "../source/dsp/filter_coeff.h"
 
 #include <cmath>
 #include <cstddef>
@@ -80,11 +81,7 @@ inline int clampInt(int x, int lo, int hi)
     return x;
 }
 
-inline float lpCoeff(float fc)
-{
-    const float omega = kTwoPi * fc / static_cast<float>(Patch::kSampleRate);
-    return omega / (1.0f + omega);
-}
+using dsp::lpCoeff;
 } // namespace
 
 class SonicStompEnhancer final : public Patch

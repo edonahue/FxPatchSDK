@@ -19,6 +19,7 @@
 //   input -> working-buffer circular capture -> reverse chunk playback -> feedback -> mix
 
 #include "../source/Patch.h"
+#include "../source/dsp/crossfade.h"
 
 #include <algorithm>
 #include <cmath>
@@ -69,19 +70,10 @@ int chunkSamplesFromSpeed(float speed)
     return std::clamp(samples, 1024, maxSafe);
 }
 
-float equalPowerDry(float mix)
-{
-    return std::cos(clamp01(mix) * kHalfPi);
-}
-
-float equalPowerWet(float mix)
-{
-    // Earlier releases capped the wet leg at 0.92, so turning Mix to max still
-    // left the dry signal audible at the equivalent of ≈ −0.7 dB under the
-    // reversed wet. A real Back Talk can go completely wet. The output
-    // clampUnit downstream catches any peak excursions.
-    return std::sin(clamp01(mix) * kHalfPi);
-}
+// Equal-power crossfade now lives in source/dsp/crossfade.h —
+// dsp::equalPower(clamp01(mix)) returns {dry, wet}. (Earlier releases capped
+// the wet leg at 0.92, but a real Back Talk can go completely wet; the
+// output clampUnit downstream catches any peak excursions.)
 
 float feedbackGainFromRepetitions(float repetitions)
 {
@@ -141,8 +133,9 @@ public:
 
         const int targetChunkLen = chunkSamplesFromSpeed(speed_);
         const float feedbackGain = feedbackGainFromRepetitions(repetitions_);
-        const float dryGain      = equalPowerDry(mix_);
-        const float wetGain      = equalPowerWet(mix_);
+        const auto  mixGains     = dsp::equalPower(clamp01(mix_));
+        const float dryGain      = mixGains.dry;
+        const float wetGain      = mixGains.wet;
         const float mixMakeup    = 0.96f + 0.16f * clamp01(mix_);
         const int textureOffset  = targetChunkLen / 2;
 

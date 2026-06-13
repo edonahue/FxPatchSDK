@@ -18,6 +18,8 @@
 //   LED         — Red/DarkRed Ram's Head, Magenta/DimCyan Tone Bypass
 
 #include "../source/Patch.h"
+#include "../source/dsp/crossfade.h"
+#include "../source/dsp/filter_coeff.h"
 
 #include <cmath>
 
@@ -25,6 +27,9 @@ namespace {
 constexpr float kTwoPi  = 6.283185307f;
 constexpr float kHalfPi = 1.57079632679f;
 constexpr float kFs     = static_cast<float>(Patch::kSampleRate);
+
+using dsp::hpCoeff;
+using dsp::lpCoeff;
 
 float clamp01(float value)
 {
@@ -48,30 +53,10 @@ float clampUnit(float value)
     return value;
 }
 
-float hpCoeff(float fc)
-{
-    return 1.0f / (1.0f + kTwoPi * fc / kFs);
-}
-
-float lpCoeff(float fc)
-{
-    const float omega = kTwoPi * fc / kFs;
-    return omega / (1.0f + omega);
-}
-
-float equalPowerDry(float blend)
-{
-    return cosf(clamp01(blend) * kHalfPi);
-}
-
-float equalPowerWet(float blend)
-{
-    // The 0.94 factor in earlier releases capped max Blend loudness at ≈0.75–0.84
-    // after tanh, which left the pedal noticeably quieter than the real Muff at
-    // "Volume = max." The tanh stages downstream already act as soft limiters, so
-    // full-wet can safely hit unity here.
-    return sinf(clamp01(blend) * kHalfPi);
-}
+// Equal-power crossfade: dsp::equalPower(clamp01(blend)) gives {dry, wet}.
+// (The 0.94 factor in earlier releases capped max-Blend loudness at ~0.75-0.84
+// after tanh; the tanh stages downstream already act as soft limiters, so
+// full-wet can safely hit unity here.)
 }
 
 class BigMuffPatch final : public Patch
@@ -123,8 +108,9 @@ public:
         const float toneLowWeight  = cosf(toneClamped * kHalfPi);
         const float toneHighWeight = sinf(toneClamped * kHalfPi);
 
-        const float dryGain = equalPowerDry(blendClamped);
-        const float wetGain = equalPowerWet(blendClamped);
+        const auto  blendGains = dsp::equalPower(blendClamped);
+        const float dryGain = blendGains.dry;
+        const float wetGain = blendGains.wet;
 
         // Trim bases raised so the wet voiced signal reaches a commercial-Muff-level
         // output at max Blend. The final clampUnit on the mixed output catches any

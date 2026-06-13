@@ -41,6 +41,9 @@
 //   3. make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=chorus
 
 #include "../source/Patch.h"
+#include "../source/dsp/crossfade.h"
+#include "../source/dsp/fractional_delay.h"
+#include "../source/dsp/lfo.h"
 #include <cmath>
 
 class PatchImpl : public Patch
@@ -89,16 +92,15 @@ public:
         const float depthSamples = (0.001f + depth_ * 0.012f) * static_cast<float>(kSampleRate);
 
         constexpr float kCenter    = 720.0f; // 15 ms center delay
-        constexpr float kTwoPi    = 6.283185f;
-        constexpr float kHalfPi   = 1.5707963f;
 
         // Equal-power crossfade on the Mix knob (was linear). Linear blends
         // produce a −3 dB dip at mix=0.5; equal-power keeps perceived loudness
         // constant across the knob so "more wet" actually reads as more chorus
         // rather than "same level, slightly filtered."
         const float mixClamped = (mix_ < 0.0f) ? 0.0f : (mix_ > 1.0f ? 1.0f : mix_);
-        const float dryGain    = cosf(mixClamped * kHalfPi);
-        const float wetGain    = sinf(mixClamped * kHalfPi);
+        const auto  mixGains   = dsp::equalPower(mixClamped);
+        const float dryGain    = mixGains.dry;
+        const float wetGain    = mixGains.wet;
 
         for (size_t i = 0; i < left.size(); ++i)
         {
@@ -109,18 +111,18 @@ public:
             delayL_[writeL_] = dryL;
             delayR_[writeR_] = dryR;
 
-            // Compute modulated read positions
+            // Compute modulated read positions (sine LFO via dsp::SineLfo::value).
             float readPosL = static_cast<float>(writeL_) - kCenter
-                             - depthSamples * sinf(lfoPhaseL_ * kTwoPi);
+                             - depthSamples * dsp::SineLfo::value(lfoPhaseL_);
             float readPosR = static_cast<float>(writeR_) - kCenter
-                             - depthSamples * sinf(lfoPhaseR_ * kTwoPi);
+                             - depthSamples * dsp::SineLfo::value(lfoPhaseR_);
 
             if (readPosL < 0.0f) readPosL += static_cast<float>(kDelayLen);
             if (readPosR < 0.0f) readPosR += static_cast<float>(kDelayLen);
 
-            // Linear interpolation
-            const float wetL = lerpDelay(delayL_, readPosL);
-            const float wetR = lerpDelay(delayR_, readPosR);
+            // Linear-interpolated fractional-delay read from source/dsp/.
+            const float wetL = dsp::lerpRead(delayL_, kDelayLen, readPosL);
+            const float wetR = dsp::lerpRead(delayR_, kDelayLen, readPosR);
 
             // Advance write positions
             if (++writeL_ >= kDelayLen) writeL_ = 0;
@@ -169,13 +171,6 @@ public:
     }
 
 private:
-    static float lerpDelay(const float* buf, float pos)
-    {
-        const int   idx0 = static_cast<int>(pos) % kDelayLen;
-        const int   idx1 = (idx0 + 1) % kDelayLen;
-        const float frac = pos - static_cast<float>(static_cast<int>(pos));
-        return buf[idx0] * (1.0f - frac) + buf[idx1] * frac;
-    }
 
     float* delayL_ = nullptr;
     float* delayR_ = nullptr;

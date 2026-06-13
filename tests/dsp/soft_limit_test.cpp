@@ -44,6 +44,12 @@ int main()
     const float ySoft = dsp::softLimit(1.0f, 0.90f, 0.50f);
     check(yHard > ySoft, "smaller divisor should approach the asymptote faster");
 
+    // Tail parameter controls the asymptote height: threshold + tail.
+    const float yT08 = dsp::softLimit(1e6f, 0.92f, 0.24f, 0.08f);
+    const float yT10 = dsp::softLimit(1e6f, 0.90f, 0.25f, 0.10f);
+    check(std::fabs(yT08 - 1.0f) < 1e-3f, "tail=0.08 + threshold=0.92 should asymptote at +1.0");
+    check(std::fabs(yT10 - 1.0f) < 1e-3f, "tail=0.10 + threshold=0.90 should asymptote at +1.0");
+
     if (failed == 0) { printf("soft_limit_test: PASS\n"); return 0; }
     fprintf(stderr, "soft_limit_test: %d FAIL\n", failed);
     return 1;
