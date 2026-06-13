@@ -8,6 +8,11 @@
 **Variant context:** <https://www.analogman.com/tshist.htm>  
 **Template:** [`docs/templates/patch-build-walkthrough.md`](templates/patch-build-walkthrough.md)
 
+> **2026-06-13 update:** the 1-pole filter helpers (`hpCoeff` / `lpCoeff`) and
+> the `softLimit` safety stage now live in [`source/dsp/`](../source/dsp);
+> this patch was the canonical harvest source for them. Behavior is
+> unchanged.
+
 ---
 
 ## Overview
