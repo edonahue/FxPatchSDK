@@ -1,5 +1,14 @@
 # VST3 / LV2 / Standalone Wrapper
 
+> **Status: experimental / test-only.** This wrapper exists to audition
+> patch logic on the desktop before flashing to Endless hardware. It is
+> not a release artifact, not a substitute for hardware listening, and
+> not intended for live performance or distribution. Single-precision
+> host floats and a different DSP toolchain mean voicing on the desktop
+> will not be bit-identical to the pedal — treat the wrapper as a
+> sketchpad, not a master. Hardware listening remains the final word on
+> any voicing decision.
+
 Builds one FxPatchSDK effect as a JUCE plugin so it can be auditioned on the
 desktop before flashing to Endless hardware. One build produces three formats:
 
@@ -11,17 +20,31 @@ Design and rationale: [`../docs/vst-host-plan.md`](../docs/vst-host-plan.md).
 This build is fully separate from the ARM firmware build (the root `Makefile`);
 it references `source/` and `effects/` read-only.
 
+## Platform support
+
+The wrapper has been built and exercised on **Linux only** (Pop!_OS / Ubuntu
+24.04, GCC 13). JUCE itself supports macOS and Windows, and the CMake setup
+here uses no platform-specific code, so a macOS or Windows build should
+work in principle — but neither has been verified by this repo. If you
+build elsewhere, expect to hit JUCE's normal per-platform setup (Xcode
+command-line tools on macOS, MSVC + the Windows SDK on Windows) on top of
+the requirements below.
+
 ## Requirements
 
 - CMake >= 3.22 and a C++20 host compiler.
 - Network access on the first configure — JUCE is downloaded via CMake
   `FetchContent` (pinned to a release tag) and is never committed to this repo.
-- JUCE's platform build dependencies. On Debian / Ubuntu / Pop!_OS:
+- **JUCE's Linux platform build dependencies.** The build will fail at
+  configure or link time without these system packages. On Debian / Ubuntu
+  / Pop!_OS:
   ```
   sudo apt install build-essential cmake git \
     libasound2-dev libx11-dev libxext-dev libxrandr-dev libxinerama-dev \
     libxcursor-dev libxrender-dev libfreetype6-dev libgl1-mesa-dev
   ```
+  Equivalent packages on Fedora / Arch / openSUSE exist under different
+  names; JUCE's own documentation lists them.
 
 ## Build
 

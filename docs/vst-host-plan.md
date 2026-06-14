@@ -2,16 +2,30 @@
 
 **Status:** implemented in [`vst/`](../vst). This document is the design rationale;
 [`vst/README.md`](../vst/README.md) is the build/use guide.
+
+> **Experimental / test-only.** The wrapper is for desktop auditioning of
+> patch logic, not for release, distribution, or live performance.
+> Single-precision host floats and a different DSP toolchain mean voicing
+> here will not be bit-identical to the pedal. Hardware listening remains
+> the final word on any voicing decision; this is a sketchpad for fast
+> iteration, not a master.
+
 **Origin:** the `andybalham/FxPatchSDK` fork — see
 [`docs/fork-comparisons/upstream-and-forks.md`](fork-comparisons/upstream-and-forks.md).
 
-The build was verified on Linux: a clean configure + build produces a `.vst3`
-bundle, an `.lv2` bundle, and a Standalone app for the selected effect; the LV2
-bundle is discovered and parsed cleanly by `lv2ls` / `lv2info`; and reconfiguring
-with a different `-DFX_EFFECT` produces a second plugin — confirming the
-one-effect-per-build model. Loading in a DAW or MOD Audio Desktop, and running
-`pluginval`, still needs a desktop environment with an audio device and display;
-that final audition step is the user's to run.
+The build was verified on **Linux only** (Pop!_OS / Ubuntu 24.04, GCC 13): a
+clean configure + build produces a `.vst3` bundle, an `.lv2` bundle, and a
+Standalone app for the selected effect; the LV2 bundle is discovered and
+parsed cleanly by `lv2ls` / `lv2info`; and reconfiguring with a different
+`-DFX_EFFECT` produces a second plugin — confirming the one-effect-per-build
+model. macOS and Windows builds should work in principle but are unverified
+in this repo. The Linux build also needs JUCE's system-library set
+(`libasound2-dev`, `libx11-dev`, `libxext-dev`, `libxrandr-dev`,
+`libxinerama-dev`, `libxcursor-dev`, `libxrender-dev`, `libfreetype6-dev`,
+`libgl1-mesa-dev`) — see [`vst/README.md`](../vst/README.md) for the apt
+line. Loading in a DAW or MOD Audio Desktop, and running `pluginval`, still
+needs a desktop environment with an audio device and display; that final
+audition step is the user's to run.
 
 ## Why
 

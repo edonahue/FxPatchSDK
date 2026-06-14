@@ -44,8 +44,14 @@ vst/           JUCE VST3/LV2/Standalone wrapper for auditioning patches on the d
 
 The `vst/` wrapper is a separate CMake build that lets a patch be heard in a DAW
 before hardware deployment; see [`vst/README.md`](vst/README.md) and
-[`docs/vst-host-plan.md`](docs/vst-host-plan.md). It does not affect the firmware
-build.
+[`docs/vst-host-plan.md`](docs/vst-host-plan.md). It is deliberately
+**experimental / test-only** — host floats are not Cortex-M7 floats, so hardware
+listening remains the final word on voicing. The Linux build needs the JUCE
+system-library set (`libasound2-dev`, `libx11-dev`, `libxext-dev`,
+`libxrandr-dev`, `libxinerama-dev`, `libxcursor-dev`, `libxrender-dev`,
+`libfreetype6-dev`, `libgl1-mesa-dev`) in addition to `build-essential`, `cmake`,
+and `git`; the wrapper has only been verified on Linux. It does not affect the
+firmware build.
 
 For the craft of writing a good Endless patch, start with
 [`docs/patch-authoring-best-practices.md`](docs/patch-authoring-best-practices.md).
