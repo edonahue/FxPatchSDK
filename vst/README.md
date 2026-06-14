@@ -129,6 +129,11 @@ Notes specific to MOD:
   rather than producing wrong-sounding output. (MOD Desktop defaults to 48 kHz;
   in a DAW, set the project rate.) Resampling is a documented future option in
   [`../docs/vst-host-plan.md`](../docs/vst-host-plan.md).
+- **Stereo tracks only.** The wrapper declines mono layouts. The corpus
+  effects all process channels with their own state and write per-sample in
+  the order `left[i] = ...; right[i] = ...;`, which would silently overwrite
+  through an aliased mono buffer. Use a stereo track; the pedal itself is
+  stereo anyway.
 - **One instance at a time.** The SDK exposes the patch as a singleton
   (`Patch::getInstance()`), so two plugin instances would share one effect.
   Load a single instance.

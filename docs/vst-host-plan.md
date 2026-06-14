@@ -141,10 +141,14 @@ The same build also emits an LV2 bundle, so an effect can run in MOD Audio Deskt
   Fast-path (bypass the resampler) when the host is already at 48 kHz, and tell the user
   in `vst/README.md` to set the DAW to 48 kHz. A reasonable first cut ships the 48 kHz
   fast-path only and treats the resampler as a follow-up.
-- Declare a stereo-in/stereo-out main bus so `processAudio` always gets an independent
-  L and R (chorus and other stereo effects use separate L/R state). JUCE `AudioBuffer`
-  write pointers are already in-place and L/R are equal length, satisfying the SDK
-  contract. Effects loop over `span.size()` and handle any block length.
+- Declare a stereo-in/stereo-out main bus *and* reject any other layout in
+  `isBusesLayoutSupported` so `processAudio` always gets independent L and R
+  buffers. The corpus pattern `left[i] = processChannel(0, left[i], ...); right[i] = processChannel(1, right[i], ...);`
+  would alias and overwrite if a mono layout shared one buffer, so mono is
+  declined rather than papered over. Hosts on mono tracks adapt. JUCE
+  `AudioBuffer` write pointers are already in-place and L/R are equal length,
+  satisfying the SDK contract. Effects loop over `span.size()` and handle any
+  block length.
 
 ## `.gitignore` additions
 

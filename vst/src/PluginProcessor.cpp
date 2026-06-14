@@ -70,10 +70,15 @@ void FxPatchAudioProcessor::prepareToPlay(double sampleRate, int /*maxBlockSize*
 
 bool FxPatchAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
-    const auto out = layouts.getMainOutputChannelSet();
-    if (out != juce::AudioChannelSet::mono() && out != juce::AudioChannelSet::stereo())
-        return false;
-    return layouts.getMainInputChannelSet() == out;
+    // Stereo in / stereo out only. Mono is deliberately rejected: with a single
+    // shared buffer the corpus pattern `left[i] = ...; right[i] = ...;` would
+    // feed the already-processed left sample into the right channel's state and
+    // overwrite the left output. Stereo-only matches the pedal's contract and
+    // sidesteps the aliasing entirely; hosts on mono tracks will adapt.
+    const auto& mainIn  = layouts.getMainInputChannelSet();
+    const auto& mainOut = layouts.getMainOutputChannelSet();
+    if (mainOut != juce::AudioChannelSet::stereo()) return false;
+    return mainIn == mainOut;
 }
 
 void FxPatchAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -116,11 +121,13 @@ void FxPatchAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     // Patches assume exactly 48 kHz. At any other rate, pass audio through dry
     // rather than emit subtly wrong output; the editor surfaces a warning.
-    if (sampleRateOk_.load(std::memory_order_relaxed) && numChannels >= 1 && numSamples > 0)
+    // Stereo layout is enforced by isBusesLayoutSupported, so two distinct
+    // channel buffers are guaranteed here.
+    if (sampleRateOk_.load(std::memory_order_relaxed) && numChannels >= 2 && numSamples > 0)
     {
-        float* left = buffer.getWritePointer(0);
-        float* right = numChannels > 1 ? buffer.getWritePointer(1) : left;
-        patch_->processAudio(std::span<float>(left, (size_t) numSamples),
+        float* left  = buffer.getWritePointer(0);
+        float* right = buffer.getWritePointer(1);
+        patch_->processAudio(std::span<float>(left,  (size_t) numSamples),
                              std::span<float>(right, (size_t) numSamples));
     }
 
