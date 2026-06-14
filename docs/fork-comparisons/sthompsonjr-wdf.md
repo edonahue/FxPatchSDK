@@ -1,12 +1,19 @@
 # `sthompsonjr/Endless-FxPatchSDK` WDF Comparison
 
-**Last surveyed:** 2026-04-27 — see [Changes In The Fork Since Last Investigation](#changes-in-the-fork-since-last-investigation)
-for the most recent delta.
+**Last surveyed:** 2026-06-13 — see [Changes In The Fork Since Last Investigation](#changes-in-the-fork-since-last-investigation)
+for the most recent delta. The 2026-06-13 walk found the fork unchanged since
+2026-05-06 (no new commits) and the LICENSE situation unchanged (no LICENSE
+file). The substantive update from this walk is the full enumeration of the 23
+`dsp/` primitive names, recorded below for in-repo lookup.
 
 This note evaluates whether the `sthompsonjr/Endless-FxPatchSDK` fork should change how
 this repo authors Polyend Endless effects. The focus is practical: which ideas are worth
 stealing, which API divergences should stay out of this repo for now, and where WDF
 (Wave Digital Filter) modeling is likely to help more than it hurts.
+
+This is the deep-dive on one fork. For the upstream `polyend/FxPatchSDK` tracking status
+and the survey of the other forks (`andybalham`, plus three near-empty clones), see
+[`upstream-and-forks.md`](upstream-and-forks.md).
 
 ## TL;DR
 
@@ -36,14 +43,15 @@ SDK repo, but it is substantially broader than this repo in two areas:
 The fork's generated inventories
 ([`INVENTORY.md`](https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/INVENTORY.md),
 [`library_inventory.txt`](https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/library_inventory.txt))
-plus a tree walk on 2026-04-27 report:
+plus a tree walk on 2026-05-18 report:
 
-| Area | Reported scope (2026-04-27) | Why it matters here |
+| Area | Reported scope (2026-05-18) | Why it matters here |
 | --- | --- | --- |
-| `dsp/` | 23 primitives (was 22 at last survey) | overlaps with our repeated one-pole, mix-law, taper, and smoothing helpers; new entry is `DmmCompander.h` (NE570 model) |
-| `wdf/` | 31 files (was 29), including named pedal circuits | directly relevant to our Big Muff, Tube Screamer, Klon, Wah, and Dist+/DOD/RAT-adjacent work; the fork has begun a Deluxe Memory Man family (`DmmCircuits.h`, `DmmBbdCore.h`, `DmmFeedbackLoop.h`, `DmmDelayCircuit.h`) and a five-variant Big Muff stack (`WdfOpAmpBigMuffCircuit.h`, `WdfBigMuffToneStack.h`) |
-| `effects/` | 11 completed patches (was 9) | shows how the fork author composes those primitives into real Endless patches; new patches are `PatchImpl_DeluxeMemoryMan.cpp` and `PatchImpl_PowerPuff.cpp` plus a `PowerPuffParams.h` header |
-| `tests/` | 23 native test harnesses (was 20) | useful precedent for isolated primitive validation before on-device listening; new tests cover the op-amp Big Muff, the variant-aware tone stack, and the PowerPuff selector |
+| `dsp/` | 23 primitives | overlaps with our repeated one-pole, mix-law, taper, and smoothing helpers; the fork's most recent dsp addition is `DmmCompander.h` (NE570 model) |
+| `wdf/` | 35 header files (an earlier walk under-counted this as 31; a direct tree walk on 2026-05-18 counts 35) | directly relevant to our Big Muff, Tube Screamer, Klon, Wah, and Dist+/DOD/RAT-adjacent work; the fork has a Deluxe Memory Man family (`DmmCircuits.h`, `DmmBbdCore.h`, `DmmFeedbackLoop.h`, `DmmDelayCircuit.h`) and a five-variant Big Muff stack (`WdfOpAmpBigMuffCircuit.h`, `WdfBigMuffToneStack.h`) |
+| `effects/` | 11 completed patches (12 files incl. `PowerPuffParams.h`) | shows how the fork author composes those primitives into real Endless patches; the Deluxe Memory Man patch reached completion on 2026-05-06 |
+| `tests/` | 24 native test harnesses (+ 2 CSV reference fixtures, + `run_all_tests.sh`) | useful precedent for isolated primitive validation before on-device listening; `tests/test_DeluxeMemoryMan_wdf.cpp` lands with CSV fixtures (`tests/dmm_freq_response.csv`, `tests/dmm_param_sweep.csv`) |
+| `build_pipeline.txt` | hand-maintained Tier 1–4 status tracker with `[READY]` / `[PENDING INTEGRATION]` / `[DONE — TESTS FAILING]` / `[BLOCKED]` states | not adopted locally, but useful as a lookahead: the fork's current `[READY]` candidate is a Flanger (using `Lfo` + `ParameterSmoother` + `AllpassDelay`), and `[PENDING INTEGRATION]` items include a "Shoegaze" chain (Big Muff → SoftFocus reverb, footswitch reverses order) and a Coloursound Overdriver |
 
 Those counts are useful orientation, but they are self-reported from generated inventory
 files, not a stable API contract. Treat them as a map, not a spec.
@@ -83,8 +91,141 @@ it.
 ## Changes In The Fork Since Last Investigation
 
 This section is a delta only. The earlier survey (captured by the rest of this document)
-remains the baseline; what follows is what landed on the fork's `master` between then and
-the 2026-04-27 walk.
+remains the baseline; what follows is what landed on the fork's `master` over the last
+four walks (2026-04-27, 2026-05-01, 2026-05-18, and 2026-06-13).
+
+### 2026-06-13 walk — fork is stalled; `dsp/` primitives enumerated
+
+No new commits since 2026-05-06. The DMM effort that the previous walk found
+in progress is the terminus — there has been no follow-up work. The fork
+appears episodically driven (Claude-aided sessions), and no session has run
+in ~five weeks. Treat the fork as effectively dormant unless a future walk
+shows otherwise.
+
+LICENSE status: still none. A direct check at
+`https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/LICENSE` returns
+404 as of 2026-06-13. Our "no code ports until license is resolved" stance
+holds.
+
+For in-repo lookup: the fork's `dsp/` directory contains **23 header files**.
+Earlier walks reported only the count; this walk records each name so this
+repo's own [`source/dsp/`](../../source/dsp) primitive-extraction effort can
+cross-reference shape and naming intent without revisiting GitHub. See also
+[`docs/patch-authoring-best-practices.md`](../patch-authoring-best-practices.md)
+for how those primitives are now used across the corpus:
+
+| File | What it is (per file's top comment) |
+| --- | --- |
+| `AllpassDelay.h` | All-pass delay line |
+| `AnalogLfo.h` | Voltage-swept LFO (UniVibe-style) |
+| `BBDLine.h` | Bucket-brigade delay-line emulation (used by DMM) |
+| `BiquadFilter.h` | Direct Form II Transposed biquad |
+| `CircularBuffer.h` | Generic ring buffer |
+| `DmmCompander.h` | NE570-style compander used in DMM |
+| `EnvelopeFollower.h` | Envelope detector |
+| `GrainEnvelope.h` | Grain envelope shaping |
+| `GrainScheduler.h` | Granular scheduler |
+| `HaasStereoWidener.h` | Haas-effect stereo widener |
+| `Interpolation.h` | Lookup helpers (linear, cubic, etc.) |
+| `Lfo.h` | Standard sine/triangle LFO |
+| `MultiTapDelay.h` | Multi-tap delay primitive |
+| `OnePoleFilter.h` | One-pole low-pass / high-pass |
+| `ParameterSmoother.h` | Single-pole smoother on knob inputs |
+| `PitchDetector.h` | Monophonic pitch follower |
+| `ReverbPrimitives.h` | Comb / all-pass building blocks |
+| `Saturation.h` | Soft-clip / saturation curves |
+| `SoftFocusCircuit.h` | Yamaha SPX500 shimmer-reverb-style circuit |
+| `StateVariableFilter.h` | Chamberlin SVF |
+| `UniVibeLfo.h` | UniVibe-specific LFO |
+| `WindowedSincInterpolator.h` | High-quality sinc resampler |
+| `dsp.h` | Meta-include header |
+
+The set lines up almost one-to-one with the duplicated idioms our own 2026-06-13
+local audit (Agent 1) found across `effects/*.cpp`: `OnePoleFilter` corresponds
+to our `lpCoeff`/`hpCoeff` duplication, `ParameterSmoother` to our
+`ParamSmoother` duplication, `Saturation` to our `softLimit`, `Lfo` to our
+sine/triangle LFO, `Interpolation` + `CircularBuffer` to our fractional-delay
+and ring-buffer patterns. This repo's `source/dsp/` extraction draws on the
+same naming intent without copying any code, since the LICENSE blocker
+prevents source ports.
+
+### Deluxe Memory Man completed; DTCM annotations added (2026-05-06)
+
+The 2026-05-18 walk found only five new commits since the previous survey, all of them
+finishing the Deluxe Memory Man (DMM) effort that earlier walks had tracked as in
+progress: tests 4–6 appended to `tests/test_DeluxeMemoryMan_wdf.cpp`, a documentation
+pass, and a `power_puff` fix. The fork now treats DMM as a complete patch with a
+self-reported budget of roughly **53 cycles/sample**.
+
+One commit message in that batch is worth a specific note: it mentions adding **DTCM
+annotations**. DTCM (Data Tightly-Coupled Memory) is the Cortex-M7's low-latency on-core
+RAM. The fork is evidently placing hot DMM state there to cut access latency.
+
+**This does not transfer to our repo, and that is itself the useful finding.** This
+repo's linker script
+([`internal/patch_imx.ld`](../../internal/patch_imx.ld)) places the *entire* patch
+image — `.text`, `.rodata`, `.data`, and `.bss` — into one contiguous 512 KB `RAM`
+region at `0x80000000`. There is no separate DTCM output section, and patch code is a
+relocatable image dropped at a fixed address by the firmware loader, so a patch author
+here cannot choose DTCM placement for hot data. Treat the fork's DTCM annotations as
+inapplicable to this SDK unless the linker model changes; see
+[`docs/cycle-budget.md`](../cycle-budget.md) for the same note in budget context.
+
+### WDF Sallen-Key was unstable, replaced with bilinear-transform biquad (2026-04-30)
+
+The most operationally interesting update from the second walk is also the most cautionary:
+the fork shipped a stability fix for two filters inside the new DMM stack. Per the fix
+commit, the original WDF Sallen-Key implementation in `DmmAntiAliasFilter` and
+`DmmReconFilter` (corner frequencies near 2.1 kHz and 3.8 kHz) had a per-step eigenvalue
+of roughly 1.4–2.5×, reaching float overflow in about 261 samples regardless of input
+amplitude. The fix replaces both filters with Direct Form II Transposed biquads derived
+from the bilinear transform of a standard second-order lowpass; the resulting poles sit
+inside the unit circle (`{0.860, 0.611}` and `{0.861, 0.682}`).
+
+Why this matters for our open WDF questions:
+
+- It is now an external, in-tree data point that not every WDF circuit topology survives
+  a 48 kHz fixed-step solver in single precision. The "is WDF worth it?" decision should
+  not be answered just on tonal grounds; numerical-stability triage is part of the cost.
+- It reinforces our existing position that bulk WDF migration without on-device CPU and
+  stability work would be premature. Our two sibling patches
+  ([`effects/big_muff_wdf.cpp`](../../effects/big_muff_wdf.cpp),
+  [`effects/tube_screamer_wdf.cpp`](../../effects/tube_screamer_wdf.cpp)) still target
+  diode-pair clipping rather than resonant high-Q sections, which is the lower-risk part
+  of the WDF design space.
+- Specifically: if we ever consider a WDF-based wah, phaser, or filter-driven patch, the
+  Sallen-Key incident is the relevant precedent — those topologies have the same kind of
+  high-Q resonant sections that broke for the fork. Plan for a fallback path before
+  committing.
+
+The fix also landed alongside the new test harness called out below; the harness is part
+of how the instability was caught and documented in tree.
+
+### New DMM WDF test harness — pattern worth borrowing (2026-04-30)
+
+[`tests/test_DeluxeMemoryMan_wdf.cpp`](https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/tests/test_DeluxeMemoryMan_wdf.cpp)
+is a three-test harness with a clearer shape than most of the fork's earlier tests:
+
+1. **Frequency response sweep.** 200 log-spaced frequencies from 20 Hz to 20 kHz,
+   measured at −40 dBFS sine input, 27,000-sample priming to fill the delay line, then
+   peak detection over a 2,400-sample window. CSV output at
+   [`tests/dmm_freq_response.csv`](https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/tests/dmm_freq_response.csv).
+2. **Impulse response stability.** Single 0.01 V impulse, 48,000 samples of monitored
+   output, explicit assertions for "no NaN, no Inf, `|y| ≤ 8.0`". This is the test that
+   actually catches the eigenvalue blow-up described above.
+3. **Parameter sweep.** Independent 10-step sweeps of delay / feedback / mode at three
+   reference frequencies, with CSV output at
+   [`tests/dmm_param_sweep.csv`](https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/tests/dmm_param_sweep.csv).
+
+Our local probe surface ([`tests/analyze_effects.sh`](../../tests/analyze_effects.sh) and
+[`scripts/analyze_effects.py`](../../scripts/analyze_effects.py)) already covers
+control-law metrics — gain monotonicity, unity position, hot/clip ratios — at the patch
+level. What it does not currently emit is a frequency-domain sweep or an impulse-response
+stability check. The fork's three-test pattern is a low-cost reference if we ever decide
+to extend our probe in those directions, particularly the impulse-stability test, which
+would have caught the kind of failure described above. We are not adopting it now — none
+of our current patches has an obvious stability risk on the same scale — but the
+precedent is worth recording.
 
 ### New Deluxe Memory Man family (BBD delay + compander)
 
@@ -272,7 +413,13 @@ noise and make control-law reviews easier to reason about.
 - **CPU budget is the first gate.** The fork's generated inventories attach cycle-cost
   estimates to many WDF blocks, but those numbers are self-reported and have not been
   measured inside this repo's current build/test harness. Any WDF adoption needs a local
-  budget experiment on Endless hardware.
+  budget experiment on Endless hardware. See [`docs/cycle-budget.md`](../cycle-budget.md)
+  for the local methodology and the explicit decision not to import fork-claimed numbers.
+- **Numerical stability is the second gate.** As of 2026-04-30, the fork has shipped a
+  stability fix replacing two WDF Sallen-Key filters with bilinear-transform biquads
+  after the originals diverged within ~261 samples at 48 kHz. High-Q resonant WDF
+  sections cannot be assumed stable on this platform; plan for a fallback path before
+  committing to one for a wah, phaser, or filter-driven patch.
 - **Template and flash bloat are real risks.** Header-only parametric code is powerful,
   but a careless extract can inflate compile times and binary size quickly.
 - **There is a "too accurate to be useful" trap.** A circuit-faithful model is not
@@ -345,7 +492,7 @@ Defer these until a narrower experiment proves value:
 ## Open Questions
 
 - What is the license status of the `sthompsonjr` fork, and is code porting legally clean?
-  As of 2026-04-27 the fork still has no root `LICENSE` file.
+  As of 2026-05-01 the fork still has no root `LICENSE` file.
 - Would the useful direction of contribution be from that fork into this repo, from this
   repo into that fork, or neither?
 - Is `WindowedSincInterpolator` worth its reported cost for
@@ -360,6 +507,14 @@ Defer these until a narrower experiment proves value:
 - Is the `PatchImpl_PowerPuff.cpp` "five Big Muff variants behind one selector" pattern a
   better answer to our `Mode` story than the per-mode hand-tuning we use today, or does
   the Endless UI not benefit from that level of differentiation?
+- Is the fork's "Shoegaze" composition (Big Muff → SoftFocus reverb chain with a
+  footswitch-reversible order, currently in `[PENDING INTEGRATION]` on the fork's
+  `build_pipeline.txt`) interesting enough as an idea to inspire a local
+  composition patch — for example, drive-into-tail or tail-into-drive macro patches
+  built from existing local effects — without depending on fork code?
+- Should our probe surface ([`scripts/analyze_effects.py`](../../scripts/analyze_effects.py))
+  grow an impulse-response stability check along the lines of the fork's new DMM
+  test, even though our current patches do not have an obvious stability risk?
 
 ## References
 
@@ -395,3 +550,6 @@ Defer these until a narrower experiment proves value:
 - <https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/effects/PowerPuffParams.h>
 - <https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/sdk/Patch.h>
 - <https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/sdk/PatchCppWrapper.cpp>
+- <https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/build_pipeline.txt> — Tier 1–4 status tracker (orientation only; not adopted locally)
+- <https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/tests/test_DeluxeMemoryMan_wdf.cpp> — three-test harness pattern (freq sweep, impulse stability, parameter sweep) added 2026-04-30
+- <https://github.com/sthompsonjr/Endless-FxPatchSDK/commit/91df1d8> — DMM Sallen-Key WDF instability fix (2026-04-30); concrete precedent for high-Q WDF risk on this platform

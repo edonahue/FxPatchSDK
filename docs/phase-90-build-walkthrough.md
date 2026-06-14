@@ -8,6 +8,10 @@
 **Script-mod context:** <https://www.analogman.com/mxr.htm>  
 **Template:** [`docs/templates/patch-build-walkthrough.md`](templates/patch-build-walkthrough.md)
 
+> **2026-06-13 update:** the triangle-LFO shape is now read from
+> `dsp::TriangleLfo::value` in [`source/dsp/`](../source/dsp); the local
+> phase counter stays. Behavior is unchanged.
+
 ---
 
 ## Overview

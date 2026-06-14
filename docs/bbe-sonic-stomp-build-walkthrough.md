@@ -7,6 +7,9 @@
 **Research summary:** [`docs/bbe-sonic-stomp-research.md`](bbe-sonic-stomp-research.md)  
 **Template:** [`docs/templates/patch-build-walkthrough.md`](templates/patch-build-walkthrough.md)
 
+> **2026-06-13 update:** the 1-pole `lpCoeff` helper now comes from
+> [`source/dsp/`](../source/dsp); behavior is unchanged.
+
 ---
 
 ## Overview

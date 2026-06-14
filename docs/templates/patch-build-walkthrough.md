@@ -50,6 +50,7 @@ BEFORE STARTING — checklist:
 |---|---|
 | DSP primitive needed | [SVF / 1-pole IIR / Biquad / Delay / Waveshaper / ...] |
 | Circuit-modeling approach | [Hand-tuned filters + tanh / SPICE-derived parameters + shaped nonlinearity / WDF circuit port] |
+| Fork cross-check | [Relevant primitive / patch / cautionary tale in `docs/fork-comparisons/sthompsonjr-wdf.md`, and why we are (or are not) using it. "None applicable" is a valid answer; "did not check" is not.] |
 | Working buffer needed? | [Yes (delay lines) / No (scalars only)] |
 | State variable count | [N floats — list them] |
 | Knob 0 (Left) | [parameter name] |

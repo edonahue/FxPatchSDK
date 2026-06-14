@@ -1,5 +1,8 @@
 # MXR Distortion+ Circuit Analysis & Endless DSP Model
 
+> **2026-06-13 update:** the `softLimit` safety stage now lives in
+> [`source/dsp/`](../source/dsp); behavior is unchanged.
+
 ## Overview
 
 The MXR Distortion+ (MXR M104) is one of the canonical single-op-amp distortion pedals:

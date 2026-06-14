@@ -139,4 +139,11 @@ fi
 
 echo ""
 echo "All patches passed syntax check."
+
+# Companion: build and run the source/dsp/ per-primitive unit tests.
+if [[ -x "$REPO_ROOT/tests/check_dsp.sh" ]]; then
+    echo ""
+    bash "$REPO_ROOT/tests/check_dsp.sh"
+fi
+
 exit 0

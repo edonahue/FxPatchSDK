@@ -30,14 +30,34 @@ For the audit that produced this rewrite, see
 
 ```text
 source/        public Patch API and the default single-patch build target
+source/dsp/    header-only shared DSP primitives (filters, LFO, smoother, ...)
 internal/      C ABI wrapper, image header, linker script, patch entrypoint
 effects/       custom stock-SDK-compatible patches and reference examples
 effects/builds/ local-only generated .endl outputs for hand-written effects
 tests/         host-side syntax and lint validation
+tests/dsp/     per-primitive unit tests for source/dsp/
 docs/          SDK notes, patch design walkthroughs, branch/repo review
 scripts/       helper utilities such as local Polyend Plates sync and effect builds
 playground/    compiled Playground examples and supporting artifacts
+vst/           JUCE VST3/LV2/Standalone wrapper for auditioning patches on the desktop
 ```
+
+The `vst/` wrapper is a separate CMake build that lets a patch be heard in a DAW
+before hardware deployment; see [`vst/README.md`](vst/README.md) and
+[`docs/vst-host-plan.md`](docs/vst-host-plan.md). It is deliberately
+**experimental / test-only** — host floats are not Cortex-M7 floats, so hardware
+listening remains the final word on voicing. The Linux build needs the JUCE
+system-library set (`libasound2-dev`, `libx11-dev`, `libxext-dev`,
+`libxrandr-dev`, `libxinerama-dev`, `libxcursor-dev`, `libxrender-dev`,
+`libfreetype6-dev`, `libgl1-mesa-dev`) in addition to `build-essential`, `cmake`,
+and `git`; the wrapper has only been verified on Linux. It does not affect the
+firmware build.
+
+For the craft of writing a good Endless patch, start with
+[`docs/patch-authoring-best-practices.md`](docs/patch-authoring-best-practices.md).
+It crystallises control-law conventions, DSP idioms (with pointers into
+`source/dsp/`), working-buffer use patterns, CPU-budget intuition, and the
+handcraft-vs-Playground positioning that animates this fork.
 
 ## Included Effect Work
 
@@ -121,13 +141,18 @@ This keeps three levels of verification:
 
 ## Recommended Reading Order
 
-If you are preparing to add or change code in this fork, start here:
+If you are an LLM coding agent (Claude Code, OpenAI Codex, etc.), start at
+[`CLAUDE.md`](CLAUDE.md) — [`AGENTS.md`](AGENTS.md) redirects there. Human
+readers preparing to add or change code should start here:
 
 1. [`docs/repository-review.md`](docs/repository-review.md)
 2. [`docs/endless-reference.md`](docs/endless-reference.md)
-3. [`effects/README.md`](effects/README.md)
-4. [`docs/circuit-to-patch-conversion.md`](docs/circuit-to-patch-conversion.md)
-5. [`docs/fork-comparisons/sthompsonjr-wdf.md`](docs/fork-comparisons/sthompsonjr-wdf.md)
+3. [`docs/patch-authoring-best-practices.md`](docs/patch-authoring-best-practices.md) — the craft of writing a good Endless patch
+4. [`effects/README.md`](effects/README.md)
+5. [`docs/circuit-to-patch-conversion.md`](docs/circuit-to-patch-conversion.md)
+6. [`docs/fork-comparisons/upstream-and-forks.md`](docs/fork-comparisons/upstream-and-forks.md)
+   and [`docs/fork-comparisons/sthompsonjr-wdf.md`](docs/fork-comparisons/sthompsonjr-wdf.md)
+7. [`docs/cycle-budget.md`](docs/cycle-budget.md) (if you are budgeting CPU)
 
 If you are starting a new patch rather than editing an existing one, pair
 [`docs/templates/patch-build-walkthrough.md`](docs/templates/patch-build-walkthrough.md)

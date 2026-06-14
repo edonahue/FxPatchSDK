@@ -21,6 +21,7 @@
 //     second public control
 
 #include "../source/Patch.h"
+#include "../source/dsp/lfo.h"
 
 #include <cmath>
 
@@ -51,11 +52,11 @@ float clampUnit(float x)
     return x;
 }
 
-float triangleLfo(float phase)
-{
-    const float wrapped = phase - floorf(phase);
-    return 1.0f - 4.0f * fabsf(wrapped - 0.5f);
-}
+// Triangle LFO shape comes from source/dsp/lfo.h. phase_90 manages its own
+// phase counter (lfoPhase_) outside this call, so the stateless value()
+// helper is the right fit; the stateful TriangleLfo class is the choice for
+// new effects.
+inline float triangleLfo(float phase) { return dsp::TriangleLfo::value(phase); }
 
 float mapSpeedHz(float value)
 {

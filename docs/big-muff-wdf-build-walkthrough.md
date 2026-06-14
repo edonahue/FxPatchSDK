@@ -9,6 +9,12 @@
 **WDF context:** [`docs/fork-comparisons/sthompsonjr-wdf.md`](fork-comparisons/sthompsonjr-wdf.md)
 **Template:** [`docs/templates/patch-build-walkthrough.md`](templates/patch-build-walkthrough.md)
 
+> **2026-06-13 update:** the 1-pole filter helpers, `ParamSmoother`, equal-power
+> crossfade, and the safety soft-limit now come from
+> [`source/dsp/`](../source/dsp). The per-effect soft-limit tuning
+> `(0.92, 0.24, 0.08)` is visible at the call site instead of buried in a
+> duplicate. Behavior is unchanged.
+
 ---
 
 ## Overview

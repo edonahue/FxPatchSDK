@@ -16,6 +16,8 @@
 //   LED         — LightGreen/DimGreen TS808, PastelGreen/DarkLime TS9
 
 #include "../source/Patch.h"
+#include "../source/dsp/filter_coeff.h"
+#include "../source/dsp/soft_limit.h"
 
 #include <cmath>
 
@@ -23,6 +25,10 @@ namespace {
 constexpr float kTwoPi  = 6.283185307f;
 constexpr float kHalfPi = 1.57079632679f;
 constexpr float kFs     = static_cast<float>(Patch::kSampleRate);
+
+using dsp::hpCoeff;
+using dsp::lpCoeff;
+using dsp::softLimit;
 
 float clamp01(float value)
 {
@@ -44,29 +50,6 @@ float clampUnit(float value)
         return 1.0f;
     }
     return value;
-}
-
-float softLimit(float value)
-{
-    const float absValue = fabsf(value);
-    if (absValue <= 0.90f) {
-        return value;
-    }
-
-    const float sign = value < 0.0f ? -1.0f : 1.0f;
-    const float over = (absValue - 0.90f) / 0.25f;
-    return sign * (0.90f + 0.10f * tanhf(over));
-}
-
-float hpCoeff(float fc)
-{
-    return 1.0f / (1.0f + kTwoPi * fc / kFs);
-}
-
-float lpCoeff(float fc)
-{
-    const float omega = kTwoPi * fc / kFs;
-    return omega / (1.0f + omega);
 }
 
 struct VoiceParams

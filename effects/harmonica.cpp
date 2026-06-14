@@ -35,6 +35,9 @@
 //   effects/chorus.cpp       — fractional-delay line layout in the working buffer
 
 #include "../source/Patch.h"
+#include "../source/dsp/dc_blocker.h"
+#include "../source/dsp/filter_coeff.h"
+#include "../source/dsp/soft_limit.h"
 
 #include <cmath>
 #include <cstddef>
@@ -102,32 +105,17 @@ inline float clamp01(float v)
     return v;
 }
 
-// 1-pole highpass coefficient (matches effects/tube_screamer.cpp:62).
-inline float hpCoeff(float fc)
-{
-    return 1.0f / (1.0f + kTwoPi * fc / kFs);
-}
-
-// 1-pole lowpass coefficient (matches effects/tube_screamer.cpp:66).
-inline float lpCoeff(float fc)
-{
-    const float omega = kTwoPi * fc / kFs;
-    return omega / (1.0f + omega);
-}
+// 1-pole filter coefficients now come from source/dsp/filter_coeff.h.
+using dsp::hpCoeff;
+using dsp::lpCoeff;
 
 inline float dbToAmp(float db)
 {
     return powf(10.0f, db / 20.0f);
 }
 
-// Safety soft limiter (pattern from effects/tube_screamer.cpp:49).
-inline float softLimit(float v)
-{
-    const float a = fabsf(v);
-    if (a <= 0.90f) return v;
-    const float sign = v < 0.0f ? -1.0f : 1.0f;
-    return sign * (0.90f + 0.10f * tanhf((a - 0.90f) / 0.25f));
-}
+// Safety soft limiter now comes from source/dsp/soft_limit.h with defaults.
+using dsp::softLimit;
 } // namespace
 
 enum class HarmMode { kCupped, kOpen };
@@ -203,6 +191,8 @@ public:
         const float splitLpAlpha = lpCoeff(kReedSplitFc);
         const float postLpAlpha  = lpCoeff(postLpFcFinal);
         const float dcAlpha      = hpCoeff(kDcBlockFc);
+        dcBlock_[0].setAlpha(dcAlpha);
+        dcBlock_[1].setAlpha(dcAlpha);
 
         // Tremolo depth as linear AM around 1.0.
         const float tremDepth     = dbToAmp(base.tremDepthDb) - 1.0f;   // e.g. 0.096 at 0.8 dB
@@ -226,7 +216,7 @@ public:
                                       tremDepth, tremPhase_,
                                       chorusDepth, chorusCenter, chorusPhaseL_,
                                       chorusDry, chorusWet,
-                                      dcAlpha, delayL_);
+                                      delayL_);
 
             right[i] = processChannel(1, right[i],
                                       preHpAlpha, shelfLpAlpha, lowShelfGain,
@@ -236,7 +226,7 @@ public:
                                       tremDepth, tremPhase_ + kTremPhaseRightOffset,
                                       chorusDepth, chorusCenter, chorusPhaseR_,
                                       chorusDry, chorusWet,
-                                      dcAlpha, delayR_);
+                                      delayR_);
 
             if (++write_ >= kChorusLen) write_ = 0;
 
@@ -300,7 +290,7 @@ private:
                          float tremDepth, float tremPhase,
                          float chorusDepth, float chorusCenter, float chorusPhase,
                          float chorusDry, float chorusWet,
-                         float dcAlpha, float* delayBuf)
+                         float* delayBuf)
     {
         // [A] Pre-HPF (1-pole differentiator form: y = alpha*(yPrev + x - xPrev))
         const float hpOut = preHpAlpha * (hpPrev_[ch] + x - inputPrev_[ch]);
@@ -356,10 +346,9 @@ private:
         const float wet = delayBuf[idx0] * (1.0f - frac) + delayBuf[idx1] * frac;
         y = chorusDry * y + chorusWet * wet;
 
-        // [I] DC blocker (scrubs DC offset from asymmetric clipper).
-        const float dcOut = dcAlpha * (dcPrev_[ch] + y - dcInputPrev_[ch]);
-        dcInputPrev_[ch] = y;
-        dcPrev_[ch]      = dcOut;
+        // [I] DC blocker (scrubs DC offset from asymmetric clipper) — alpha
+        // is configured once per block in processAudio.
+        const float dcOut = dcBlock_[ch].process(y);
 
         // [J] Safety soft-limit.
         return softLimit(dcOut);
@@ -377,8 +366,7 @@ private:
             bandF2_[ch]       = 0.0f;
             splitLp_[ch]      = 0.0f;
             postLp_[ch]       = 0.0f;
-            dcPrev_[ch]       = 0.0f;
-            dcInputPrev_[ch]  = 0.0f;
+            dcBlock_[ch].reset();
         }
         if (delayL_ && delayR_) {
             for (int i = 0; i < kChorusLen; ++i) {
@@ -411,8 +399,7 @@ private:
     float bandF2_[2]      = {0.0f, 0.0f};
     float splitLp_[2]     = {0.0f, 0.0f};
     float postLp_[2]      = {0.0f, 0.0f};
-    float dcPrev_[2]      = {0.0f, 0.0f};
-    float dcInputPrev_[2] = {0.0f, 0.0f};
+    dsp::DcBlocker dcBlock_[2];
 
     // --- LFO phases & shared delay-line write index ---
     float tremPhase_    = 0.0f;

@@ -122,6 +122,17 @@ float wet = band * (2.0f * q1);  // = band * (2/Q); peak gain = 1.0 at all Q val
 means fc < ~3 kHz at 48 kHz sample rate is safe for Q ≤ 10. For higher fc or Q, consider
 the Cytomic/Andy Simper SVF formulation (more numerically robust but slightly more complex).
 
+**WDF caveat for high-Q resonant sections.** A WDF-style circuit-faithful port of a
+Sallen-Key or other high-Q filter section is *not* a drop-in upgrade over the SVF above.
+The `sthompsonjr` fork shipped a 2026-04-30 fix replacing two WDF Sallen-Key filters
+(corner near 2.1 kHz / 3.8 kHz) with bilinear-transform biquads after the originals
+diverged within ~261 samples at 48 kHz. If you are tempted to model a wah, envelope
+filter, or other resonant section as a WDF circuit, plan the fallback path before you
+commit. See
+[`docs/fork-comparisons/sthompsonjr-wdf.md`](fork-comparisons/sthompsonjr-wdf.md) for the
+incident detail and our open question about adding an impulse-response stability check
+to the local probe.
+
 **State clearing:** When fc changes abruptly (e.g., mode switch), clear `lo` and `band` to
 zero to avoid a transient pop. When sweeping smoothly (expression pedal), do NOT clear —
 the state continuity IS the sweep character.
@@ -163,6 +174,15 @@ float clipped = tanhf(gained);  // always in (-1, +1); smooth onset
 float clipped = tanhf(gained * 3.0f);  // sharper knee, closer to hard limiting
 ```
 
+**Where local WDF-style work lives.** Diode-pair clipping is the lower-risk corner of
+the WDF design space and is where this repo's two WDF-style sibling patches live:
+[`effects/big_muff_wdf.cpp`](../effects/big_muff_wdf.cpp) and
+[`effects/tube_screamer_wdf.cpp`](../effects/tube_screamer_wdf.cpp). If you are weighing
+"hand-tuned `tanhf` versus a wave-solved diode pair" for a new drive patch, the existing
+sibling-pair experiment is the cheapest precedent to read. See
+[`docs/fork-comparisons/sthompsonjr-wdf.md`](fork-comparisons/sthompsonjr-wdf.md) for
+why diode-pair WDF is treated as opt-in rather than default in this repo.
+
 **Cubic soft clip (faster than tanhf, valid only for |x| ≤ 1):**
 ```cpp
 float clipped = x - (x * x * x) / 3.0f;
@@ -191,6 +211,17 @@ void setWorkingBuffer(std::span<float, kWorkingBufferSize> buf) override {
     delayR_ = buf.data() + kLen;
 }
 ```
+
+**Tape/BBD-flavored modeling — fork precedent.** If a patch wants the *character* of a
+bucket-brigade delay (EH-7850 family, Deluxe Memory Man, etc.) rather than just a clean
+delay line, the `sthompsonjr` fork's `wdf/DmmBbdCore.h` (BBD core), `wdf/DmmDelayCircuit.h`
+(IIR feedback EQ + assembled topology), and `dsp/DmmCompander.h` (NE570 behavioral
+compander) are the closest external worked example. We have not adopted them — license
+status is unresolved and our existing
+[`effects/back_talk_reverse_delay.cpp`](../effects/back_talk_reverse_delay.cpp) and
+[`effects/chorus.cpp`](../effects/chorus.cpp) target a different feel — but the
+companding-plus-feedback-EQ structure is the right idea-level reference. See
+[`docs/fork-comparisons/sthompsonjr-wdf.md`](fork-comparisons/sthompsonjr-wdf.md).
 
 ---
 
@@ -606,6 +637,17 @@ and transformer coupling, but is not available in the stock SDK.
 
 WDF reference: K. Werner et al., "Wave Digital Filter Modeling of Circuits with Operational
 Amplifiers," EUSIPCO 2016.
+
+**Stability is not free.** WDF circuits can diverge in single precision at 48 kHz for
+high-Q sections. The `sthompsonjr` fork shipped a 2026-04-30 fix replacing two WDF
+Sallen-Key filters with bilinear-transform biquads after the originals showed a
+per-step eigenvalue of ~1.4–2.5× and float overflow within ~261 samples. Diode-pair
+clipping has held up better in practice — that is where the local
+[`effects/big_muff_wdf.cpp`](../effects/big_muff_wdf.cpp) and
+[`effects/tube_screamer_wdf.cpp`](../effects/tube_screamer_wdf.cpp) sibling experiments
+live. See
+[`docs/fork-comparisons/sthompsonjr-wdf.md`](fork-comparisons/sthompsonjr-wdf.md) for the
+full incident notes and the design-pattern discussion.
 
 ### Oversampling
 

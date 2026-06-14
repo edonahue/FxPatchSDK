@@ -7,6 +7,12 @@
 **Primary analysis source:** <https://electrosmash.com/back-talk-analysis>  
 **Template:** [`docs/templates/patch-build-walkthrough.md`](templates/patch-build-walkthrough.md)
 
+> **2026-06-13 update:** the Mix-knob equal-power crossfade now uses
+> `dsp::equalPower` from [`source/dsp/`](../source/dsp). The reverse-delay
+> buffer indexing stays in-file because its chunk-based access pattern does
+> not map cleanly onto `dsp::RingBuffer`'s "samples back from write head"
+> contract. Behavior is unchanged.
+
 ---
 
 ## Overview

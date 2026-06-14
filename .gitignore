@@ -4,3 +4,8 @@ build*/
 effects/builds/*
 !effects/builds/
 !effects/builds/README.md
+
+# JUCE VST3 wrapper (vst/) — build output and the fetched JUCE tree
+vst/build/
+vst/cmake-build-*/
+vst/_deps/

@@ -30,6 +30,7 @@
 //   real Crybaby/Vox, which boost ~+10 to +18 dB at the resonance frequency.
 
 #include "../source/Patch.h"
+#include "../source/dsp/crossfade.h"
 #include <cmath>
 
 namespace {
@@ -127,11 +128,11 @@ public:
         // Equal-power dry/wet crossfade. Linear blends have a −3 dB dip at mix=0.5;
         // equal-power keeps perceived loudness constant across the knob sweep, which
         // lets full-wet actually read as "more wah" rather than just "same level but
-        // filtered." kHalfPi precomputes π/2 since mix_ is in [0,1].
-        constexpr float kHalfPi = 1.57079632679f;
+        // filtered." Equal-power crossfade comes from source/dsp/crossfade.h.
         const float mixClamped = (mix_ < 0.0f) ? 0.0f : (mix_ > 1.0f ? 1.0f : mix_);
-        const float wet = sinf(mixClamped * kHalfPi);
-        const float dry = cosf(mixClamped * kHalfPi);
+        const auto  mixGains   = dsp::equalPower(mixClamped);
+        const float dry        = mixGains.dry;
+        const float wet        = mixGains.wet;
 
         // Op-amp "growl" drive. Real wah circuits feed the peaking filter into a
         // transistor/op-amp stage that softly clips at the top of the swept peak —

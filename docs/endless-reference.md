@@ -392,7 +392,14 @@ the current live catalog locally without committing the bulk archive, use
 
 ## 10. Syncing with Upstream
 
-This repo is still structurally close enough to upstream that syncing remains realistic.
+**Upstream status (surveyed 2026-05-18): dormant, and this fork is fully caught up.**
+Upstream `polyend/FxPatchSDK` has five commits total, the most recent from 2026-03-17,
+and this fork's `master` history contains all five. There is nothing to merge today.
+For the commit-by-commit detail and the rest of the fork network, see
+[`fork-comparisons/upstream-and-forks.md`](fork-comparisons/upstream-and-forks.md).
+
+This repo is still structurally close enough to upstream that syncing remains realistic
+if upstream resumes.
 
 Recommended setup:
 
@@ -419,3 +426,64 @@ Conflict pattern to expect:
 
 If upstream bumps `PATCH_ABI_VERSION`, rebuild every patch before trusting old `.endl`
 artifacts.
+
+---
+
+## 11. Known SDK Limitations
+
+These are not bugs; they are boundaries of what the SDK exposes to patch code. Design
+patches within them rather than around them.
+
+- **No persistent storage.** A patch cannot save state across power cycles — there is no
+  preset store, no non-volatile scratch, no filesystem. All patch state is lost on
+  power-down. (Confirmed by open upstream issue #1, "Any chance we can open up a way to
+  write to persistent storage?", which remains unanswered.) Do not design a patch whose
+  behavior depends on remembering anything between sessions.
+- **No DTCM/ITCM placement control.** The Cortex-M7 has fast tightly-coupled memory, but
+  this SDK's linker script ([`internal/patch_imx.ld`](../internal/patch_imx.ld)) places
+  the entire patch image — code, rodata, data, and bss — into one contiguous 512 KB
+  `RAM` region at `0x80000000`. A patch author cannot pin hot data to DTCM. See
+  [`cycle-budget.md`](cycle-budget.md).
+- **Beta SDK, no tagged releases.** Upstream publishes no GitHub releases or version
+  tags; the SDK is explicitly a beta. Treat the ABI as stable-for-now but not
+  contractually frozen, and re-validate after any upstream sync.
+- **Fixed control surface.** Three parameters, one footswitch (press/hold), one state
+  LED. The pedal has more physical controls than the SDK surfaces; see §3.
+- **No runtime sample rate.** `Patch::kSampleRate` is fixed at 48000. Patches that need
+  to run anywhere else (e.g. a desktop host) must resample around `processAudio`; see
+  [`vst-host-plan.md`](vst-host-plan.md).
+
+---
+
+## 12. Ecosystem and Community
+
+The Endless ecosystem is wider than upstream's dormant GitHub repo suggests; a
+new contributor should know where to look.
+
+- **Polyend Plates** (<https://polyend.com/plates/>) — the official catalog of
+  curated and community-contributed effect plates loaded over USB onto an
+  Endless. Polyend ships their own plates (granular, ambient, glitch,
+  experimental, and a growing roster of pedal-style emulations) and accepts
+  community submissions. Useful as a reference for what an "Endless effect"
+  can be, including categories this fork's own [`effects/`](../effects/) does
+  not cover.
+- **Polyend Backstage forum** (<https://backstage.polyend.com>) — the active
+  community hub for Endless and other Polyend hardware. Threads on Playground
+  prompts, feature requests (notably momentary-footswitch / tap-tempo mode,
+  more LED colors, a desktop plugin), and shared pedalboards live here, not on
+  GitHub. The official upstream `polyend/FxPatchSDK` repo has GitHub
+  Discussions *disabled*, so questions about SDK use are answered on Backstage
+  or not at all.
+- **Polyend Playground** — the company's AI-assisted patch-generation flow,
+  token-purchased. This fork explicitly positions itself as a counterpoint to
+  Playground: a craft-and-best-practices reference for handcrafting Endless
+  patches. See [`patch-authoring-best-practices.md`](patch-authoring-best-practices.md)
+  for the rationale.
+- **Upstream license** — `polyend/FxPatchSDK` is MIT (commit `284a60f`,
+  2026-03-17). This fork inherits MIT. Forks within the network differ:
+  `andybalham/FxPatchSDK` is MIT (LICENSE.TXT present); `sthompsonjr/Endless-FxPatchSDK`
+  has no LICENSE file as of 2026-06-13, so its substantial WDF/DSP work is
+  study-only for this repo (see [`fork-comparisons/sthompsonjr-wdf.md`](fork-comparisons/sthompsonjr-wdf.md)).
+- **Hardware context** — the Endless shipped February 2026 and won Best in
+  Show at NAMM 2026. Commercial activity around the pedal is real even where
+  the open-source SDK looks dormant.

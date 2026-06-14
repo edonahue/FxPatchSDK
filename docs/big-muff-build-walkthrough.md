@@ -8,6 +8,10 @@
 **Variant context:** <https://www.kitrae.net/music/big_muff_historyB.html>  
 **Template:** [`docs/templates/patch-build-walkthrough.md`](templates/patch-build-walkthrough.md)
 
+> **2026-06-13 update:** the 1-pole filter helpers (`hpCoeff` / `lpCoeff`) and
+> the equal-power Sustain/Blend crossfade now come from
+> [`source/dsp/`](../source/dsp); behavior is unchanged.
+
 ---
 
 ## Overview

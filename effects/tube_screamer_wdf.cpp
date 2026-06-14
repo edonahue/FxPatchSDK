@@ -16,6 +16,9 @@
 //   LED         — LightGreen/DimGreen TS808, PastelGreen/DarkLime TS9
 
 #include "../source/Patch.h"
+#include "../source/dsp/filter_coeff.h"
+#include "../source/dsp/parameter_smoother.h"
+#include "../source/dsp/soft_limit.h"
 
 #include <cmath>
 
@@ -23,6 +26,18 @@ namespace {
 constexpr float kTwoPi  = 6.283185307f;
 constexpr float kHalfPi = 1.57079632679f;
 constexpr float kFs     = static_cast<float>(Patch::kSampleRate);
+
+using dsp::hpCoeff;
+using dsp::lpCoeff;
+using SmoothedValue = dsp::ParamSmoother;
+
+// Per-effect tuning of the safety soft-limit: divisor 0.22f gives a slightly
+// harder knee than the 0.25f default — kept here so it is visible at the call
+// site instead of buried in a duplicate of the helper.
+inline float softLimit(float value)
+{
+    return dsp::softLimit(value, 0.90f, 0.22f);
+}
 
 float clamp01(float value)
 {
@@ -51,71 +66,10 @@ float clampUnit(float value)
     return clampSigned(value, 1.0f);
 }
 
-float softLimit(float value)
-{
-    const float absValue = fabsf(value);
-    if (absValue <= 0.90f) {
-        return value;
-    }
-
-    const float sign = value < 0.0f ? -1.0f : 1.0f;
-    const float over = (absValue - 0.90f) / 0.22f;
-    return sign * (0.90f + 0.10f * tanhf(over));
-}
-
-float hpCoeff(float fc)
-{
-    return 1.0f / (1.0f + kTwoPi * fc / kFs);
-}
-
-float lpCoeff(float fc)
-{
-    const float omega = kTwoPi * fc / kFs;
-    return omega / (1.0f + omega);
-}
-
 float lerp(float a, float b, float mix)
 {
     return a + (b - a) * mix;
 }
-
-class SmoothedValue
-{
-public:
-    void init(float value, float timeMs)
-    {
-        current_ = value;
-        target_  = value;
-        setTimeMs(timeMs);
-    }
-
-    void setTimeMs(float timeMs)
-    {
-        const float samples = 0.001f * timeMs * kFs;
-        coeff_ = samples <= 1.0f ? 0.0f : expf(-1.0f / samples);
-    }
-
-    void setTarget(float value)
-    {
-        target_ = value;
-    }
-
-    float process()
-    {
-        current_ = target_ + coeff_ * (current_ - target_);
-        return current_;
-    }
-
-    float current() const
-    {
-        return current_;
-    }
-
-private:
-    float current_ = 0.0f;
-    float target_  = 0.0f;
-    float coeff_   = 0.0f;
-};
 
 class OnePoleLowpass
 {
