@@ -477,8 +477,8 @@ new contributor should know where to look.
 - **Polyend Playground** — the company's AI-assisted patch-generation flow,
   token-purchased. This fork explicitly positions itself as a counterpoint to
   Playground: a craft-and-best-practices reference for handcrafting Endless
-  patches. A dedicated `docs/patch-authoring-best-practices.md` is planned to
-  crystallize that rationale.
+  patches. See [`patch-authoring-best-practices.md`](patch-authoring-best-practices.md)
+  for the rationale.
 - **Upstream license** — `polyend/FxPatchSDK` is MIT (commit `284a60f`,
   2026-03-17). This fork inherits MIT. Forks within the network differ:
   `andybalham/FxPatchSDK` is MIT (LICENSE.TXT present); `sthompsonjr/Endless-FxPatchSDK`

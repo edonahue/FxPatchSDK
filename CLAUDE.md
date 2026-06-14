@@ -17,11 +17,16 @@ If you are preparing to add or change code, read in this order:
 2. [`docs/endless-reference.md`](docs/endless-reference.md) — SDK shape,
    hardware constraints, and the canonical "Hard Rules for Patch Authors"
    list (see its §8)
-3. [`effects/README.md`](effects/README.md) — patch catalog and control
+3. [`docs/patch-authoring-best-practices.md`](docs/patch-authoring-best-practices.md)
+   — the "how to handcraft a good Endless patch" reference: control-law
+   conventions, DSP idioms (with pointers into [`source/dsp/`](source/dsp)),
+   working-buffer use patterns, CPU-budget intuition, and the
+   handcraft-vs-Playground positioning
+4. [`effects/README.md`](effects/README.md) — patch catalog and control
    cheat sheet
-4. [`docs/circuit-to-patch-conversion.md`](docs/circuit-to-patch-conversion.md)
+5. [`docs/circuit-to-patch-conversion.md`](docs/circuit-to-patch-conversion.md)
    — circuit-to-DSP mapping playbook
-5. [`docs/fork-comparisons/`](docs/fork-comparisons) — fork survey:
+6. [`docs/fork-comparisons/`](docs/fork-comparisons) — fork survey:
    [`upstream-and-forks.md`](docs/fork-comparisons/upstream-and-forks.md)
    tracks the upstream repo and the fork network;
    [`sthompsonjr-wdf.md`](docs/fork-comparisons/sthompsonjr-wdf.md) is the
@@ -85,6 +90,12 @@ review burden is on whoever proposes a change.
 - Patch implementations: `effects/<patch>.cpp` — snake_case, lowercase.
 - Per-patch docs: `docs/<patch>-build-walkthrough.md` and optionally
   `docs/<patch>-research.md`.
+- Shared DSP primitives: header-only files under
+  [`source/dsp/`](source/dsp), in `namespace dsp`. Scope is the proven
+  duplicates only — see the "deliberately does not do" list below.
+- Per-primitive unit tests: `tests/dsp/<x>_test.cpp`, built and run by
+  [`tests/check_dsp.sh`](tests/check_dsp.sh) (which
+  [`tests/check_patches.sh`](tests/check_patches.sh) invokes automatically).
 - Validation scripts live under `tests/`; tooling under `scripts/`.
 - This repo uses snake_case filenames throughout; do not rename toward the
   `sthompsonjr` fork's PascalCase header style.
@@ -107,6 +118,11 @@ Do not "helpfully" re-introduce them without explicit direction:
   reading order above and `effects/README.md` cover the same surface at
   this scale.
 - No `docs_sync`-style auto-regeneration of inventory files.
+- No speculative expansion of [`source/dsp/`](source/dsp). The current
+  primitives are the proven duplicates from the 2026-06-13 audit. Add a
+  new primitive only when at least two effects would use it; otherwise
+  keep it inline in the effect that needs it. The scope is "extract
+  the duplicates", not "build a library."
 - No SDK API change for per-patch expression routing
   (the fork's `isParamEnabled(...)` hook). Expression is wired to param 2
   via [`internal/PatchCppWrapper.cpp`](internal/PatchCppWrapper.cpp) for

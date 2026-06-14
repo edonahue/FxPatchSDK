@@ -109,8 +109,10 @@ holds.
 
 For in-repo lookup: the fork's `dsp/` directory contains **23 header files**.
 Earlier walks reported only the count; this walk records each name so this
-repo's own planned `source/dsp/` primitive-extraction effort can cross-reference
-shape and naming intent without revisiting GitHub:
+repo's own [`source/dsp/`](../../source/dsp) primitive-extraction effort can
+cross-reference shape and naming intent without revisiting GitHub. See also
+[`docs/patch-authoring-best-practices.md`](../patch-authoring-best-practices.md)
+for how those primitives are now used across the corpus:
 
 | File | What it is (per file's top comment) |
 | --- | --- |
