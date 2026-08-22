@@ -31,10 +31,10 @@
 
 #include "../source/Patch.h"
 #include "../source/dsp/crossfade.h"
+#include "../source/dsp/filter_coeff.h"
 #include <cmath>
 
 namespace {
-    constexpr float kPi = 3.14159265f;
     constexpr float kFs = static_cast<float>(Patch::kSampleRate);
 
     // Frequency range — both modes share the same low end (heel position)
@@ -106,9 +106,10 @@ public:
         const float ratio = (mode_ == WahMode::kCrybaby) ? kCrybabyRatio : kVoxRatio;
         const float fc    = kFcMin * powf(ratio, wahPos_);
 
-        // SVF frequency coefficient: f1 = 2*sin(π*fc/fs)
+        // SVF frequency coefficient: f1 = 2*sin(π*fc/fs) (dsp::svfF1,
+        // source/dsp/filter_coeff.h — shared with funk_machine_envelope_filter.cpp).
         // Valid approximation for fc << fs/2; stable for fc ≤ ~3 kHz at 48 kHz.
-        const float f1 = 2.0f * sinf(kPi * fc / kFs);
+        const float f1 = dsp::svfF1(fc, kFs);
 
         // SVF damping coefficient: q1 = 1/Q  (lower q1 = sharper, more nasal resonance)
         // Q knob: Q = 1.0 + q_knob_ * 9.0  (linear, range 1.0–10.0)

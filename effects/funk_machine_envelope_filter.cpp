@@ -1,25 +1,33 @@
 // Funk Machine Envelope Filter — Polyend Endless SDK patch
 //
 // Touch-sensitive funk filter for bass, clav, clean guitar, and keyboards.
-// The input envelope opens a resonant state-variable filter while the Right
-// knob / expression pedal shifts the entire sweep window up or down.
+// The input envelope opens (Down) or closes (Up) a resonant state-variable
+// filter while the Right knob / expression pedal shifts the entire sweep
+// window up or down.
 //
 // Controls:
-//   Left  knob  — Sensitivity: how strongly playing dynamics open the filter
+//   Left  knob  — Sensitivity: how strongly playing dynamics move the filter
 //   Mid   knob  — Resonance: broad/fat to sharp/vocal
 //   Right knob  — Bias: shifts the whole envelope sweep window; expression mapped
 //   Footswitch press — bypass
-//   Footswitch hold  — Bass <-> Guitar/Keys voicing
+//   Footswitch hold  — advances a 4-state Bass/GuitarKeys x Down/Up cycle:
+//     Bass-Down (default) -> GuitarKeys-Down -> GuitarKeys-Up -> Bass-Up -> loop.
+//     Voice flips on odd-numbered holds, direction flips on even-numbered
+//     holds, so the very first hold from power-on reproduces the original
+//     Bass<->GuitarKeys toggle exactly. See "Decision 4b" in the walkthrough
+//     doc for why this ordering (not a plain 2-bit binary count) was chosen,
+//     and for the honest tradeoff: rapid repeated Bass<->GuitarKeys ping-pong
+//     no longer round-trips in 2 holds once Up has been visited.
 //
 // See docs/funk-machine-envelope-filter-build-walkthrough.md.
 
 #include "../source/Patch.h"
+#include "../source/dsp/filter_coeff.h"
 #include "../source/dsp/soft_limit.h"
 
 #include <cmath>
 
 namespace {
-constexpr float kPi = 3.14159265f;
 constexpr float kFs = static_cast<float>(Patch::kSampleRate);
 
 constexpr float clamp01(float v)
@@ -50,6 +58,27 @@ enum class FunkVoice
     kGuitarKeys,
 };
 
+enum class FunkDirection
+{
+    kDown,  // envelope opens the filter (louder -> brighter) -- the original behavior
+    kUp,    // envelope closes the filter (louder -> darker) -- Mu-Tron-III-style inversion
+};
+
+namespace {
+// Gray-code Hold cycle: index advances +1 (mod 4) per Hold press. Voice
+// flips on odd-numbered presses, direction flips on even-numbered presses,
+// so every single press changes exactly one axis, never both at once, and
+// the very first Hold from the power-on default (state 0) reproduces the
+// original Bass->GuitarKeys toggle exactly -- a player who never touches
+// Up mode sees no behavior change on the one gesture everyone already uses.
+constexpr FunkVoice kVoiceForHoldState[4] = {
+    FunkVoice::kBass, FunkVoice::kGuitarKeys, FunkVoice::kGuitarKeys, FunkVoice::kBass,
+};
+constexpr FunkDirection kDirectionForHoldState[4] = {
+    FunkDirection::kDown, FunkDirection::kDown, FunkDirection::kUp, FunkDirection::kUp,
+};
+}
+
 class FunkMachine final : public Patch
 {
 public:
@@ -58,7 +87,9 @@ public:
         sensitivity_ = 0.58f;
         resonance_   = 0.56f;
         bias_        = 0.40f;
-        voice_       = FunkVoice::kBass;
+        holdState_   = 0;
+        voice_       = kVoiceForHoldState[holdState_];
+        direction_   = kDirectionForHoldState[holdState_];
         bypassed_    = false;
 
         attackCoeff_  = onePoleTimeCoeff(kAttackMs);
@@ -109,6 +140,15 @@ public:
         }
         const float fcRatio = fcMax / fcMin;
 
+        // Down (original): fc = fcMin * fcRatio^envNorm -- quiet/idle -> fcMin
+        // (dark), loud -> fcMax (bright), envelope opens the filter.
+        // Up (Mu-Tron-III-style inversion): the exponent flips to
+        // (1 - envNorm), which is algebraically fc = fcMax * fcRatio^-envNorm
+        // -- quiet/idle -> fcMax (bright), loud -> fcMin (dark), envelope
+        // closes the filter. Same fcMin/fcMax/dryFoundation per voice either
+        // way; only which end of the window the envelope drives toward changes.
+        const bool isUp = (direction_ == FunkDirection::kUp);
+
         for (size_t i = 0; i < left.size(); ++i) {
             const float inL = left[i];
             const float inR = right[i];
@@ -129,8 +169,9 @@ public:
             // Filter state itself still updates every sample, so there is no
             // decimation of the audio path.
             if (controlCountdown_ <= 0) {
-                const float fc = fcMin * powf(fcRatio, envNorm);
-                f1_ = 2.0f * sinf(kPi * fc / kFs);
+                const float exponent = isUp ? (1.0f - envNorm) : envNorm;
+                const float fc = fcMin * powf(fcRatio, exponent);
+                f1_ = dsp::svfF1(fc, kFs);
                 controlCountdown_ = kControlInterval;
             }
             --controlCountdown_;
@@ -187,7 +228,17 @@ public:
             if (!bypassed_)
                 clearState();
         } else if (actionIdx == static_cast<int>(endless::ActionId::kLeftFootSwitchHold)) {
-            voice_ = (voice_ == FunkVoice::kBass) ? FunkVoice::kGuitarKeys : FunkVoice::kBass;
+            // Advances the Gray-code cycle by one step -- voice flips on odd
+            // presses, direction flips on even presses, never both at once.
+            // Whichever axis changes, only the mapping window or its
+            // exponent changes, not the SVF topology itself, so the clearing
+            // policy is identical to the original voice-only toggle: clear
+            // filter state (the largest fc jump this patch can produce,
+            // especially at extreme envNorm, happens right here), leave the
+            // detector (envelope_) running so the gesture stays natural.
+            holdState_ = (holdState_ + 1) % 4;
+            voice_     = kVoiceForHoldState[holdState_];
+            direction_ = kDirectionForHoldState[holdState_];
             clearFilterState();
             controlCountdown_ = 0;
         }
@@ -195,9 +246,13 @@ public:
 
     Color getStateLedColor() override
     {
-        if (voice_ == FunkVoice::kBass)
-            return bypassed_ ? Color::kDimGreen : Color::kLightGreen;
-        return bypassed_ ? Color::kDimCyan : Color::kLightBlueColor;
+        constexpr Color kActiveForHoldState[4] = {
+            Color::kLightGreen, Color::kLightBlueColor, Color::kDarkCobalt, Color::kPastelGreen,
+        };
+        constexpr Color kBypassedForHoldState[4] = {
+            Color::kDarkLime, Color::kDimCyan, Color::kDimCyan, Color::kDimGreen,
+        };
+        return bypassed_ ? kBypassedForHoldState[holdState_] : kActiveForHoldState[holdState_];
     }
 
 private:
@@ -216,7 +271,9 @@ private:
     float lowR_  = 0.0f;
     float bandR_ = 0.0f;
 
+    int holdState_ = 0;  // index into kVoiceForHoldState/kDirectionForHoldState
     FunkVoice voice_ = FunkVoice::kBass;
+    FunkDirection direction_ = FunkDirection::kDown;
     bool bypassed_ = false;
 
     void clearFilterState()
