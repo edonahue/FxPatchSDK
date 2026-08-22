@@ -11,6 +11,7 @@ Current inventory:
 - `big_muff.cpp`: Ram's Head-inspired Big Muff fuzz with a Tone Bypass alternate voice and expression-as-blend
 - `big_muff_wdf.cpp`: hybrid WDF-style Big Muff sibling with the same `Sustain` / `Tone` / `Blend` surface and a more circuit-shaped clip core
 - `chorus.cpp`: stereo chorus with modulated delay lines
+- `dimension_chorus.cpp`: Boss DC-2 Dimension-style stereo widener — mono delay line, shared inverted-pair LFO, cross-feed width instead of a mix knob, with a Classic/Mono-safe crossfeed-intensity toggle
 - `harmonica.cpp`: blues bullet-mic harmonica voicing of a guitar input, with a hand-cup expression sweep and an Open/Cupped voicing toggle
 - `klon_centaur.cpp`: Klon-inspired transparent overdrive with a Tone Mod alternate voice and expression-as-output
 - `mxr_distortion_plus.cpp`: MXR Distortion+ inspired distortion with Endless-tuned gain, tone, and level control
@@ -36,6 +37,7 @@ actually does.
 | `big_muff.cpp` | `Sustain`: more gain, sustain, and density. | `Tone`: moves from darker wool to sharper cut through the Muff stack. | `Blend`: shifts from more dry pick attack to more full-wall fuzz. This is intentionally a texture/wetness control, not a literal Muff-style volume pot. | Bypass toggle. | Toggles the `Tone Bypass`-style mids-lift voice. | Ram's Head voice: Red active, DarkRed bypassed. Tone Bypass voice: Magenta active, DimCyan bypassed. |
 | `big_muff_wdf.cpp` | `Sustain`: adds more multi-stage compression and sustain through two wave-solved clip stages; the useful sweep is intentionally stretched so the knob keeps opening up beyond the first quarter-turn. | `Tone`: in the core voice it still moves from darker wool to sharper cut through the Muff-style LP/HP blend; in the alternate voice it becomes a gentler top-end trim on the mids-lift response. | `Blend`: equal-power dry/fuzz mix, heel retaining more pick definition and toe pushing toward full-wall fuzz. This keeps expression on a live texture control rather than a static output trim. | Bypass toggle. | Toggles the hybrid WDF sibling's `Tone Bypass`-style mids-lift voice. | Ram's Head voice: Red active, DarkRed bypassed. Tone Bypass voice: Magenta active, DimCyan bypassed. |
 | `chorus.cpp` | `Rate`: slower swirl to faster shimmer. | `Depth`: shallow thickening to deeper pitch swim. | `Mix`: dry chorus blend to full wet modulation. | Bypass toggle. | Same as short press; hold also toggles bypass. | LightBlue active, DimBlue bypassed. |
+| `dimension_chorus.cpp` | `Rate`: calmer, slower sweep range than `chorus.cpp` — the real DC-2 runs its modulation gently. | `Depth`: shallow interference to a deeper, wider stereo image. | `Width`: crossfeed intensity, not a dry/wet blend — heel is exact dry passthrough, toe is full interference width. | Bypass toggle. | Toggles `Classic` (stronger, over-unity crossfeed) vs `Mono-safe` (gentler, under-unity crossfeed) intensity. | Classic: DarkCobalt active, DimBlue bypassed. Mono-safe: Magenta active, DimCyan bypassed. |
 | `harmonica.cpp` | `Tone / Cup`: loose & bright to tight & dark cup trim on top of the base voicing. | `Reed / Drive`: light reed saturation to cranked bullet-mic breakup with asymmetric reed clipping. | `Waa / Cup sweep`: heel is cupped & dark (formant ~320 Hz), toe is open & bright (formant up to ~2.5 kHz) — this is the signature hand-muting gesture, ideal for the expression pedal. | Bypass toggle. | Toggles `Open` vs `Cupped` voicing (different Q, drive, rolloff, and tremolo depth). | Cupped voice: LightYellow active, DimYellow bypassed. Open voice: LightBlue active, DimBlue bypassed. |
 | `klon_centaur.cpp` | `Gain`: pushes from mostly clean boost into fuller clipped drive. | `Treble`: active high shelf, from rounder to brighter and more cutting. | `Output`: re-centered so around noon sits near bypass level and the upper half behaves like a real boost/output stage instead of just harder limiting. | Bypass toggle. | Toggles the fuller `Tone Mod` variant. | Stock voice: LightYellow active, DimYellow bypassed. Tone Mod voice: Beige active, DimWhite bypassed. |
 | `mxr_distortion_plus.cpp` | `Distortion`: gain plus low-end tightening, from light grit to denser crunch. | `Tone`: darker post-clip rolloff to brighter bite. | `Level`: re-centered so around noon is near unity and the upper half adds real post-drive level before the safety limiter matters. | Bypass toggle. | No long-press action. | Red active, DimWhite bypassed. |
@@ -189,6 +191,10 @@ Patch review in this fork now treats parameter taper as a first-class design cho
   original repo lesson and puts expression on `Level` so the output-stage behavior can be
   judged against a more pedal-like control layout
 - `chorus.cpp` is a good positive example: log taper for `Rate`, linear mappings for `Depth` and `Mix`
+- `dimension_chorus.cpp` is the main "no literal mix knob" case: the real DC-2 has no
+  dry/wet control, so `Width` (crossfeed intensity) carries the expression-pedal lane
+  instead — a genuinely different architecture from `chorus.cpp`, not a re-tuned copy;
+  see `docs/dimension-chorus-build-walkthrough.md` for the measured comparison
 - `wah.cpp` is another positive example: log taper for sweep frequency, linear mapping for Q
 - `harmonica.cpp` is the main multi-stage filter case: each knob modulates several coupled
   voicing parameters at once (the base Open/Cupped preset moves eleven of them together),
@@ -254,6 +260,10 @@ These are the best files to read before editing or adding a patch:
   design log for `big_muff.cpp`
 - [`docs/big-muff-wdf-build-walkthrough.md`](../docs/big-muff-wdf-build-walkthrough.md) —
   design log for the hybrid WDF-style `big_muff_wdf.cpp` sibling
+- [`docs/dimension-chorus-research.md`](../docs/dimension-chorus-research.md) —
+  Boss DC-2 Dimension Chorus circuit research for `dimension_chorus.cpp`
+- [`docs/dimension-chorus-build-walkthrough.md`](../docs/dimension-chorus-build-walkthrough.md) —
+  design log for `dimension_chorus.cpp`, including the measured comparison against `chorus.cpp`
 - [`docs/klon-centaur-research.md`](../docs/klon-centaur-research.md) —
   ElectroSmash-grounded clean/dirty summing and mod rationale for `klon_centaur.cpp`
 - [`docs/klon-centaur-build-walkthrough.md`](../docs/klon-centaur-build-walkthrough.md) —

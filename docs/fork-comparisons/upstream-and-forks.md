@@ -1,9 +1,17 @@
 # Upstream and Fork Survey
 
-**Last surveyed:** 2026-06-13. The 2026-06-13 walk found the ecosystem static
-since 2026-05-18 — no fork in the network has committed in the intervening
-~four weeks, and upstream has not committed since 2026-03-17. The only net-new
-finding is one additional empty fork (`klausmobi32/FxPatchSDK`).
+**Last surveyed:** 2026-06-14. The 2026-06-13 walk found the ecosystem static;
+the 2026-06-14 follow-up walk found the opposite — `sthompsonjr` resumed
+active development, a new fork appeared, one tracked clone was deleted, and a
+non-fork reimplementation surfaced. See
+[Changes since the 2026-06-13 walk](#changes-since-the-2026-06-13-walk) below.
+Upstream itself remains dormant throughout.
+
+A note on dates: live GitHub data returned by this walk's tooling reflected
+commit timestamps past this session's own stated "today." Rather than
+reconcile or hide that, this doc records what GitHub actually reports,
+timestamped precisely, and flags the discrepancy here once rather than
+re-explaining it at every finding below.
 
 This note tracks two things the per-fork deep-dives do not:
 
@@ -64,7 +72,7 @@ same in both repos.
   is **no persistent-storage / preset-save facility** in the SDK. This is recorded as a
   known limitation in [`docs/endless-reference.md`](../endless-reference.md).
 - Issue #4 (opened 2026-05-01) — request for "more complex code samples." This fork
-  already has twelve documented effects; contributing one or more upstream as worked
+  already has thirteen documented effects; contributing one or more upstream as worked
   examples would be a low-effort, high-goodwill move. See the closed PR #3 note
   below for why we are not pursuing this for now.
 
@@ -87,28 +95,88 @@ whether it touched `source/Patch.h`, `internal/PatchABI.h`, or
 
 ## Fork network
 
-Upstream has seven forks as of 2026-06-13 (six at the previous walk plus one new
-empty one). Only two carry meaningful independent work, and neither has moved in
-~four weeks.
+Upstream has six forks as of 2026-06-14 — the same count as before
+2026-06-13's `klausmobi32` addition, but the composition changed:
+`Everplay-Tech/FxPatchSDK` was deleted, `klausmobi32/FxPatchSDK` is no longer
+fork-linked (still exists as a bare, empty, unlinked repo — see the changes
+section below), and a new fork `sandroidmusic/FxPatchSDK` appeared. Two forks
+carry meaningful independent work.
 
 | Fork | Own commits | Verdict |
 | --- | --- | --- |
-| [`sthompsonjr/Endless-FxPatchSDK`](https://github.com/sthompsonjr/Endless-FxPatchSDK) | ~74 own (79 total, on 5 upstream) | Substantial but stalled — last commit 2026-05-06. WDF/DSP library + DMM. See [`sthompsonjr-wdf.md`](sthompsonjr-wdf.md). |
+| [`sthompsonjr/Endless-FxPatchSDK`](https://github.com/sthompsonjr/Endless-FxPatchSDK) | 89 own (94 total, on 5 upstream) | Substantial and **active again** as of 2026-06-14 — resumed after a ~5-week gap. New DC-2/TriDimension stereo-chorus circuit family. See [`sthompsonjr-wdf.md`](sthompsonjr-wdf.md). |
 | [`andybalham/FxPatchSDK`](https://github.com/andybalham/FxPatchSDK) | 2 (atop the 5 upstream) | Small but has one genuinely useful idea — see below. Unchanged since 2026-03-22. |
 | `edonahue/FxPatchSDK` | — | This repo. |
-| `Everplay-Tech/FxPatchSDK` | 0 | Plain clone, no custom work. |
+| [`sandroidmusic/FxPatchSDK`](https://github.com/sandroidmusic/FxPatchSDK) | 1 (atop the 5 upstream) | New fork, created 2026-07-05. Adds WASM/`.endless` compilation support. Small — one commit — but a genuinely distinct idea (a build-pipeline change, not a DSP/effect contribution) not overlapping with `sthompsonjr` or `andybalham`. Not yet substantial enough for a dedicated deep-dive; worth a look at what the WASM path actually changes if it grows. |
 | `johnnyclem/FxPatchSDK` | 0 | Plain clone, no custom work. |
 | `scarlton/FxPatchSDK` | 0 | Plain clone (only `02f22ca`), no custom work. |
-| `klausmobi32/FxPatchSDK` | 0 | New since the last walk — empty fork, no content. Listed here so a future walk does not re-investigate. |
 
-The four "no own work" clones (`Everplay-Tech`, `johnnyclem`, `scarlton`,
-`klausmobi32`) are listed only so a future walk does not re-investigate them
-from scratch.
+The two "no own work" clones (`johnnyclem`, `scarlton`) are listed only so a
+future walk does not re-investigate them from scratch.
 
 A separate non-SDK project deserves a one-line mention so a search for
 "FxPatchSDK" or "endless" does not surface it as a fork: `Everplay-Tech/endless-surfer`
-is a TypeScript ecosystem/forge project, not a C++ patch fork, and is orthogonal
-to anything tracked here.
+was a TypeScript ecosystem/forge project, not a C++ patch fork — see the
+changes section below for its (and its parent repo's) removal.
+
+### Non-fork implementations
+
+Not everyone referencing this SDK does so by forking it. Worth tracking
+alongside the fork network:
+
+- [`ceejbot/endless-rs`](https://github.com/ceejbot/endless-rs) — a Rust
+  reimplementation of the SDK (MIT-licensed), targeting
+  `thumbv7em-none-eabihf` with `#![no_std]`. It exposes a safe `Patch` trait
+  plus a macro generating the ABI glue to produce `.endl` binaries, and
+  includes a full Rust port of the official bitcrush example. Not a code
+  source for this C++ repo (different language), but its documented hard
+  constraints — no heap allocation, single-precision floats only, output in
+  `(-1.0, 1.0)`, real-time deadlines must never be missed — are useful as
+  **independent corroboration** of the same rules this repo already
+  documents in [`endless-reference.md`](../endless-reference.md) §7/§8. Two
+  people arriving at the same constraint list from different directions (a
+  C++ reverse-engineering of the firmware ABI here, a from-scratch Rust
+  binding there) is a reasonable signal those constraints are real, not
+  over-cautious house rules.
+- The Polyend GitHub org (<https://github.com/polyend>) now hosts three
+  repos, not one: `FxPatchSDK` (unchanged, see above), `PresetSandbox` (a
+  much older, unrelated sandbox for the Preset device, last touched
+  2020-12-22 — pre-existing but not previously logged in this survey), and
+  `tracker-lib` (active, 15 commits, last updated 2026-06-25 — a TypeScript
+  library for reading/writing Polyend **Tracker** project files, i.e. scoped
+  to the Tracker product line, not Endless; no FxPatchSDK relation found in
+  its README). Neither is Endless-SDK-relevant; noted here so a future walk
+  doesn't need to re-check the org's repo list from scratch.
+
+## Changes since the 2026-06-13 walk
+
+This section is a delta only — the material above already reflects these
+changes; this section is where the "what moved and when" record lives.
+
+- **`sthompsonjr/Endless-FxPatchSDK` resumed development.** Total commit
+  count 79→94 (own commits ~74→89) — see
+  [`sthompsonjr-wdf.md`](sthompsonjr-wdf.md) for the full delta (new
+  DC-2/TriDimension circuit family, `dsp/`/`wdf/` file counts, LICENSE
+  status unchanged).
+- **`sandroidmusic/FxPatchSDK` appeared** — new fork, created 2026-07-05, 1
+  own commit ("feat: add wasm / .endless compilation support").
+- **`Everplay-Tech/FxPatchSDK` was deleted.** The repo now 404s; the
+  `Everplay-Tech` account's repo list shows only one unrelated project
+  (`aimanac-cli`, a Python CLI, last updated 2026-08-08). Its companion
+  project `Everplay-Tech/endless-surfer` (the TypeScript ecosystem/forge
+  project mentioned above) was **also deleted** — Everplay-Tech appears to
+  have pivoted away from Endless-related work entirely.
+- **`klausmobi32/FxPatchSDK` is no longer fork-linked.** The repo still
+  exists and is still empty, but upstream's `/network/members` fork list no
+  longer includes it, and a direct check reports it is "not marked as a
+  fork" of `polyend/FxPatchSDK`. Whether it was explicitly un-forked,
+  deleted-and-recreated independently, or this is a stale listing artifact
+  is not determinable from the outside. Net effect on the fork count: this
+  repo's removal from the network offsets `sandroidmusic`'s addition and
+  `Everplay-Tech`'s deletion, landing back at six forks total (see table
+  above).
+- Upstream, `andybalham`, `johnnyclem`, and `scarlton` were re-checked and
+  are confirmed unchanged.
 
 ### `andybalham/FxPatchSDK`
 
@@ -127,7 +195,7 @@ anywhere in the fork network.
 - **`source/effects/` — six classic effects** (Bitcrush, Saturation, Distortion,
   Delay, Flanger, Reverb) written as header-only `Patch` subclasses. They are
   textbook implementations (Freeverb, LFO-modulated delay, etc.) and not more
-  advanced than this repo's twelve effects; no porting need.
+  advanced than this repo's thirteen effects; no porting need.
 - **Its own `CLAUDE.md`** — a teaching-oriented SDK guide. Our `CLAUDE.md` is
   deliberately a terse pointer file instead; no change wanted.
 
@@ -136,7 +204,7 @@ Nothing else in `andybalham` needs adopting. The VST3 idea is the takeaway.
 ## Where this fork stands
 
 For perspective: among the six forks, this one (`edonahue`) is the most
-documentation- and tooling-complete — twelve documented effects, validation scripts,
+documentation- and tooling-complete — thirteen documented effects, validation scripts,
 circuit-to-DSP playbooks, and per-patch walkthroughs. `sthompsonjr` has the broader
 reusable WDF/DSP *library*; this fork has the deeper authoring *process*. The two
 forks are strong in different dimensions, which is why the comparison docs treat

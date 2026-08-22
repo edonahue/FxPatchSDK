@@ -189,7 +189,7 @@ JUCE itself is never committed; FetchContent re-downloads it per clone.
   existing host probe already makes — accepted, but noted.
 - **Undocumented thread contracts.** `handleAction()` and `getStateLedColor()` have no
   documented thread contract; the plan routes both through the audio thread (FIFO for
-  actions, atomic snapshot for the LED). Fine for the current twelve effects, which only
+  actions, atomic snapshot for the LED). Fine for the current thirteen effects, which only
   flip bools.
 - **Resampler scope.** Open question whether non-48 kHz auditioning is needed at all. If
   not, drop the resampler entirely and just require a 48 kHz DAW project.

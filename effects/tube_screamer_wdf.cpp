@@ -17,6 +17,7 @@
 
 #include "../source/Patch.h"
 #include "../source/dsp/filter_coeff.h"
+#include "../source/dsp/one_pole_filter.h"
 #include "../source/dsp/parameter_smoother.h"
 #include "../source/dsp/soft_limit.h"
 
@@ -71,45 +72,8 @@ float lerp(float a, float b, float mix)
     return a + (b - a) * mix;
 }
 
-class OnePoleLowpass
-{
-public:
-    float process(float input, float alpha)
-    {
-        state_ += alpha * (input - state_);
-        return state_;
-    }
-
-    void reset()
-    {
-        state_ = 0.0f;
-    }
-
-private:
-    float state_ = 0.0f;
-};
-
-class OnePoleHighpass
-{
-public:
-    float process(float input, float alpha)
-    {
-        const float output = alpha * (prevOut_ + input - prevIn_);
-        prevIn_  = input;
-        prevOut_ = output;
-        return output;
-    }
-
-    void reset()
-    {
-        prevIn_  = 0.0f;
-        prevOut_ = 0.0f;
-    }
-
-private:
-    float prevIn_  = 0.0f;
-    float prevOut_ = 0.0f;
-};
+using OnePoleLowpass  = dsp::OnePoleLowpass;
+using OnePoleHighpass = dsp::OnePoleHighpass;
 
 class WdfAntiparallelDiodePair
 {

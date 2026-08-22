@@ -1,10 +1,14 @@
 # `sthompsonjr/Endless-FxPatchSDK` WDF Comparison
 
-**Last surveyed:** 2026-06-13 — see [Changes In The Fork Since Last Investigation](#changes-in-the-fork-since-last-investigation)
-for the most recent delta. The 2026-06-13 walk found the fork unchanged since
-2026-05-06 (no new commits) and the LICENSE situation unchanged (no LICENSE
-file). The substantive update from this walk is the full enumeration of the 23
-`dsp/` primitive names, recorded below for in-repo lookup.
+**Last surveyed:** 2026-06-14 — see [Changes In The Fork Since Last Investigation](#changes-in-the-fork-since-last-investigation)
+for the most recent delta. The 2026-06-14 walk found the fork **active again**
+after a five-week gap: it shipped a new Boss DC-2 Dimension-style stereo
+chorus circuit family. LICENSE status is unchanged (still none), so this
+remains study material, not a code source. Live GitHub data reflected commit
+timestamps past this session's own stated "today"; findings below are dated
+precisely as GitHub reports them rather than reconciled — see
+[`upstream-and-forks.md`](upstream-and-forks.md) for the same note in
+fuller context.
 
 This note evaluates whether the `sthompsonjr/Endless-FxPatchSDK` fork should change how
 this repo authors Polyend Endless effects. The focus is practical: which ideas are worth
@@ -92,7 +96,45 @@ it.
 
 This section is a delta only. The earlier survey (captured by the rest of this document)
 remains the baseline; what follows is what landed on the fork's `master` over the last
-four walks (2026-04-27, 2026-05-01, 2026-05-18, and 2026-06-13).
+five walks (2026-04-27, 2026-05-01, 2026-05-18, 2026-06-13, and 2026-06-14).
+
+### 2026-06-14 walk — fork resumed; new DC-2/TriDimension stereo-chorus family
+
+After the ~5-week gap the 2026-06-13 walk found, the fork picked back up:
+total commit count is now **94** (was 79 — see
+[`upstream-and-forks.md`](upstream-and-forks.md#changes-since-the-2026-06-13-walk)
+for the network-wide summary), with the newest commit merging PR #37,
+"TriDimension Session 6: full test harness, benchmark, docs sync." PRs
+#31–#37 build a new circuit family modeled on the Boss DC-2 Dimension
+Chorus / Roland SDD-320:
+
+- `wdf/Dc2Circuit.h`, `wdf/Dc2Filters.h` — DC-2 analysis ("DC-2 Session 1–3")
+- `wdf/TscCircuit.h` — a "Tri-Stereo Chorus" voice
+- `dsp/TriPhaseLfo.h` — new DSP primitive
+- an implied `effects/PatchImpl_TriDimension.cpp` (per "TriDimension Session
+  5: patch composition")
+
+`dsp/` grew from 23 to **24 files** (+`TriPhaseLfo.h`, added to the table
+below); `wdf/` grew from 35 to **38 files** (+`Dc2Circuit.h`,
+`Dc2Filters.h`, `TscCircuit.h`).
+
+**LICENSE status unchanged: still no root LICENSE file** — a direct check at
+`https://github.com/sthompsonjr/Endless-FxPatchSDK/blob/master/LICENSE`
+still returns 404. The "no code ports until license is resolved" stance
+holds, so this new circuit family is study material only.
+
+This is directly relevant to this repo's own work: [`effects/dimension_chorus.cpp`](../../effects/dimension_chorus.cpp)
+(added this walk) targets the same real-world circuit (the Boss DC-2
+Dimension Chorus) that `sthompsonjr`'s DC-2/TriDimension family targets. To
+be explicit about provenance: this repo's implementation is built from
+independent public circuit-analysis sources (see
+[`docs/dimension-chorus-research.md`](../dimension-chorus-research.md)), not
+from `sthompsonjr`'s code — no code or specific implementation detail was
+taken from the fork. That `sthompsonjr` independently arrived at the same circuit
+family around the same time is worth recording as corroboration this was a
+compelling target, nothing more. If `sthompsonjr` ever resolves its LICENSE
+situation, a design-level comparison between the two implementations (not a
+code merge) could be a useful future walk.
 
 ### 2026-06-13 walk — fork is stalled; `dsp/` primitives enumerated
 
@@ -136,6 +178,7 @@ for how those primitives are now used across the corpus:
 | `Saturation.h` | Soft-clip / saturation curves |
 | `SoftFocusCircuit.h` | Yamaha SPX500 shimmer-reverb-style circuit |
 | `StateVariableFilter.h` | Chamberlin SVF |
+| `TriPhaseLfo.h` | Three-phase LFO (new 2026-06-14, for the DC-2/TriDimension family) |
 | `UniVibeLfo.h` | UniVibe-specific LFO |
 | `WindowedSincInterpolator.h` | High-quality sinc resampler |
 | `dsp.h` | Meta-include header |
@@ -428,9 +471,15 @@ noise and make control-law reviews easier to reason about.
 - **The SDK divergence is non-trivial.** The fork's `isParamEnabled(...)` hook solves a
   real problem, but importing it would change this repo's `Patch` ABI and patch template
   expectations.
-- **A bulk migration would still be wasteful.** This repo now has twelve top-level custom
-  effects, and several of them do not want WDF at all. Even with two sibling experiments
-  now in tree, a repo-wide migration would still blur where the audible wins came from.
+- **A bulk migration would still be wasteful.** This repo now has thirteen top-level
+  custom effects, and several of them do not want WDF at all. Even with two sibling
+  experiments now in tree, a repo-wide migration would still blur where the audible
+  wins came from. (`dimension_chorus.cpp`, the thirteenth effect, is not a third WDF
+  sibling — it doesn't perform a WDF nonlinear network solve; see
+  [`upstream-and-forks.md`](upstream-and-forks.md) and
+  [`docs/dimension-chorus-research.md`](../dimension-chorus-research.md) for what it
+  actually is and why sthompsonjr's concurrent DC-2/TriDimension work only served as
+  idea-level corroboration, not a code source.)
 - **License compatibility is unresolved.** During this survey, no root `LICENSE` file was
   confirmed in the `sthompsonjr` fork. That must be clarified before porting code rather
   than ideas.

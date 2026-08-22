@@ -107,6 +107,17 @@ cycle data today. See [`docs/cycle-budget.md`](docs/cycle-budget.md) for
 methodology and the (currently empty) measurement table. Do not import the
 fork's self-reported numbers; if you need a budget number, measure it.
 
+Standalone CPU/behavior experiments that inform this repo's decisions but
+are not shipped patches live outside `effects/` — e.g.
+[`tests/oversample_alias_probe.cpp`](tests/oversample_alias_probe.cpp) /
+[`docs/aliasing-oversampling-experiment.md`](docs/aliasing-oversampling-experiment.md),
+which measured the alias-reduction/CPU tradeoff of 2x-oversampling a
+drive-effect nonlinearity without applying it to any shipped effect. Follow
+that pattern for future measure-before-deciding experiments: a probe under
+`tests/` (never under `effects/`, so it's never mistaken for a patch), an
+analysis script under `scripts/` if needed, and a doc under `docs/`
+recording the actual numbers and a data-driven conclusion.
+
 ## What this repo deliberately does not do
 
 These have already been considered and declined; the rationale is in
@@ -119,10 +130,12 @@ Do not "helpfully" re-introduce them without explicit direction:
   this scale.
 - No `docs_sync`-style auto-regeneration of inventory files.
 - No speculative expansion of [`source/dsp/`](source/dsp). The current
-  primitives are the proven duplicates from the 2026-06-13 audit. Add a
-  new primitive only when at least two effects would use it; otherwise
-  keep it inline in the effect that needs it. The scope is "extract
-  the duplicates", not "build a library."
+  primitives are the proven duplicates from the 2026-06-13 and 2026-06-14
+  audits (most recently `dsp::OnePoleLowpass`/`dsp::OnePoleHighpass`,
+  extracted when a second effect turned out to already have a
+  byte-identical file-local copy). Add a new primitive only when at least
+  two effects would use it; otherwise keep it inline in the effect that
+  needs it. The scope is "extract the duplicates", not "build a library."
 - No SDK API change for per-patch expression routing
   (the fork's `isParamEnabled(...)` hook). Expression is wired to param 2
   via [`internal/PatchCppWrapper.cpp`](internal/PatchCppWrapper.cpp) for
@@ -132,7 +145,15 @@ Do not "helpfully" re-introduce them without explicit direction:
   ([`effects/big_muff_wdf.cpp`](effects/big_muff_wdf.cpp),
   [`effects/tube_screamer_wdf.cpp`](effects/tube_screamer_wdf.cpp))
   remain the only WDF-style local patches until a CPU-budget experiment
-  on Endless hardware says otherwise.
+  on Endless hardware says otherwise. (`effects/dimension_chorus.cpp`,
+  added 2026-06-14, is not a third WDF sibling — it doesn't perform a WDF
+  nonlinear network solve, so this count is unaffected; see
+  [`docs/fork-comparisons/sthompsonjr-wdf.md`](docs/fork-comparisons/sthompsonjr-wdf.md)
+  for what it actually is and why. It is also the one deliberate,
+  explicitly-approved exception to the general "12 effects, no new ones"
+  catalog-freeze decision — see
+  [`docs/dimension-chorus-build-walkthrough.md`](docs/dimension-chorus-build-walkthrough.md).
+  Do not treat that exception as reopening the freeze generally.)
 - No code ports from the fork until its license status is resolved (no
   `LICENSE` file confirmed in the `sthompsonjr` fork as of 2026-05-18).
   Idea-level borrowing via the comparison doc is fine; copying source is

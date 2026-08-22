@@ -143,6 +143,16 @@ PATCH_METADATA = {
         "hold_note": "hold is the same bypass toggle as press",
         "hold_is_bypass": True,
     },
+    "dimension_chorus": {
+        "category": "modulation",
+        "priority": "secondary",
+        "identity": "Boss DC-2 Dimension-style stereo widener",
+        "main_param": 0,
+        "level_param": 2,
+        "level_role": "mix",
+        "secondary_param": 1,
+        "hold_note": "Classic / Mono-safe crossfeed toggle",
+    },
     "wah": {
         "category": "filter",
         "priority": "secondary",
