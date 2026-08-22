@@ -402,6 +402,16 @@ def summarize_patch(effect_name: str, low_run: dict, nominal_run: dict) -> dict:
     derived = derive_patch_summary(meta, low_run, nominal_run)
     score, flags = severity_score(meta, low_run, nominal_run)
 
+    # A NaN/Inf is always a bug regardless of category -- unlike every other
+    # flag here, this one isn't a threshold judgment call, so it's checked
+    # unconditionally rather than going through severity_score's per-category
+    # branches. Weighted heavily so a NaN-producing patch always sorts first
+    # within its priority tier.
+    nan_or_inf = bool(low_run.get("any_nan_or_inf")) or bool(nominal_run.get("any_nan_or_inf"))
+    if nan_or_inf:
+        flags = ["NaN/Inf detected in output"] + flags
+        score += 100
+
     return {
         "name": effect_name,
         "category": meta["category"],

@@ -45,6 +45,7 @@ struct ScenarioMetrics
 {
     SignalMetrics burst;
     SignalMetrics sine;
+    bool nanOrInfDetected = false;
 };
 
 double rms(const std::vector<float>& values, std::size_t start, std::size_t end)
@@ -72,6 +73,19 @@ double peakAbs(const std::vector<float>& values, std::size_t start, std::size_t 
         peak = std::max(peak, std::fabs(static_cast<double>(values[i])));
     }
     return peak;
+}
+
+// A NaN/Inf-producing patch would otherwise silently corrupt every
+// downstream RMS/ratio metric (NaN propagates through sum += x*x, etc.)
+// rather than being flagged. This is the one check that catches it.
+bool allFinite(const float* values, std::size_t count)
+{
+    for (std::size_t i = 0; i < count; ++i) {
+        if (!std::isfinite(values[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 double ratioAboveAbsThreshold(const std::vector<float>& values,
@@ -282,6 +296,7 @@ struct RunResult
 {
     std::vector<float> left;
     std::vector<float> right;
+    bool nanOrInfDetected = false;
 };
 
 RunResult runSignal(Patch& patch,
@@ -308,6 +323,10 @@ RunResult runSignal(Patch& patch,
 
         patch.processAudio(std::span<float>(leftBlock.data(), blockSize),
                            std::span<float>(rightBlock.data(), blockSize));
+
+        if (!allFinite(leftBlock.data(), blockSize) || !allFinite(rightBlock.data(), blockSize)) {
+            result.nanOrInfDetected = true;
+        }
 
         std::copy_n(leftBlock.begin(),
                     static_cast<long>(blockSize),
@@ -361,6 +380,7 @@ ScenarioMetrics runScenario(const std::array<float, 3>& params,
     ScenarioMetrics metrics;
     metrics.burst = analyzeBurstSignal(burstInput, burstResult.left);
     metrics.sine = analyzeSineSignal(sineInput, sineResult.left);
+    metrics.nanOrInfDetected = burstResult.nanOrInfDetected || sineResult.nanOrInfDetected;
     return metrics;
 }
 
@@ -385,6 +405,7 @@ struct ModeDiff
 {
     double burstDiffRatio = 0.0;
     double sineDiffRatio = 0.0;
+    bool nanOrInfDetected = false;
 };
 
 ModeDiff runModeDiff(const std::array<float, 3>& params, float inputScale)
@@ -402,38 +423,69 @@ ModeDiff runModeDiff(const std::array<float, 3>& params, float inputScale)
         if (holdMode) {
             patch->handleAction(static_cast<int>(endless::ActionId::kLeftFootSwitchHold));
         }
-        return runSignal(*patch, input, input).left;
+        return runSignal(*patch, input, input);
     };
 
     const std::vector<float> burstInput = makeBurstInput(inputScale);
     const std::vector<float> sineInput = makeSineInput(inputScale);
 
-    const std::vector<float> defaultBurst = runOutput(false, burstInput);
-    const std::vector<float> holdBurst = runOutput(true, burstInput);
-    const std::vector<float> defaultSine = runOutput(false, sineInput);
-    const std::vector<float> holdSine = runOutput(true, sineInput);
+    const RunResult defaultBurst = runOutput(false, burstInput);
+    const RunResult holdBurst = runOutput(true, burstInput);
+    const RunResult defaultSine = runOutput(false, sineInput);
+    const RunResult holdSine = runOutput(true, sineInput);
 
     ModeDiff diff;
-    diff.burstDiffRatio = diffRatio(defaultBurst, holdBurst);
-    diff.sineDiffRatio = diffRatio(defaultSine, holdSine);
+    diff.burstDiffRatio = diffRatio(defaultBurst.left, holdBurst.left);
+    diff.sineDiffRatio = diffRatio(defaultSine.left, holdSine.left);
+    diff.nanOrInfDetected = defaultBurst.nanOrInfDetected || holdBurst.nanOrInfDetected ||
+                            defaultSine.nanOrInfDetected || holdSine.nanOrInfDetected;
     return diff;
+}
+
+// std::cout's default formatting of a non-finite double ("-nan", "inf", ...)
+// is not valid JSON. A NaN/Inf-producing patch (exactly what
+// nan_or_inf_detected exists to flag) propagates into these metrics via
+// sum += x*x etc., so without this the JSON output itself becomes
+// unparseable right when a consumer most needs to read the flag. Python's
+// json module accepts the capitalized NaN/Infinity/-Infinity tokens as a
+// standard extension, so emit those explicitly for any non-finite value.
+std::ostream& printJsonDouble(std::ostream& os, double value)
+{
+    if (std::isnan(value)) {
+        return os << "NaN";
+    }
+    if (std::isinf(value)) {
+        return os << (value > 0.0 ? "Infinity" : "-Infinity");
+    }
+    return os << value;
 }
 
 void printSignalMetrics(const SignalMetrics& metrics)
 {
     std::cout << "{"
-              << "\"input_rms\":" << metrics.inputRms << ","
-              << "\"output_rms\":" << metrics.outputRms << ","
-              << "\"output_midband_rms\":" << metrics.outputMidbandRms << ","
-              << "\"delta_ratio\":" << metrics.deltaRatio << ","
-              << "\"correlation\":" << metrics.correlation << ","
-              << "\"fundamental_gain\":" << metrics.fundamentalGain << ","
-              << "\"residual_ratio\":" << metrics.residualRatio << ","
-              << "\"tail_rms\":" << metrics.tailRms << ","
-              << "\"peak_abs\":" << metrics.peakAbs << ","
-              << "\"hot_sample_ratio\":" << metrics.hotSampleRatio << ","
-              << "\"clip_sample_ratio\":" << metrics.clipSampleRatio
-              << "}";
+              << "\"input_rms\":";
+    printJsonDouble(std::cout, metrics.inputRms);
+    std::cout << ",\"output_rms\":";
+    printJsonDouble(std::cout, metrics.outputRms);
+    std::cout << ",\"output_midband_rms\":";
+    printJsonDouble(std::cout, metrics.outputMidbandRms);
+    std::cout << ",\"delta_ratio\":";
+    printJsonDouble(std::cout, metrics.deltaRatio);
+    std::cout << ",\"correlation\":";
+    printJsonDouble(std::cout, metrics.correlation);
+    std::cout << ",\"fundamental_gain\":";
+    printJsonDouble(std::cout, metrics.fundamentalGain);
+    std::cout << ",\"residual_ratio\":";
+    printJsonDouble(std::cout, metrics.residualRatio);
+    std::cout << ",\"tail_rms\":";
+    printJsonDouble(std::cout, metrics.tailRms);
+    std::cout << ",\"peak_abs\":";
+    printJsonDouble(std::cout, metrics.peakAbs);
+    std::cout << ",\"hot_sample_ratio\":";
+    printJsonDouble(std::cout, metrics.hotSampleRatio);
+    std::cout << ",\"clip_sample_ratio\":";
+    printJsonDouble(std::cout, metrics.clipSampleRatio);
+    std::cout << "}";
 }
 
 void printScenarioMetrics(const ScenarioMetrics& metrics)
@@ -443,17 +495,22 @@ void printScenarioMetrics(const ScenarioMetrics& metrics)
     printSignalMetrics(metrics.burst);
     std::cout << ",\"sine\":";
     printSignalMetrics(metrics.sine);
-    std::cout << "}";
+    std::cout << ",\"nan_or_inf_detected\":" << (metrics.nanOrInfDetected ? "true" : "false")
+              << "}";
 }
 
-void printSweep(const std::array<float, 3>& defaults, float inputScale, int paramIdx)
+// Returns true if any point in the sweep detected a NaN/Inf, so callers can
+// fold it into the top-level "any_nan_or_inf" summary.
+bool printSweep(const std::array<float, 3>& defaults, float inputScale, int paramIdx)
 {
+    bool anyNonFinite = false;
     std::cout << "[";
     bool first = true;
     for (float value : kSweepValues) {
         std::array<float, 3> params = defaults;
         params[paramIdx] = value;
         const ScenarioMetrics metrics = runScenario(params, inputScale, false, false);
+        anyNonFinite = anyNonFinite || metrics.nanOrInfDetected;
         if (!first) {
             std::cout << ",";
         }
@@ -465,6 +522,7 @@ void printSweep(const std::array<float, 3>& defaults, float inputScale, int para
         std::cout << "}";
     }
     std::cout << "]";
+    return anyNonFinite;
 }
 }
 
@@ -497,17 +555,29 @@ int main(int argc, char** argv)
     std::cout << ",\"bypassed\":";
     printScenarioMetrics(bypassed);
     std::cout << ",\"hold_mode_diff\":{"
-              << "\"burst_diff_ratio\":" << holdMode.burstDiffRatio << ","
-              << "\"sine_diff_ratio\":" << holdMode.sineDiffRatio
+              << "\"burst_diff_ratio\":";
+    printJsonDouble(std::cout, holdMode.burstDiffRatio);
+    std::cout << ",\"sine_diff_ratio\":";
+    printJsonDouble(std::cout, holdMode.sineDiffRatio);
+    std::cout << ",\"nan_or_inf_detected\":" << (holdMode.nanOrInfDetected ? "true" : "false")
               << "},"
               << "\"sweeps\":{"
               << "\"param0\":";
-    printSweep(defaults, inputScale, 0);
+    const bool sweep0NonFinite = printSweep(defaults, inputScale, 0);
     std::cout << ",\"param1\":";
-    printSweep(defaults, inputScale, 1);
+    const bool sweep1NonFinite = printSweep(defaults, inputScale, 1);
     std::cout << ",\"param2\":";
-    printSweep(defaults, inputScale, 2);
-    std::cout << "}"
+    const bool sweep2NonFinite = printSweep(defaults, inputScale, 2);
+    std::cout << "}";
+
+    // One top-level union of every finiteness check this probe ran, so a
+    // consumer (scripts/analyze_effects.py) can flag a NaN/Inf-producing
+    // patch as an automatic, category-independent failure without having
+    // to walk the whole nested structure looking for it.
+    const bool anyNonFinite = active.nanOrInfDetected || bypassed.nanOrInfDetected ||
+                              holdMode.nanOrInfDetected || sweep0NonFinite ||
+                              sweep1NonFinite || sweep2NonFinite;
+    std::cout << ",\"any_nan_or_inf\":" << (anyNonFinite ? "true" : "false")
               << "}"
               << "\n";
     return EXIT_SUCCESS;
