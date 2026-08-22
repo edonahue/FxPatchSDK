@@ -87,5 +87,12 @@ if [[ "$missing" -gt 0 || "$bad_header" -gt 0 || "$over_budget" -gt 0 ]]; then
     exit 1
 fi
 
+# Informational only (see scripts/check_stack_usage.py's own header) -- no
+# threshold there is validated enough to fail the build on yet.
+if command -v python3 >/dev/null 2>&1; then
+    echo ""
+    python3 "$REPO_ROOT/scripts/check_stack_usage.py"
+fi
+
 echo ""
 echo "All effects built successfully."
