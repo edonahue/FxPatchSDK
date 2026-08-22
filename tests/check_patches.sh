@@ -20,7 +20,10 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# Flags matching the SDK build (ARM-specific flags omitted — host compiler only)
+# Flags matching the SDK build (ARM-specific flags omitted — host compiler only).
+# -Werror matches Makefile:16's COMMON_FLAGS: a warning that would hard-fail
+# the real firmware build must also hard-fail this host preflight, not pass
+# silently.
 FLAGS=(
     -std=c++20
     -fno-exceptions
@@ -29,6 +32,7 @@ FLAGS=(
     -Wdouble-promotion
     -Wall
     -Wextra
+    -Werror
     -fsyntax-only
     -I source
 )
