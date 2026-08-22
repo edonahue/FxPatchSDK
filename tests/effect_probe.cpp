@@ -5,7 +5,9 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -25,6 +27,18 @@ constexpr double kTwoPi = 6.28318530717958647692;
 constexpr double kSineFreq = 220.0;
 constexpr double kSineAmp = 0.25;
 constexpr std::array<float, 5> kSweepValues = {0.0f, 0.25f, 0.5f, 0.75f, 1.0f};
+
+// THD/spectral capture: a bin-exact tone for an N=32768 radix-2 FFT
+// (scripts/spectral_fft.py). Bin 150 lands at ~219.73 Hz -- a
+// non-submultiple of 48000 so harmonics land cleanly on distinct bins
+// rather than folding back onto the fundamental. Reuses kSineAnalysisStart
+// as the settle window and kSineAmp as the amplitude for consistency with
+// the existing sine test.
+constexpr int kSpectrumFftLen = 32768;
+constexpr int kSpectrumBin = 150;
+constexpr double kSpectrumFreq =
+  static_cast<double>(kSpectrumBin) * static_cast<double>(kSampleRate) /
+  static_cast<double>(kSpectrumFftLen);
 
 struct SignalMetrics
 {
@@ -524,6 +538,66 @@ bool printSweep(const std::array<float, 3>& defaults, float inputScale, int para
     std::cout << "]";
     return anyNonFinite;
 }
+
+// Continuous tone at kSpectrumFreq, long enough to cover the settle window
+// plus a full kSpectrumFftLen capture window.
+std::vector<float> makeSpectrumInput()
+{
+    const int totalSamples = kSineAnalysisStart + kSpectrumFftLen;
+    std::vector<float> signal(totalSamples, 0.0f);
+    for (int i = 0; i < totalSamples; ++i) {
+        const double t = static_cast<double>(i) / static_cast<double>(kSampleRate);
+        signal[i] = static_cast<float>(kSineAmp * std::sin(kTwoPi * kSpectrumFreq * t));
+    }
+    return signal;
+}
+
+// Runs the patch at defaults, non-bypassed, and writes a raw float32
+// capture + JSON sidecar under build/effect_analysis/captures/ for
+// scripts/analyze_effects.py's THD/spectral analysis (via
+// scripts/spectral_fft.py) to consume. Mirrors
+// tests/oversample_alias_probe.cpp's established capture-file convention.
+// Bypasses stdout entirely -- this never touches the existing JSON schema.
+void runSpectrumCapture(const std::string& patchName, const std::array<float, 3>& defaults)
+{
+    Patch* patch = Patch::getInstance();
+
+    std::vector<float> workingBuffer(Patch::kWorkingBufferSize, 0.0f);
+    patch->setWorkingBuffer(std::span<float, Patch::kWorkingBufferSize>(
+      workingBuffer.data(), Patch::kWorkingBufferSize));
+    patch->init();
+    for (int idx = 0; idx < 3; ++idx) {
+        patch->setParamValue(idx, defaults[idx]);
+    }
+
+    const std::vector<float> input = makeSpectrumInput();
+    const RunResult result = runSignal(*patch, input, input);
+
+    // Discard the settle prefix -- mirrors analyzeSineSignal's convention
+    // of measuring only after the effect has settled to steady state.
+    const std::vector<float> capture(result.left.begin() + kSineAnalysisStart,
+                                     result.left.end());
+
+    const std::string outDir = "build/effect_analysis/captures";
+    std::filesystem::create_directories(outDir);
+    const std::string binPath = outDir + "/" + patchName + "_spectrum.f32";
+    const std::string jsonPath = outDir + "/" + patchName + "_spectrum.json";
+
+    if (FILE* bin = std::fopen(binPath.c_str(), "wb")) {
+        std::fwrite(capture.data(), sizeof(float), capture.size(), bin);
+        std::fclose(bin);
+    }
+
+    if (FILE* js = std::fopen(jsonPath.c_str(), "w")) {
+        std::fprintf(js,
+                     "{\"patch\":\"%s\",\"sample_rate\":%d,\"n\":%d,"
+                     "\"fundamental_hz\":%.10f,\"fundamental_bin\":%d,"
+                     "\"settle_samples\":%d,\"amplitude\":%.6f}\n",
+                     patchName.c_str(), kSampleRate, kSpectrumFftLen, kSpectrumFreq,
+                     kSpectrumBin, kSineAnalysisStart, kSineAmp);
+        std::fclose(js);
+    }
+}
 }
 
 int main(int argc, char** argv)
@@ -541,6 +615,13 @@ int main(int argc, char** argv)
     const ScenarioMetrics active = runScenario(defaults, inputScale, false, false);
     const ScenarioMetrics bypassed = runScenario(defaults, inputScale, true, false);
     const ModeDiff holdMode = runModeDiff(defaults, inputScale);
+
+    // Spectral capture only at nominal input scale -- this process is
+    // invoked once per input scale, so gate here rather than relying on
+    // Python-side call ordering.
+    if (std::fabs(inputScale - 1.0f) < 1.0e-6f) {
+        runSpectrumCapture(patchName, defaults);
+    }
 
     std::cout << std::fixed << std::setprecision(6);
     std::cout << "{"

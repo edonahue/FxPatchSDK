@@ -12,21 +12,35 @@ The output is meant to support patch tuning decisions, not replace hardware list
 from __future__ import annotations
 
 import json
+import math
 import pathlib
 import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
 
+import spectral_fft
+
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 BUILD_ROOT = REPO_ROOT / "build" / "effect_analysis"
 PROBE_DIR = BUILD_ROOT / "probes"
+CAPTURE_DIR = BUILD_ROOT / "captures"
 SUMMARY_JSON = BUILD_ROOT / "summary.json"
 SUMMARY_MD = BUILD_ROOT / "summary.md"
 
 LOW_INPUT_SCALE = 0.35
 NOMINAL_INPUT_SCALE = 1.0
+
+# THD/spurious-energy flagging thresholds -- starting points to calibrate
+# against the first real run across all 13 effects, not validated final
+# values. Named and grouped here so they're easy to find and adjust.
+SPECTRAL_MAX_HARMONIC = 12
+SPECTRAL_BIN_TOLERANCE = 1
+DRIVE_THD_LOW_PCT = 3.0  # below this, a drive's gain stage isn't engaging
+DRIVE_ADJACENT_THD_HIGH_PCT = 15.0
+LINEAR_CATEGORY_THD_HIGH_PCT = 5.0  # time / modulation / filter
+SPURIOUS_ENERGY_FLAG_DB = -20.0  # not applied to category == "modulation"
 
 COMPILE_FLAGS = [
     "g++",
@@ -218,6 +232,57 @@ def run_probe(binary_path: pathlib.Path, patch_name: str, input_scale: float) ->
     return json.loads(completed.stdout)
 
 
+def load_spectrum_capture(patch_name: str) -> dict | None:
+    """Reads the raw float32 capture + JSON sidecar tests/effect_probe.cpp
+    writes at nominal input scale (build/effect_analysis/captures/) and
+    derives THD% and spurious-energy-dB via scripts/spectral_fft.py.
+    Returns None if the capture is missing (e.g. probe run failed before
+    reaching the capture step)."""
+    bin_path = CAPTURE_DIR / f"{patch_name}_spectrum.f32"
+    json_path = CAPTURE_DIR / f"{patch_name}_spectrum.json"
+    if not bin_path.exists() or not json_path.exists():
+        return None
+
+    sidecar = json.loads(json_path.read_text())
+    samples = spectral_fft.read_capture(bin_path)
+    fundamental_bin = int(sidecar["fundamental_bin"])
+
+    mags_sq = spectral_fft.magnitude_squared_spectrum(samples)
+    all_expected = spectral_fft.expected_bins_sweep(
+        fundamental_bin, len(samples), max_harmonic=SPECTRAL_MAX_HARMONIC
+    )
+    harmonic_bins = all_expected - {fundamental_bin}
+
+    def energy_near(bins: set[int]) -> float:
+        near: set[int] = set()
+        for b in bins:
+            for off in range(-SPECTRAL_BIN_TOLERANCE, SPECTRAL_BIN_TOLERANCE + 1):
+                idx = b + off
+                if 0 <= idx < len(mags_sq):
+                    near.add(idx)
+        return sum(mags_sq[i] for i in near)
+
+    fundamental_energy = energy_near({fundamental_bin})
+    harmonic_energy = energy_near(harmonic_bins)
+
+    thd_percent = (
+        100.0 * math.sqrt(harmonic_energy / fundamental_energy)
+        if fundamental_energy > 0.0
+        else 0.0
+    )
+    spurious_energy_db = spectral_fft.spurious_energy_ratio_db(
+        mags_sq, all_expected, SPECTRAL_BIN_TOLERANCE
+    )
+
+    return {
+        "thd_percent": thd_percent,
+        "spurious_energy_db": spurious_energy_db,
+        "fundamental_hz": sidecar.get("fundamental_hz"),
+        "fundamental_bin": fundamental_bin,
+        "n": len(samples),
+    }
+
+
 def series_values(run_data: dict, param_key: str, metric_path: tuple[str, ...]) -> list[float]:
     values = []
     for point in run_data["sweeps"][param_key]:
@@ -297,7 +362,37 @@ def describe_drive_flags(derived: dict) -> list[str]:
     return flags
 
 
-def severity_score(meta: dict, low_run: dict, nominal_run: dict) -> tuple[int, list[str]]:
+def describe_spectral_flags(category: str, spectrum: dict | None) -> list[str]:
+    """Category-aware THD/spurious-energy flags -- high THD is *the point*
+    of a drive pedal, so the direction of the flag depends on category."""
+    if spectrum is None:
+        return []
+
+    flags: list[str] = []
+    thd = spectrum["thd_percent"]
+
+    if category == "drive":
+        if thd < DRIVE_THD_LOW_PCT:
+            flags.append(f"THD {thd:.1f}% is low for a drive -- gain stage may not be engaging")
+    elif category == "drive-adjacent":
+        if thd > DRIVE_ADJACENT_THD_HIGH_PCT:
+            flags.append(f"THD {thd:.1f}% is very high for a drive-adjacent effect")
+    elif category in ("time", "modulation", "filter"):
+        if thd > LINEAR_CATEGORY_THD_HIGH_PCT:
+            flags.append(f"THD {thd:.1f}% is high for a {category} effect")
+
+    # LFO-driven sidebands are legitimately non-harmonic for a modulation
+    # effect, not a bug -- report the number (it's still in the summary
+    # columns) but don't flag it.
+    if category != "modulation" and spectrum["spurious_energy_db"] > SPURIOUS_ENERGY_FLAG_DB:
+        flags.append(f"spurious spectral energy {spectrum['spurious_energy_db']:.1f} dB is high")
+
+    return flags
+
+
+def severity_score(
+    meta: dict, low_run: dict, nominal_run: dict, spectrum: dict | None = None
+) -> tuple[int, list[str]]:
     category = meta["category"]
     derived = derive_patch_summary(meta, low_run, nominal_run)
     flags: list[str] = []
@@ -330,6 +425,10 @@ def severity_score(meta: dict, low_run: dict, nominal_run: dict) -> tuple[int, l
     elif category == "filter":
         if derived["hold_diff_nominal"] >= 0.08:
             flags.append("mode change is clearly audible")
+
+    spectral_flags = describe_spectral_flags(category, spectrum)
+    flags += spectral_flags
+    score += len(spectral_flags)
 
     return score, flags
 
@@ -394,13 +493,15 @@ def derive_patch_summary(meta: dict, low_run: dict, nominal_run: dict) -> dict:
     }
 
 
-def summarize_patch(effect_name: str, low_run: dict, nominal_run: dict) -> dict:
+def summarize_patch(
+    effect_name: str, low_run: dict, nominal_run: dict, spectrum: dict | None = None
+) -> dict:
     meta = PATCH_METADATA.get(effect_name)
     if meta is None:
         raise KeyError(f"Missing metadata for patch {effect_name}")
 
     derived = derive_patch_summary(meta, low_run, nominal_run)
-    score, flags = severity_score(meta, low_run, nominal_run)
+    score, flags = severity_score(meta, low_run, nominal_run, spectrum)
 
     # A NaN/Inf is always a bug regardless of category -- unlike every other
     # flag here, this one isn't a threshold judgment call, so it's checked
@@ -421,6 +522,7 @@ def summarize_patch(effect_name: str, low_run: dict, nominal_run: dict) -> dict:
         "low_input": low_run,
         "nominal_input": nominal_run,
         "derived": derived,
+        "spectral": spectrum,
         "severity_score": score,
         "flags": flags,
     }
@@ -447,12 +549,15 @@ def write_markdown(summaries: list[dict]) -> None:
         "",
         f"Input scales: low={LOW_INPUT_SCALE:.2f}, nominal={NOMINAL_INPUT_SCALE:.2f}",
         "",
-        "| Patch | Category | Priority | Low input delta | Low input residual | Main span | Level ratio | Unity | Hold diff | Flags |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|---|",
+        "| Patch | Category | Priority | Low input delta | Low input residual | Main span | Level ratio | Unity | Hold diff | THD% | Spurious dB | Flags |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
 
     for summary in summaries:
         d = summary["derived"]
+        spectrum = summary.get("spectral")
+        thd_text = f"{spectrum['thd_percent']:.2f}" if spectrum else "n/a"
+        spurious_text = f"{spectrum['spurious_energy_db']:.1f}" if spectrum else "n/a"
         lines.append(
             "| "
             + f"{summary['name']} | "
@@ -464,6 +569,8 @@ def write_markdown(summaries: list[dict]) -> None:
             + f"{d['level_ratio_nominal']:.2f} | "
             + f"{d['unity_value_nominal']:.2f} | "
             + f"{d['hold_diff_nominal']:.3f} | "
+            + f"{thd_text} | "
+            + f"{spurious_text} | "
             + (", ".join(summary["flags"]) if summary["flags"] else "none")
             + " |"
         )
@@ -484,7 +591,8 @@ def main() -> int:
         patch_name = effect_path.stem
         low_run = run_probe(binary_path, patch_name, LOW_INPUT_SCALE)
         nominal_run = run_probe(binary_path, patch_name, NOMINAL_INPUT_SCALE)
-        summaries.append(summarize_patch(patch_name, low_run, nominal_run))
+        spectrum = load_spectrum_capture(patch_name)
+        summaries.append(summarize_patch(patch_name, low_run, nominal_run, spectrum))
 
     ordered = sorted(summaries, key=ranking_key)
 
