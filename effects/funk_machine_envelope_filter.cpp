@@ -33,6 +33,11 @@ constexpr float clamp01(float v)
 constexpr float kAttackMs  = 4.0f;
 constexpr float kReleaseMs = 95.0f;
 
+// Filter frequency is derived from the audio-rate detector only every eight
+// samples. That is a 6 kHz control rate: far faster than the envelope can move,
+// while avoiding powf/sinf in the inner loop on every sample.
+constexpr int kControlInterval = 8;
+
 float onePoleTimeCoeff(float ms)
 {
     return expf(-1.0f / (0.001f * ms * kFs));
@@ -85,6 +90,24 @@ public:
         // brittle or unstable.
         const float q  = 1.2f + 6.3f * res;
         const float q1 = 1.0f / q;
+        const float bpGain = 2.0f * q1 * 1.75f;
+
+        // Bias moves the window but deliberately keeps the top frequency under
+        // ~3 kHz, where this repo's Chamberlin SVF precedent remains comfortable
+        // at the Q values used here.
+        float fcMin;
+        float fcMax;
+        float dryFoundation;
+        if (voice_ == FunkVoice::kBass) {
+            fcMin = 70.0f * powf(4.0f, bias);      // 70 .. 280 Hz
+            fcMax = 900.0f * powf(2.4f, bias);    // 900 .. 2160 Hz
+            dryFoundation = 0.28f;
+        } else {
+            fcMin = 150.0f * powf(3.0f, bias);    // 150 .. 450 Hz
+            fcMax = 1600.0f * powf(1.8f, bias);   // 1600 .. 2880 Hz
+            dryFoundation = 0.10f;
+        }
+        const float fcRatio = fcMax / fcMin;
 
         for (size_t i = 0; i < left.size(); ++i) {
             const float inL = left[i];
@@ -102,45 +125,29 @@ public:
             const float driven = envelope_ * envelopeGain;
             const float envNorm = driven / (1.0f + driven);
 
-            float fcMin;
-            float fcMax;
-            float dryFoundation;
-            if (voice_ == FunkVoice::kBass) {
-                fcMin = 90.0f;
-                fcMax = 1450.0f;
-                dryFoundation = 0.28f;
-            } else {
-                fcMin = 180.0f;
-                fcMax = 2600.0f;
-                dryFoundation = 0.10f;
+            // Recompute the SVF frequency coefficient at a 6 kHz control rate.
+            // Filter state itself still updates every sample, so there is no
+            // decimation of the audio path.
+            if (controlCountdown_ <= 0) {
+                const float fc = fcMin * powf(fcRatio, envNorm);
+                f1_ = 2.0f * sinf(kPi * fc / kFs);
+                controlCountdown_ = kControlInterval;
             }
-
-            // Bias shifts both ends of the window upward without replacing the
-            // touch envelope. Heel gives the deepest quack; toe produces a
-            // brighter clav/lead voice. Mapping is exponential in frequency.
-            const float biasOctaves = 1.45f * bias;
-            const float biasScale = exp2f(biasOctaves);
-            fcMin *= biasScale;
-            fcMax *= biasScale;
-
-            const float ratio = fcMax / fcMin;
-            const float fc = fcMin * powf(ratio, envNorm);
-            const float f1 = 2.0f * sinf(kPi * fc / kFs);
+            --controlCountdown_;
 
             // LEFT state-variable filter.
-            lowL_ += f1 * bandL_;
+            lowL_ += f1_ * bandL_;
             const float hiL = inL - lowL_ - q1 * bandL_;
-            bandL_ += f1 * hiL;
+            bandL_ += f1_ * hiL;
 
             // RIGHT state-variable filter.
-            lowR_ += f1 * bandR_;
+            lowR_ += f1_ * bandR_;
             const float hiR = inR - lowR_ - q1 * bandR_;
-            bandR_ += f1 * hiR;
+            bandR_ += f1_ * hiR;
 
             // Normalize raw Chamberlin bandpass peak (roughly Q/2) then add a
             // moderate vocal boost. Bass voice retains a fixed clean foundation
             // so fundamentals survive even at high resonance.
-            const float bpGain = 2.0f * q1 * 1.75f;
             const float wetL = bandL_ * bpGain;
             const float wetR = bandR_ * bpGain;
 
@@ -182,6 +189,7 @@ public:
         } else if (actionIdx == static_cast<int>(endless::ActionId::kLeftFootSwitchHold)) {
             voice_ = (voice_ == FunkVoice::kBass) ? FunkVoice::kGuitarKeys : FunkVoice::kBass;
             clearFilterState();
+            controlCountdown_ = 0;
         }
     }
 
@@ -200,6 +208,8 @@ private:
     float attackCoeff_  = 0.0f;
     float releaseCoeff_ = 0.0f;
     float envelope_     = 0.0f;
+    float f1_           = 0.0f;
+    int controlCountdown_ = 0;
 
     float lowL_  = 0.0f;
     float bandL_ = 0.0f;
@@ -220,6 +230,8 @@ private:
     void clearState()
     {
         envelope_ = 0.0f;
+        f1_ = 0.0f;
+        controlCountdown_ = 0;
         clearFilterState();
     }
 };
