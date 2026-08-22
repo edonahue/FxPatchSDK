@@ -487,3 +487,15 @@ new contributor should know where to look.
 - **Hardware context** — the Endless shipped February 2026 and won Best in
   Show at NAMM 2026. Commercial activity around the pedal is real even where
   the open-source SDK looks dormant.
+- **Deployment tooling** — a companion repo, `edonahue/endless-loader`,
+  exists for browsing a local library of `.endl` patches and USB-transferring
+  a selected one to the pedal (with SHA-256 verification of the write); it
+  reads patch metadata compatible with this SDK. This repo stays scoped to
+  authoring patches; `endless-loader` is deployment tooling, kept
+  deliberately separate.
+- **Community discussion is real but not on Reddit.** A 2026-06-14 search
+  across the obviously relevant subreddits (r/synthesizers, r/guitarpedals,
+  r/EffectsPedals, r/diypedals, and others) found essentially no substantive
+  Endless discussion. Backstage, Gearspace, TheGearForum, and Sweetwater
+  reviews are where actual owners talk; don't expect Reddit to be a useful
+  research source for this ecosystem.
