@@ -45,6 +45,20 @@ So the available cycle-budget levers are algorithmic (cheaper math, less
 per-sample work), not memory-placement. Do not chase DTCM annotations
 unless the linker model changes.
 
+The DTCM question is doubly moot here: even if the linker model changed to
+expose an explicit TCM output section, DTCM's typical capacity on a
+Cortex-M7 (tens to a couple hundred KB, part-dependent) would not have
+covered the 9.6 MB working buffer's capacity (`Patch::kWorkingBufferSize`
+= 2,400,000 floats) regardless. The math from the section above —
+512 KB patch image + 9.6 MB working buffer exceeding any single Cortex-M7
+variant's on-chip SRAM — points to the working buffer being backed by
+external SDRAM/PSRAM via the M7's FMC controller. See
+[`patch-authoring-best-practices.md`'s §6 delay-line-cost bullet](patch-authoring-best-practices.md)
+for what that means for delay-heavy patches: an off-chip access is a
+materially bigger latency cliff than a same-chip cache/TCM miss would have
+been, and a real cycle-count measurement (see below) is the only way to
+turn that inference into a number.
+
 ## What we measure today
 
 [`scripts/analyze_effects.py`](../scripts/analyze_effects.py) and
@@ -80,7 +94,12 @@ Two reasonable paths to producing those numbers:
    as an *ordering* signal between patches.
 2. **Hardware runs on Endless** that record DWT cycle counts around
    `processAudio`. These are the only numbers that should be treated as a
-   budget gate. We do not have this wired up today.
+   budget gate. We do not have this wired up today. See
+   [`hardware-cycle-measurement-howto.md`](hardware-cycle-measurement-howto.md)
+   for the DWT methodology — a walkthrough only, not exercised or
+   confirmed against real Endless hardware (no confirmed debug-probe
+   access exists), so treat it as a starting point for whoever has a
+   probe, not a pre-verified recipe.
 
 Until either path is wired into the validation flow, this doc stays a
 scaffold.

@@ -407,10 +407,25 @@ A few practical consequences:
   `powf` itself to once-per-block (sampling the smoother's current value
   before the loop) while leaving the smoother stepping every sample —
   the smoothing stays correctly timed, the expensive call doesn't.
-- **Long delay-line reads are cache-miss-dominated, not arithmetic.** A
-  100 ms delay reads a sample that is ~4800 cache lines away from the
-  write head. Plan delay-heavy patches around the cache; do not try to
-  feed three independent long delay lines from one block.
+- **Long delay-line reads are latency-dominated, not arithmetic — and the
+  working buffer is very likely external RAM, not on-chip SRAM.** The
+  working buffer (`Patch::kWorkingBufferSize` = 2,400,000 floats, 9.6 MB)
+  is where any delay line long enough to matter lives. That capacity
+  doesn't fit in on-chip SRAM alongside the ~512 KB patch-image region
+  (`internal/patch_imx.ld`'s single `RAM` region) on any Cortex-M7
+  variant — the linker-script math only works if the working buffer is
+  backed by external SDRAM/PSRAM through the M7's FMC controller. That
+  makes a 100 ms delay's read (~4800 samples from the write head) a trip
+  off-chip, not just a same-chip cache miss: external-RAM access latency
+  is a materially bigger cliff than an on-chip cache miss, even before
+  accounting for the FMC's own row-open/refresh overhead on a cold
+  access. This is inference from the linker script and Cortex-M7 SRAM
+  capacities, not a measurement — no cycle data exists yet (see
+  `docs/cycle-budget.md`) — but it sharpens "plan delay-heavy patches
+  around the cache" into "budget real headroom for an off-chip round
+  trip": do not feed three independent long delay lines from one block,
+  and treat a long delay line's read as the most expensive individual
+  operation in a patch, not an incidental one.
 
 ## 7. Pitfalls
 
