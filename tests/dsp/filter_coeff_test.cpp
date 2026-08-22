@@ -1,4 +1,4 @@
-// tests/dsp/filter_coeff_test.cpp — unit tests for dsp::lpCoeff / hpCoeff.
+// tests/dsp/filter_coeff_test.cpp — unit tests for dsp::lpCoeff / hpCoeff / svfF1.
 //
 // What this covers: endpoint values, monotonicity in fc, finiteness over a
 // 20 Hz - 20 kHz sweep, and linear scaling with sample rate. Run from the
@@ -49,6 +49,33 @@ int main()
     const float a = dsp::lpCoeff(2000.0f, 96000.0f);
     const float b = dsp::lpCoeff(1000.0f, 48000.0f);
     check(std::fabs(a - b) < 1e-6f, "lpCoeff should scale linearly with fs");
+
+    // dsp::svfF1: f1 = 2*sin(pi*fc/fs). Extracted from wah.cpp and
+    // funk_machine_envelope_filter.cpp's identical inline formula.
+    const float svf0 = dsp::svfF1(0.0f, 48000.0f);
+    check(svf0 == 0.0f, "svfF1(0) should be 0");
+
+    // Known values, cross-checked against a direct 2*sin(pi*fc/fs) computation.
+    const float svf1k = dsp::svfF1(1000.0f, 48000.0f);
+    check(std::fabs(svf1k - 0.1308063f) < 1e-5f, "svfF1(1000, 48000) should match 2*sin(pi*fc/fs)");
+    const float svf3k = dsp::svfF1(3000.0f, 48000.0f);
+    check(std::fabs(svf3k - 0.3901806f) < 1e-5f, "svfF1(3000, 48000) should match 2*sin(pi*fc/fs)");
+
+    // Monotonicity + finiteness over the range this corpus's Chamberlin SVF
+    // call sites actually use (both wah.cpp and funk_machine_envelope_filter.cpp
+    // stay well under ~3 kHz at 48 kHz).
+    float prevSvf = svf0;
+    for (int i = 0; i <= 100; ++i)
+    {
+        const float fc = 3000.0f * (i / 100.0f);
+        const float svf = dsp::svfF1(fc, 48000.0f);
+        check(std::isfinite(svf), "svfF1 must be finite");
+        if (i > 0)
+        {
+            check(svf >= prevSvf - 1e-7f, "svfF1 should be non-decreasing in fc over this range");
+        }
+        prevSvf = svf;
+    }
 
     if (failed == 0) { printf("filter_coeff_test: PASS\n"); return 0; }
     fprintf(stderr, "filter_coeff_test: %d FAIL\n", failed);
