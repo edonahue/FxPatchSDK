@@ -4,6 +4,7 @@
 #include <atomic>
 #include <vector>
 
+#include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Patch.h"  // resolved via the source/ include directory
@@ -52,6 +53,22 @@ public:
 private:
     Patch* patch_ = nullptr;
     std::vector<float> workingBuffer_;
+
+    // Resampling for host rates other than Patch::kSampleRate (48000). Four
+    // independent interpolators -- juce::LagrangeInterpolator is stateful
+    // per-instance (juce_Interpolators.h), so L/R and each direction need
+    // their own. down*_ converts host-rate input down to 48 kHz before
+    // processAudio(); up*_ converts the 48 kHz output back to host rate.
+    // Unused (and left at their default-constructed state) on the 48 kHz
+    // fast path in processBlock().
+    juce::LagrangeInterpolator downL_;
+    juce::LagrangeInterpolator downR_;
+    juce::LagrangeInterpolator upL_;
+    juce::LagrangeInterpolator upR_;
+    double downRatio_ = 1.0;  // hostRate / kSampleRate: input samples consumed per 48 kHz output sample
+    double upRatio_ = 1.0;    // kSampleRate / hostRate: 48 kHz samples consumed per host-rate output sample
+    std::vector<float> scratchLeft_;   // 48 kHz scratch, sized in prepareToPlay
+    std::vector<float> scratchRight_;
 
     std::array<juce::AudioParameterFloat*, endless::kParams> knobParams_ {};
     std::array<float, endless::kParams> lastKnob_ {};

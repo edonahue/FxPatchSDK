@@ -5,7 +5,9 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -26,6 +28,18 @@ constexpr double kSineFreq = 220.0;
 constexpr double kSineAmp = 0.25;
 constexpr std::array<float, 5> kSweepValues = {0.0f, 0.25f, 0.5f, 0.75f, 1.0f};
 
+// THD/spectral capture: a bin-exact tone for an N=32768 radix-2 FFT
+// (scripts/spectral_fft.py). Bin 150 lands at ~219.73 Hz -- a
+// non-submultiple of 48000 so harmonics land cleanly on distinct bins
+// rather than folding back onto the fundamental. Reuses kSineAnalysisStart
+// as the settle window and kSineAmp as the amplitude for consistency with
+// the existing sine test.
+constexpr int kSpectrumFftLen = 32768;
+constexpr int kSpectrumBin = 150;
+constexpr double kSpectrumFreq =
+  static_cast<double>(kSpectrumBin) * static_cast<double>(kSampleRate) /
+  static_cast<double>(kSpectrumFftLen);
+
 struct SignalMetrics
 {
     double inputRms = 0.0;
@@ -45,6 +59,7 @@ struct ScenarioMetrics
 {
     SignalMetrics burst;
     SignalMetrics sine;
+    bool nanOrInfDetected = false;
 };
 
 double rms(const std::vector<float>& values, std::size_t start, std::size_t end)
@@ -72,6 +87,19 @@ double peakAbs(const std::vector<float>& values, std::size_t start, std::size_t 
         peak = std::max(peak, std::fabs(static_cast<double>(values[i])));
     }
     return peak;
+}
+
+// A NaN/Inf-producing patch would otherwise silently corrupt every
+// downstream RMS/ratio metric (NaN propagates through sum += x*x, etc.)
+// rather than being flagged. This is the one check that catches it.
+bool allFinite(const float* values, std::size_t count)
+{
+    for (std::size_t i = 0; i < count; ++i) {
+        if (!std::isfinite(values[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 double ratioAboveAbsThreshold(const std::vector<float>& values,
@@ -282,6 +310,7 @@ struct RunResult
 {
     std::vector<float> left;
     std::vector<float> right;
+    bool nanOrInfDetected = false;
 };
 
 RunResult runSignal(Patch& patch,
@@ -308,6 +337,10 @@ RunResult runSignal(Patch& patch,
 
         patch.processAudio(std::span<float>(leftBlock.data(), blockSize),
                            std::span<float>(rightBlock.data(), blockSize));
+
+        if (!allFinite(leftBlock.data(), blockSize) || !allFinite(rightBlock.data(), blockSize)) {
+            result.nanOrInfDetected = true;
+        }
 
         std::copy_n(leftBlock.begin(),
                     static_cast<long>(blockSize),
@@ -361,6 +394,7 @@ ScenarioMetrics runScenario(const std::array<float, 3>& params,
     ScenarioMetrics metrics;
     metrics.burst = analyzeBurstSignal(burstInput, burstResult.left);
     metrics.sine = analyzeSineSignal(sineInput, sineResult.left);
+    metrics.nanOrInfDetected = burstResult.nanOrInfDetected || sineResult.nanOrInfDetected;
     return metrics;
 }
 
@@ -385,6 +419,7 @@ struct ModeDiff
 {
     double burstDiffRatio = 0.0;
     double sineDiffRatio = 0.0;
+    bool nanOrInfDetected = false;
 };
 
 ModeDiff runModeDiff(const std::array<float, 3>& params, float inputScale)
@@ -402,38 +437,69 @@ ModeDiff runModeDiff(const std::array<float, 3>& params, float inputScale)
         if (holdMode) {
             patch->handleAction(static_cast<int>(endless::ActionId::kLeftFootSwitchHold));
         }
-        return runSignal(*patch, input, input).left;
+        return runSignal(*patch, input, input);
     };
 
     const std::vector<float> burstInput = makeBurstInput(inputScale);
     const std::vector<float> sineInput = makeSineInput(inputScale);
 
-    const std::vector<float> defaultBurst = runOutput(false, burstInput);
-    const std::vector<float> holdBurst = runOutput(true, burstInput);
-    const std::vector<float> defaultSine = runOutput(false, sineInput);
-    const std::vector<float> holdSine = runOutput(true, sineInput);
+    const RunResult defaultBurst = runOutput(false, burstInput);
+    const RunResult holdBurst = runOutput(true, burstInput);
+    const RunResult defaultSine = runOutput(false, sineInput);
+    const RunResult holdSine = runOutput(true, sineInput);
 
     ModeDiff diff;
-    diff.burstDiffRatio = diffRatio(defaultBurst, holdBurst);
-    diff.sineDiffRatio = diffRatio(defaultSine, holdSine);
+    diff.burstDiffRatio = diffRatio(defaultBurst.left, holdBurst.left);
+    diff.sineDiffRatio = diffRatio(defaultSine.left, holdSine.left);
+    diff.nanOrInfDetected = defaultBurst.nanOrInfDetected || holdBurst.nanOrInfDetected ||
+                            defaultSine.nanOrInfDetected || holdSine.nanOrInfDetected;
     return diff;
+}
+
+// std::cout's default formatting of a non-finite double ("-nan", "inf", ...)
+// is not valid JSON. A NaN/Inf-producing patch (exactly what
+// nan_or_inf_detected exists to flag) propagates into these metrics via
+// sum += x*x etc., so without this the JSON output itself becomes
+// unparseable right when a consumer most needs to read the flag. Python's
+// json module accepts the capitalized NaN/Infinity/-Infinity tokens as a
+// standard extension, so emit those explicitly for any non-finite value.
+std::ostream& printJsonDouble(std::ostream& os, double value)
+{
+    if (std::isnan(value)) {
+        return os << "NaN";
+    }
+    if (std::isinf(value)) {
+        return os << (value > 0.0 ? "Infinity" : "-Infinity");
+    }
+    return os << value;
 }
 
 void printSignalMetrics(const SignalMetrics& metrics)
 {
     std::cout << "{"
-              << "\"input_rms\":" << metrics.inputRms << ","
-              << "\"output_rms\":" << metrics.outputRms << ","
-              << "\"output_midband_rms\":" << metrics.outputMidbandRms << ","
-              << "\"delta_ratio\":" << metrics.deltaRatio << ","
-              << "\"correlation\":" << metrics.correlation << ","
-              << "\"fundamental_gain\":" << metrics.fundamentalGain << ","
-              << "\"residual_ratio\":" << metrics.residualRatio << ","
-              << "\"tail_rms\":" << metrics.tailRms << ","
-              << "\"peak_abs\":" << metrics.peakAbs << ","
-              << "\"hot_sample_ratio\":" << metrics.hotSampleRatio << ","
-              << "\"clip_sample_ratio\":" << metrics.clipSampleRatio
-              << "}";
+              << "\"input_rms\":";
+    printJsonDouble(std::cout, metrics.inputRms);
+    std::cout << ",\"output_rms\":";
+    printJsonDouble(std::cout, metrics.outputRms);
+    std::cout << ",\"output_midband_rms\":";
+    printJsonDouble(std::cout, metrics.outputMidbandRms);
+    std::cout << ",\"delta_ratio\":";
+    printJsonDouble(std::cout, metrics.deltaRatio);
+    std::cout << ",\"correlation\":";
+    printJsonDouble(std::cout, metrics.correlation);
+    std::cout << ",\"fundamental_gain\":";
+    printJsonDouble(std::cout, metrics.fundamentalGain);
+    std::cout << ",\"residual_ratio\":";
+    printJsonDouble(std::cout, metrics.residualRatio);
+    std::cout << ",\"tail_rms\":";
+    printJsonDouble(std::cout, metrics.tailRms);
+    std::cout << ",\"peak_abs\":";
+    printJsonDouble(std::cout, metrics.peakAbs);
+    std::cout << ",\"hot_sample_ratio\":";
+    printJsonDouble(std::cout, metrics.hotSampleRatio);
+    std::cout << ",\"clip_sample_ratio\":";
+    printJsonDouble(std::cout, metrics.clipSampleRatio);
+    std::cout << "}";
 }
 
 void printScenarioMetrics(const ScenarioMetrics& metrics)
@@ -443,17 +509,22 @@ void printScenarioMetrics(const ScenarioMetrics& metrics)
     printSignalMetrics(metrics.burst);
     std::cout << ",\"sine\":";
     printSignalMetrics(metrics.sine);
-    std::cout << "}";
+    std::cout << ",\"nan_or_inf_detected\":" << (metrics.nanOrInfDetected ? "true" : "false")
+              << "}";
 }
 
-void printSweep(const std::array<float, 3>& defaults, float inputScale, int paramIdx)
+// Returns true if any point in the sweep detected a NaN/Inf, so callers can
+// fold it into the top-level "any_nan_or_inf" summary.
+bool printSweep(const std::array<float, 3>& defaults, float inputScale, int paramIdx)
 {
+    bool anyNonFinite = false;
     std::cout << "[";
     bool first = true;
     for (float value : kSweepValues) {
         std::array<float, 3> params = defaults;
         params[paramIdx] = value;
         const ScenarioMetrics metrics = runScenario(params, inputScale, false, false);
+        anyNonFinite = anyNonFinite || metrics.nanOrInfDetected;
         if (!first) {
             std::cout << ",";
         }
@@ -465,6 +536,67 @@ void printSweep(const std::array<float, 3>& defaults, float inputScale, int para
         std::cout << "}";
     }
     std::cout << "]";
+    return anyNonFinite;
+}
+
+// Continuous tone at kSpectrumFreq, long enough to cover the settle window
+// plus a full kSpectrumFftLen capture window.
+std::vector<float> makeSpectrumInput()
+{
+    const int totalSamples = kSineAnalysisStart + kSpectrumFftLen;
+    std::vector<float> signal(totalSamples, 0.0f);
+    for (int i = 0; i < totalSamples; ++i) {
+        const double t = static_cast<double>(i) / static_cast<double>(kSampleRate);
+        signal[i] = static_cast<float>(kSineAmp * std::sin(kTwoPi * kSpectrumFreq * t));
+    }
+    return signal;
+}
+
+// Runs the patch at defaults, non-bypassed, and writes a raw float32
+// capture + JSON sidecar under build/effect_analysis/captures/ for
+// scripts/analyze_effects.py's THD/spectral analysis (via
+// scripts/spectral_fft.py) to consume. Mirrors
+// tests/oversample_alias_probe.cpp's established capture-file convention.
+// Bypasses stdout entirely -- this never touches the existing JSON schema.
+void runSpectrumCapture(const std::string& patchName, const std::array<float, 3>& defaults)
+{
+    Patch* patch = Patch::getInstance();
+
+    std::vector<float> workingBuffer(Patch::kWorkingBufferSize, 0.0f);
+    patch->setWorkingBuffer(std::span<float, Patch::kWorkingBufferSize>(
+      workingBuffer.data(), Patch::kWorkingBufferSize));
+    patch->init();
+    for (int idx = 0; idx < 3; ++idx) {
+        patch->setParamValue(idx, defaults[idx]);
+    }
+
+    const std::vector<float> input = makeSpectrumInput();
+    const RunResult result = runSignal(*patch, input, input);
+
+    // Discard the settle prefix -- mirrors analyzeSineSignal's convention
+    // of measuring only after the effect has settled to steady state.
+    const std::vector<float> capture(result.left.begin() + kSineAnalysisStart,
+                                     result.left.end());
+
+    const std::string outDir = "build/effect_analysis/captures";
+    std::filesystem::create_directories(outDir);
+    const std::string binPath = outDir + "/" + patchName + "_spectrum.f32";
+    const std::string jsonPath = outDir + "/" + patchName + "_spectrum.json";
+
+    if (FILE* bin = std::fopen(binPath.c_str(), "wb")) {
+        std::fwrite(capture.data(), sizeof(float), capture.size(), bin);
+        std::fclose(bin);
+    }
+
+    if (FILE* js = std::fopen(jsonPath.c_str(), "w")) {
+        std::fprintf(js,
+                     "{\"patch\":\"%s\",\"sample_rate\":%d,\"n\":%d,"
+                     "\"fundamental_hz\":%.10f,\"fundamental_bin\":%d,"
+                     "\"settle_samples\":%d,\"amplitude\":%.6f}\n",
+                     patchName.c_str(), kSampleRate, kSpectrumFftLen, kSpectrumFreq,
+                     kSpectrumBin, kSineAnalysisStart, kSineAmp);
+        std::fclose(js);
+    }
 }
 }
 
@@ -484,6 +616,13 @@ int main(int argc, char** argv)
     const ScenarioMetrics bypassed = runScenario(defaults, inputScale, true, false);
     const ModeDiff holdMode = runModeDiff(defaults, inputScale);
 
+    // Spectral capture only at nominal input scale -- this process is
+    // invoked once per input scale, so gate here rather than relying on
+    // Python-side call ordering.
+    if (std::fabs(inputScale - 1.0f) < 1.0e-6f) {
+        runSpectrumCapture(patchName, defaults);
+    }
+
     std::cout << std::fixed << std::setprecision(6);
     std::cout << "{"
               << "\"patch\":\"" << patchName << "\","
@@ -497,17 +636,29 @@ int main(int argc, char** argv)
     std::cout << ",\"bypassed\":";
     printScenarioMetrics(bypassed);
     std::cout << ",\"hold_mode_diff\":{"
-              << "\"burst_diff_ratio\":" << holdMode.burstDiffRatio << ","
-              << "\"sine_diff_ratio\":" << holdMode.sineDiffRatio
+              << "\"burst_diff_ratio\":";
+    printJsonDouble(std::cout, holdMode.burstDiffRatio);
+    std::cout << ",\"sine_diff_ratio\":";
+    printJsonDouble(std::cout, holdMode.sineDiffRatio);
+    std::cout << ",\"nan_or_inf_detected\":" << (holdMode.nanOrInfDetected ? "true" : "false")
               << "},"
               << "\"sweeps\":{"
               << "\"param0\":";
-    printSweep(defaults, inputScale, 0);
+    const bool sweep0NonFinite = printSweep(defaults, inputScale, 0);
     std::cout << ",\"param1\":";
-    printSweep(defaults, inputScale, 1);
+    const bool sweep1NonFinite = printSweep(defaults, inputScale, 1);
     std::cout << ",\"param2\":";
-    printSweep(defaults, inputScale, 2);
-    std::cout << "}"
+    const bool sweep2NonFinite = printSweep(defaults, inputScale, 2);
+    std::cout << "}";
+
+    // One top-level union of every finiteness check this probe ran, so a
+    // consumer (scripts/analyze_effects.py) can flag a NaN/Inf-producing
+    // patch as an automatic, category-independent failure without having
+    // to walk the whole nested structure looking for it.
+    const bool anyNonFinite = active.nanOrInfDetected || bypassed.nanOrInfDetected ||
+                              holdMode.nanOrInfDetected || sweep0NonFinite ||
+                              sweep1NonFinite || sweep2NonFinite;
+    std::cout << ",\"any_nan_or_inf\":" << (anyNonFinite ? "true" : "false")
               << "}"
               << "\n";
     return EXIT_SUCCESS;
