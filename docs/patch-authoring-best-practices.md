@@ -1,7 +1,7 @@
 # Patch Authoring Best Practices for the Polyend Endless
 
 This document is the canonical "how to handcraft a good Endless patch" reference.
-It crystallises lessons learned across the twelve effects in
+It crystallises lessons learned across the thirteen effects in
 [`effects/`](../effects), the primitives extracted in
 [`source/dsp/`](../source/dsp), and the per-patch walkthroughs in
 [`docs/`](.). Read it once before authoring a new effect; refer back to it
@@ -67,8 +67,12 @@ guitar-pedal idiom where one exists:
 
 When in doubt, **Mix on the Right knob, expression-mapped**. Every effect in
 this fork that exposes a dry/wet blend puts it there. This convention is the
-reason a player can pick up any of the twelve effects and know within a few
-seconds where the wet/dry control lives.
+reason a player can pick up any of the twelve effects that have one and know
+within a few seconds where the wet/dry control lives. `dimension_chorus.cpp`
+is the one documented exception — the real hardware it's modeled on has no
+mix knob at all, so its Right knob carries Width (crossfeed intensity)
+instead; see `docs/dimension-chorus-build-walkthrough.md`'s Decision 3 for
+why that's a deliberate divergence, not an oversight.
 
 ### Knob taper
 
@@ -320,12 +324,14 @@ reverb tails when we add one).
 constexpr` arrays), scratch state (put it in patch members), per-sample
 temporaries (use locals).
 
-Of the twelve effects in the catalogue today, only four actually allocate
+Of the thirteen effects in the catalogue today, only five actually allocate
 inside the working buffer:
 
 - `back_talk_reverse_delay`: 2 × 131072 floats (2.73 s per channel)
 - `bbe_sonic_stomp`: 2 × 1.5k floats (stereo doubler)
 - `chorus`: 2 × 2400 floats (stereo modulated delay)
+- `dimension_chorus`: 1 × 2048 floats (single mono ring buffer, not a
+  per-channel pair — see section 3's ring buffer subsection)
 - `harmonica`: 2 × 480 floats (micro-chorus)
 
 The other eight hold scalar state in members and return early from
@@ -445,9 +451,9 @@ Endless ships with 2000 Playground tokens (≈$20) bundled. A simple delay
 generation runs roughly $1–2 in tokens; a complex granular looper runs up
 to ~$5. Hand-coding via this SDK costs nothing per iteration and has no
 ceiling on how many times a control law can be nudged and re-probed
-before it's right — the entire twelve-effect-turned-thirteen-effect
-corpus this document describes, plus every experiment and refactor
-recorded in `docs/fork-comparisons/`, cost zero incremental tokens. For
+before it's right — the entire thirteen-effect corpus this document
+describes, plus every experiment and refactor recorded in
+`docs/fork-comparisons/`, cost zero incremental tokens. For
 anyone iterating heavily on a control law (which §2 above argues is where
 the real craft lives), hand-coding is not just more controllable, it's
 the economically rational choice.

@@ -123,14 +123,14 @@ below); `wdf/` grew from 35 to **38 files** (+`Dc2Circuit.h`,
 still returns 404. The "no code ports until license is resolved" stance
 holds, so this new circuit family is study material only.
 
-This is directly relevant to this repo's own work: `effects/dimension_chorus.cpp`
-(planned, this walk) targets the same real-world circuit (the Boss DC-2
+This is directly relevant to this repo's own work: [`effects/dimension_chorus.cpp`](../../effects/dimension_chorus.cpp)
+(added this walk) targets the same real-world circuit (the Boss DC-2
 Dimension Chorus) that `sthompsonjr`'s DC-2/TriDimension family targets. To
 be explicit about provenance: this repo's implementation is built from
 independent public circuit-analysis sources (see
-`docs/dimension-chorus-research.md`, planned alongside it), not from
-`sthompsonjr`'s code — no code or specific implementation detail was taken
-from the fork. That `sthompsonjr` independently arrived at the same circuit
+[`docs/dimension-chorus-research.md`](../dimension-chorus-research.md)), not
+from `sthompsonjr`'s code — no code or specific implementation detail was
+taken from the fork. That `sthompsonjr` independently arrived at the same circuit
 family around the same time is worth recording as corroboration this was a
 compelling target, nothing more. If `sthompsonjr` ever resolves its LICENSE
 situation, a design-level comparison between the two implementations (not a
@@ -471,9 +471,15 @@ noise and make control-law reviews easier to reason about.
 - **The SDK divergence is non-trivial.** The fork's `isParamEnabled(...)` hook solves a
   real problem, but importing it would change this repo's `Patch` ABI and patch template
   expectations.
-- **A bulk migration would still be wasteful.** This repo now has twelve top-level custom
-  effects, and several of them do not want WDF at all. Even with two sibling experiments
-  now in tree, a repo-wide migration would still blur where the audible wins came from.
+- **A bulk migration would still be wasteful.** This repo now has thirteen top-level
+  custom effects, and several of them do not want WDF at all. Even with two sibling
+  experiments now in tree, a repo-wide migration would still blur where the audible
+  wins came from. (`dimension_chorus.cpp`, the thirteenth effect, is not a third WDF
+  sibling — it doesn't perform a WDF nonlinear network solve; see
+  [`upstream-and-forks.md`](upstream-and-forks.md) and
+  [`docs/dimension-chorus-research.md`](../dimension-chorus-research.md) for what it
+  actually is and why sthompsonjr's concurrent DC-2/TriDimension work only served as
+  idea-level corroboration, not a code source.)
 - **License compatibility is unresolved.** During this survey, no root `LICENSE` file was
   confirmed in the `sthompsonjr` fork. That must be clarified before porting code rather
   than ideas.
