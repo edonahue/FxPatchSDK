@@ -2,6 +2,7 @@
 #include "PluginEditor.h"
 #include "EffectConfig.h"
 
+#include <algorithm>
 #include <cmath>
 #include <span>
 
@@ -46,10 +47,10 @@ const juce::String FxPatchAudioProcessor::getName() const
     return juce::String("FxPatch_") + FX_EFFECT_NAME;
 }
 
-void FxPatchAudioProcessor::prepareToPlay(double sampleRate, int /*maxBlockSize*/)
+void FxPatchAudioProcessor::prepareToPlay(double sampleRate, int maxBlockSize)
 {
-    sampleRateOk_.store(std::abs(sampleRate - (double) Patch::kSampleRate) < 1.0,
-                        std::memory_order_relaxed);
+    const bool nominalRate = std::abs(sampleRate - (double) Patch::kSampleRate) < 1.0;
+    sampleRateOk_.store(nominalRate, std::memory_order_relaxed);
 
     // 9.6 MB working buffer — allocated here (non-realtime), never per-block.
     if (workingBuffer_.size() != (size_t) Patch::kWorkingBufferSize)
@@ -65,6 +66,38 @@ void FxPatchAudioProcessor::prepareToPlay(double sampleRate, int /*maxBlockSize*
         const float v = knobParams_[(size_t) i]->get();
         patch_->setParamValue(i, v);
         lastKnob_[(size_t) i] = v;
+    }
+
+    // Resampling setup for any host rate other than 48 kHz. JUCE treats
+    // prepareToPlay as a stream restart, so the (stateful)
+    // juce::LagrangeInterpolator instances always reset here regardless of
+    // whether resampling is active this call -- cheap, and correct if the
+    // host rate changes between prepareToPlay calls.
+    downL_.reset();
+    downR_.reset();
+    upL_.reset();
+    upR_.reset();
+
+    if (!nominalRate && sampleRate > 0.0)
+    {
+        // speedRatio semantics (juce_GenericInterpolator.h's process()):
+        // "the number of input samples to use for each output sample."
+        downRatio_ = sampleRate / (double) Patch::kSampleRate;
+        upRatio_ = (double) Patch::kSampleRate / sampleRate;
+
+        // Upper bound on the 48 kHz scratch length a maxBlockSize host-rate
+        // block can produce, plus a small margin: process()'s own "at least
+        // speedRatio * numOutputSamplesToProduce input samples" contract
+        // can round up to needing a couple of extra scratch samples at a
+        // block boundary (see processBlock). Grows only, never shrinks --
+        // matches workingBuffer_'s allocation-guard pattern above.
+        const int maxPatchSamples =
+            (int) std::ceil((double) maxBlockSize * (double) Patch::kSampleRate / sampleRate) + 8;
+        if ((int) scratchLeft_.size() < maxPatchSamples)
+        {
+            scratchLeft_.assign((size_t) maxPatchSamples, 0.0f);
+            scratchRight_.assign((size_t) maxPatchSamples, 0.0f);
+        }
     }
 }
 
@@ -119,16 +152,62 @@ void FxPatchAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         }
     }
 
-    // Patches assume exactly 48 kHz. At any other rate, pass audio through dry
-    // rather than emit subtly wrong output; the editor surfaces a warning.
-    // Stereo layout is enforced by isBusesLayoutSupported, so two distinct
-    // channel buffers are guaranteed here.
-    if (sampleRateOk_.load(std::memory_order_relaxed) && numChannels >= 2 && numSamples > 0)
+    // Patches assume exactly 48 kHz. Stereo layout is enforced by
+    // isBusesLayoutSupported, so two distinct channel buffers are guaranteed
+    // in both branches below.
+    if (numChannels >= 2 && numSamples > 0)
     {
         float* left  = buffer.getWritePointer(0);
         float* right = buffer.getWritePointer(1);
-        patch_->processAudio(std::span<float>(left,  (size_t) numSamples),
-                             std::span<float>(right, (size_t) numSamples));
+
+        if (sampleRateOk_.load(std::memory_order_relaxed))
+        {
+            patch_->processAudio(std::span<float>(left,  (size_t) numSamples),
+                                 std::span<float>(right, (size_t) numSamples));
+        }
+        else
+        {
+            // Resample host-rate -> 48 kHz -> processAudio -> host-rate.
+            // numPatchSamples is floor'd so downL_/downR_ never need more
+            // input than this block actually has (process()'s contract:
+            // "must contain at least speedRatio * numOutputSamplesToProduce
+            // samples", no bounds checking of its own).
+            const int numPatchSamples = (int) std::floor((double) numSamples / downRatio_);
+
+            if (numPatchSamples > 0 && numPatchSamples <= (int) scratchLeft_.size())
+            {
+                // Read the full host-rate block into scratch before anything
+                // overwrites left/right in place below.
+                downL_.process(downRatio_, left, scratchLeft_.data(), numPatchSamples);
+                downR_.process(downRatio_, right, scratchRight_.data(), numPatchSamples);
+
+                // The upsample stage's own "at least upRatio_ * numSamples"
+                // requirement is the exact reciprocal of how numPatchSamples
+                // was floor'd above, so it can read a sample or two past
+                // numPatchSamples. Silence that tail rather than leaving
+                // whatever processed audio an earlier, possibly
+                // differently-sized block left there -- a safer failure mode
+                // than replaying stale audio, at the cost of an occasional
+                // near-silent blip. If this is audible in practice, the
+                // documented fallback (see docs/vst-host-plan.md) is a
+                // persistent-FIFO resampler that carries an unconsumed tail
+                // between blocks instead of resampling each block in
+                // isolation.
+                std::fill(scratchLeft_.begin() + numPatchSamples, scratchLeft_.end(), 0.0f);
+                std::fill(scratchRight_.begin() + numPatchSamples, scratchRight_.end(), 0.0f);
+
+                patch_->processAudio(std::span<float>(scratchLeft_.data(), (size_t) numPatchSamples),
+                                     std::span<float>(scratchRight_.data(), (size_t) numPatchSamples));
+
+                upL_.process(upRatio_, scratchLeft_.data(), left, numSamples);
+                upR_.process(upRatio_, scratchRight_.data(), right, numSamples);
+            }
+            // else: numPatchSamples computed as 0 or exceeded scratch
+            // capacity from prepareToPlay's sizing -- shouldn't happen given
+            // that sizing, but leaving the block untouched (silence stays
+            // whatever JUCE pre-filled the buffer with) beats reading past
+            // the scratch buffer.
+        }
     }
 
     ledColor_.store(static_cast<int>(patch_->getStateLedColor()),

@@ -29,7 +29,13 @@ Useful official entry points:
 What matters for this fork:
 
 - Endless exposes a small, fixed control surface to patch code: three parameters,
-  one exposed footswitch with press/hold events, and a state LED.
+  one exposed footswitch with press/hold events, and a state LED. The hardware
+  has two physical footswitches; only the left one is exposed to patch code
+  via `kLeftFootSwitchPress`/`kLeftFootSwitchHold` (confirmed via multiple
+  hardware sources). The second footswitch's function is not documented or
+  confirmed from patch code — it is most likely fixed-function at the
+  firmware level (e.g. a global bypass or menu action), not something a
+  patch can hook into.
 - The official SDK is intentionally minimal. Most product behavior lives in the device
   firmware, not in the repo.
 - Playground gives you compiled `.endl` outputs, but not the editable source that a
@@ -448,7 +454,11 @@ patches within them rather than around them.
   tags; the SDK is explicitly a beta. Treat the ABI as stable-for-now but not
   contractually frozen, and re-validate after any upstream sync.
 - **Fixed control surface.** Three parameters, one footswitch (press/hold), one state
-  LED. The pedal has more physical controls than the SDK surfaces; see §3.
+  LED. The pedal has more physical controls than the SDK surfaces; see §3. In
+  particular, the hardware has two physical footswitches but exposes only
+  the left one (`kLeftFootSwitchPress`/`kLeftFootSwitchHold`) to patch code
+  — the second footswitch's function is not documented or confirmed, and is
+  most likely fixed-function at the firmware level.
 - **No runtime sample rate.** `Patch::kSampleRate` is fixed at 48000. Patches that need
   to run anywhere else (e.g. a desktop host) must resample around `processAudio`; see
   [`vst-host-plan.md`](vst-host-plan.md).
