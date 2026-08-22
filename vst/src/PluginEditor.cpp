@@ -94,8 +94,8 @@ void FxPatchAudioProcessorEditor::paint(juce::Graphics& g)
     {
         g.setColour(juce::Colour(0xffff5050));
         g.setFont(13.0f);
-        g.drawText("Host is not at 48 kHz \xe2\x80\x94 audio passes through dry. "
-                   "Set the host sample rate to 48000 Hz.",
+        g.drawText("Host is not at 48 kHz \xe2\x80\x94 resampling internally. "
+                   "For bit-accurate voicing, set the host sample rate to 48000 Hz.",
                    12, getHeight() - 26, getWidth() - 24, 18,
                    juce::Justification::left);
     }

@@ -130,17 +130,35 @@ The same build also emits an LV2 bundle, so an effect can run in MOD Audio Deskt
   bundle name is space-free, so installs into `~/.lv2` neither collide nor trip
   host-discovery bugs.
 - MOD Desktop runs at 48 kHz over JACK by default, which matches the patch
-  sample-rate assumption — the dry-passthrough fallback below does not engage.
+  sample-rate assumption — the resampling path below does not engage.
 
 ## Sample rate and buffer contract
 
 - Patches hard-code `Patch::kSampleRate = 48000` for every coefficient and delay length;
-  there is no runtime-rate hook. **Recommended:** if `getSampleRate() != 48000`, resample
-  the host block to 48 kHz around `processAudio` (a `juce::LagrangeInterpolator` per
-  channel, ratio fixed in `prepareToPlay`), so the effect behaves as it will on hardware.
-  Fast-path (bypass the resampler) when the host is already at 48 kHz, and tell the user
-  in `vst/README.md` to set the DAW to 48 kHz. A reasonable first cut ships the 48 kHz
-  fast-path only and treats the resampler as a follow-up.
+  there is no runtime-rate hook. **Implemented:** if `getSampleRate() != 48000`, the
+  processor resamples the host block to 48 kHz around `processAudio` and back
+  (`vst/src/PluginProcessor.h`/`.cpp`: four `juce::LagrangeInterpolator` instances --
+  L/R x to-patch-rate/from-patch-rate, since each is stateful per-instance -- ratios
+  fixed in `prepareToPlay`). Fast-path (bypass the resampler) when the host is already
+  at 48 kHz.
+  - `juce::LagrangeInterpolator::process(speedRatio, in, out, numOutputSamplesToProduce)`
+    (verified against the real JUCE 8.0.4 headers, not assumed from memory) requires
+    `in` to hold at least `speedRatio * numOutputSamplesToProduce` samples, with no
+    bounds checking of its own. The downsample stage sizes its output count as
+    `floor(numHostSamples / downRatio)` so it never over-reads the host block; the
+    upsample stage's reciprocal requirement can then round up to needing a sample or
+    two past what the downsample stage actually produced, so the scratch buffer's
+    small tail margin is explicitly zeroed each block rather than left holding stale
+    audio from an earlier, differently-sized block.
+  - This is a block-synchronous scheme (no state carried between blocks beyond what
+    each `LagrangeInterpolator` already tracks internally) verified only by build +
+    manual DAW/Standalone audition, not by an automated audio-correctness test in this
+    repo. If it drifts or clicks audibly at extreme host rates, the documented fallback
+    is a persistent-FIFO resampler that explicitly carries an unconsumed input tail
+    between blocks instead of resampling each block in isolation -- not yet needed,
+    not yet built.
+  - `vst/README.md` tells the user 48 kHz is the bit-accurate rate; any other rate is
+    now audible (not dry) but not guaranteed bit-identical to hardware.
 - Declare a stereo-in/stereo-out main bus *and* reject any other layout in
   `isBusesLayoutSupported` so `processAudio` always gets independent L and R
   buffers. The corpus pattern `left[i] = processChannel(0, left[i], ...); right[i] = processChannel(1, right[i], ...);`
@@ -191,8 +209,10 @@ JUCE itself is never committed; FetchContent re-downloads it per clone.
   documented thread contract; the plan routes both through the audio thread (FIFO for
   actions, atomic snapshot for the LED). Fine for the current thirteen effects, which only
   flip bools.
-- **Resampler scope.** Open question whether non-48 kHz auditioning is needed at all. If
-  not, drop the resampler entirely and just require a 48 kHz DAW project.
+- **Resampler scope.** Implemented (see "Sample rate and buffer contract" above). Not
+  yet exercised against a real DAW/Standalone audition in this environment -- verify
+  with a sine-tone loopback at 44.1 kHz and 96 kHz project rates before trusting it for
+  serious auditioning at non-48 kHz rates; fall back to a 48 kHz project if it clicks.
 - **LV2 parameter model.** JUCE 8 exposes parameters as LV2 `patch:` parameters, not
   control ports. This is standard and works in modern hosts, including MOD OS >= 1.10,
   but a very old LV2 host that only understands control ports would show no controls.

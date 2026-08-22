@@ -124,11 +124,16 @@ Notes specific to MOD:
 
 ## Limitations
 
-- **Run the host at 48 kHz.** Patches assume `Patch::kSampleRate = 48000`. At
-  any other rate the wrapper passes audio through dry and shows a warning
-  rather than producing wrong-sounding output. (MOD Desktop defaults to 48 kHz;
-  in a DAW, set the project rate.) Resampling is a documented future option in
-  [`../docs/vst-host-plan.md`](../docs/vst-host-plan.md).
+- **Run the host at 48 kHz for bit-accurate voicing.** Patches assume
+  `Patch::kSampleRate = 48000`. At any other rate the wrapper resamples
+  internally (`juce::LagrangeInterpolator`, see
+  [`../docs/vst-host-plan.md`](../docs/vst-host-plan.md)'s "Sample rate and
+  buffer contract") and shows a warning rather than silently claiming
+  hardware-identical output. (MOD Desktop defaults to 48 kHz; in a DAW, set
+  the project rate for the closest match to hardware.) The resampler is a
+  block-synchronous scheme verified so far only by build and manual
+  audition, not an automated test in this repo -- if it clicks or drifts
+  audibly at an extreme host rate, fall back to a 48 kHz project.
 - **Stereo tracks only.** The wrapper declines mono layouts. The corpus
   effects all process channels with their own state and write per-sample in
   the order `left[i] = ...; right[i] = ...;`, which would silently overwrite
