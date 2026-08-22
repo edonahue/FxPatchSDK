@@ -117,3 +117,7 @@ scaffold.
   audio-behavior probe surface
 - [`docs/fork-comparisons/sthompsonjr-wdf.md`](fork-comparisons/sthompsonjr-wdf.md)
   — context for what the fork claims and why we did not import it
+- [`docs/aliasing-oversampling-experiment.md`](aliasing-oversampling-experiment.md)
+  — a worked example of the `__rdtsc` host-cycle-ratio methodology
+  described above, measuring the CPU/aliasing tradeoff of 2x-oversampling
+  a drive-effect nonlinearity
