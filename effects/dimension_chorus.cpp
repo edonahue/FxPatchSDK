@@ -144,21 +144,25 @@ public:
         const float darkAlpha  = dsp::lpCoeff(3500.0f);
         const float crossAlpha = dsp::hpCoeff(120.0f);
 
+        // Rate -> hz is a powf() call, expensive enough that it must not run
+        // per sample (see docs/patch-authoring-best-practices.md section 6).
+        // rate_ still steps every sample below so its smoother stays
+        // correctly timed; only the derived, transcendental-heavy hz is
+        // block-rate, matching effects/chorus.cpp's convention of treating
+        // LFO rate as a per-block constant rather than an audio-rate one.
+        // Log taper: hz = 0.2 * 15^rate -> 0.0=0.2 Hz, 1.0=3 Hz. Slower than
+        // chorus.cpp's range, matching the real DC-2's calmer modulation speed.
+        lfo_.setRateHz(0.2f * powf(15.0f, rate_.current()));
+
         for (size_t i = 0; i < left.size(); ++i)
         {
             const float inL = left[i];
             const float inR = right[i];
 
-            const float rateValue  = rate_.process();
+            rate_.process();  // keeps the smoother correctly timed; see above
             const float depthValue = depth_.process();
             const float widthValue = width_.process();
             const float morphValue = polarityMorph_.process();
-
-            // Log taper: hz = 0.2 * 15^rate -> 0.0=0.2 Hz, 1.0=3 Hz. Slower
-            // than effects/chorus.cpp's range, matching the real DC-2's
-            // calmer modulation speed.
-            const float hz = 0.2f * powf(15.0f, rateValue);
-            lfo_.setRateHz(hz);
 
             // Linear 0-9 ms -> 0-432 samples peak deviation.
             const float depthSamples = depthValue * 432.0f;

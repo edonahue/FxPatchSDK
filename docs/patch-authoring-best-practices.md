@@ -156,7 +156,7 @@ hand-rolling new code.
 
 [`source/dsp/filter_coeff.h`](../source/dsp/filter_coeff.h) gives
 `dsp::lpCoeff(fc)` and `dsp::hpCoeff(fc)` — the workhorses. Eight of the
-twelve effects use them. A one-pole IIR at 48 kHz single precision is
+thirteen effects use them. A one-pole IIR at 48 kHz single precision is
 cheap, well-behaved, and the right answer for the broad voicing filters
 most pedal-style effects need before or after a clipper. See
 [`effects/tube_screamer.cpp`](../effects/tube_screamer.cpp) for the
@@ -168,6 +168,17 @@ Recompute the coefficient *only when the cutoff parameter changes*, not per
 sample. The recurrence (`state += alpha * (x - state)` for the LP form) is
 one multiply and one add per sample; the coefficient computation is two
 multiplies and a divide.
+
+That recurrence is exactly what
+[`source/dsp/one_pole_filter.h`](../source/dsp/one_pole_filter.h)'s
+`dsp::OnePoleLowpass` and `dsp::OnePoleHighpass` classes hold as running
+state, alpha passed in per call — the stateful companion to the
+coefficient functions above. Use the classes whenever the filter needs to
+persist across samples (nearly always); use the bare coefficient functions
+when you're computing an alpha to feed into a class you already have.
+`big_muff_wdf.cpp` and `tube_screamer_wdf.cpp` both use them for body/edge
+splits and tone shaping; `dimension_chorus.cpp` uses them for BBD-style
+tap "darkening" and cross-feed shaping.
 
 ### Soft-clip safety stage
 
@@ -183,6 +194,40 @@ to ±1.0. Use the parameters when an effect wants a slightly different knee
 Do not use `softLimit` as the creative non-linearity. The per-effect
 character — diode pairs, asymmetric clippers, drive curves — lives where
 the effect's voicing decisions are made. `softLimit` is the airbag.
+
+### Aliasing in nonlinear stages
+
+Every clipper, waveshaper, or diode-pair solve in this corpus generates
+harmonics. At 48 kHz, any harmonic that lands above 24 kHz doesn't
+disappear — it folds back (aliases) into the audible band. None of the
+six drive-family effects (`tube_screamer`, `tube_screamer_wdf`,
+`klon_centaur`, `big_muff`, `big_muff_wdf`, `mxr_distortion_plus`) do
+anything about this today; it is a known, deliberately unaddressed gap,
+not an oversight nobody noticed.
+
+Mutable Instruments' own published design history is useful outside
+inspiration here (MIT-licensed, similar Cortex-M class hardware): Braids
+ran at 96 kHz with naive oversampling to manage this; its successor
+Plaits moved to band-limited synthesis "almost everywhere" instead — i.e.
+even a well-regarded, shipped product's own design evolved *away* from
+naive oversampling as the long-term answer, toward algorithms that don't
+generate the offending harmonics in the first place. That's the
+North Star if a patch is being designed from scratch around a
+band-limitable technique. For an *existing* nonlinearity that isn't
+being rewritten, oversampling is the retrofit option — but it is not
+free, and this repo has measured, not assumed, what it costs.
+[`docs/aliasing-oversampling-experiment.md`](aliasing-oversampling-experiment.md)
+2x-oversampled the WDF diode-pair solve in `tube_screamer_wdf.cpp` two
+ways (a naive linear-interpolation approach and a proper halfband-FIR
+approach) and measured both the alias-energy reduction and the CPU cost
+on host. The result: real, measurable alias reduction (more at higher
+drive levels, where there's more harmonic content to alias in the first
+place), at a real cost — roughly double the wrapped nonlinearity's own
+cost, which for an already-nontrivial primitive like the diode solve
+(8 transcendental calls per sample) is not a rounding error. The
+experiment's own conclusion: document the tradeoff (this section), but
+do not apply oversampling to a shipped effect without real Cortex-M7
+cycle data justifying the cost — see [`docs/cycle-budget.md`](cycle-budget.md).
 
 ### Equal-power crossfade
 
@@ -246,6 +291,21 @@ DC offset post-non-linearity. Asymmetric clippers, half-wave rectifiers,
 and slew limiters all leave DC on their output. Run it as the *last* stage
 before the safety `softLimit`. See `effects/harmonica.cpp` for the only
 current corpus use.
+
+### Test every primitive on the desktop before it ever meets hardware
+
+Every header above has a matching `tests/dsp/<name>_test.cpp` — endpoint
+values, sweeps, edge cases, `reset()` reproducibility — built and run by
+`tests/check_dsp.sh` before anything gets near the pedal. This isn't a
+process invented for this repo: Mutable Instruments' Braids oscillator
+code builds and runs standalone on a desktop
+(`make -f braids/test/makefile && ./oscillator_test`), decoupling
+algorithm iteration from flash/hardware cycles the same way this corpus's
+`tests/dsp/` and `tests/effect_probe.cpp` do. Finding the same convention
+independently adopted in a well-regarded, MIT-licensed, similar-Cortex-M-
+class codebase is a useful outside check that the pattern is sound, not
+just local habit. When adding a new primitive to `source/dsp/`, write its
+test alongside it — see any existing `tests/dsp/*_test.cpp` for the shape.
 
 ## 4. Working-buffer use patterns
 
@@ -335,6 +395,12 @@ A few practical consequences:
 - **Per-sample `powf` or `expf` is almost never OK.** Move them outside
   the loop. `effects/back_talk_reverse_delay.cpp`'s feedback gain
   computation is the right pattern — `powf` once per block.
+  `dimension_chorus.cpp`'s Rate-to-Hz log taper is a real example of
+  catching this during review: an early version called `powf` every
+  sample to keep pace with a per-sample-stepped smoother, then moved the
+  `powf` itself to once-per-block (sampling the smoother's current value
+  before the loop) while leaving the smoother stepping every sample —
+  the smoothing stays correctly timed, the expensive call doesn't.
 - **Long delay-line reads are cache-miss-dominated, not arithmetic.** A
   100 ms delay reads a sample that is ~4800 cache lines away from the
   write head. Plan delay-heavy patches around the cache; do not try to
@@ -373,6 +439,18 @@ The Polyend Playground generates patches from a prompt, charging tokens.
 That flow has its place. It is also genuinely worse than handcrafted code
 at the hardware scale of the Endless, for reasons that get clearer the
 more patches you write.
+
+The economics make the case concretely, not just qualitatively: the
+Endless ships with 2000 Playground tokens (≈$20) bundled. A simple delay
+generation runs roughly $1–2 in tokens; a complex granular looper runs up
+to ~$5. Hand-coding via this SDK costs nothing per iteration and has no
+ceiling on how many times a control law can be nudged and re-probed
+before it's right — the entire twelve-effect-turned-thirteen-effect
+corpus this document describes, plus every experiment and refactor
+recorded in `docs/fork-comparisons/`, cost zero incremental tokens. For
+anyone iterating heavily on a control law (which §2 above argues is where
+the real craft lives), hand-coding is not just more controllable, it's
+the economically rational choice.
 
 A handcrafted Endless patch makes deliberate decisions in places where
 prompt-and-pray cannot:
