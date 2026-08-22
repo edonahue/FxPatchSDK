@@ -11,6 +11,7 @@
 #include "filter_coeff.h"
 #include "fractional_delay.h"
 #include "lfo.h"
+#include "one_pole_filter.h"
 #include "parameter_smoother.h"
 #include "ring_buffer.h"
 #include "soft_limit.h"
