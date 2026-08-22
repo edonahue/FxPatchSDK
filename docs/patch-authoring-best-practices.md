@@ -407,6 +407,13 @@ A few practical consequences:
   `powf` itself to once-per-block (sampling the smoother's current value
   before the loop) while leaving the smoother stepping every sample —
   the smoothing stays correctly timed, the expensive call doesn't.
+  `effects/funk_machine_envelope_filter.cpp` is the one deliberate
+  exception to "once per block" in this corpus: its cutoff tracks a
+  continuously-varying audio-rate envelope, not a user knob, and the SDK
+  doesn't document or guarantee a block size to patches, so it recomputes
+  at a self-controlled fixed interval (every 8 samples) instead — see
+  that patch's own walkthrough doc (Decision 5) for the full reasoning
+  before reaching for the same pattern elsewhere.
 - **Long delay-line reads are latency-dominated, not arithmetic — and the
   working buffer is very likely external RAM, not on-chip SRAM.** The
   working buffer (`Patch::kWorkingBufferSize` = 2,400,000 floats, 9.6 MB)
