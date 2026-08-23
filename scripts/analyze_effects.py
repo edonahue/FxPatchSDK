@@ -95,6 +95,9 @@ PATCH_METADATA = {
         "level_role": "blend",
         "secondary_param": 1,
         "hold_note": "tone-bypass mids-lift toggle",
+        # Fuzz's dense, chaotic harmonic content is the intended character,
+        # not a defect -- see describe_spectral_flags()'s docstring.
+        "dense_harmonics": True,
     },
     "big_muff_wdf": {
         "category": "drive",
@@ -105,6 +108,7 @@ PATCH_METADATA = {
         "level_role": "blend",
         "secondary_param": 1,
         "hold_note": "tone-bypass mids-lift WDF sibling toggle",
+        "dense_harmonics": True,
     },
     "mxr_distortion_plus": {
         "category": "drive",
@@ -379,9 +383,21 @@ def describe_drive_flags(derived: dict) -> list[str]:
     return flags
 
 
-def describe_spectral_flags(category: str, spectrum: dict | None) -> list[str]:
+def describe_spectral_flags(
+    category: str, spectrum: dict | None, dense_harmonics: bool = False
+) -> list[str]:
     """Category-aware THD/spurious-energy flags -- high THD is *the point*
-    of a drive pedal, so the direction of the flag depends on category."""
+    of a drive pedal, so the direction of the flag depends on category.
+
+    dense_harmonics marks effects (currently big_muff/big_muff_wdf) whose
+    intended character is dense, chaotic, non-strictly-harmonic fuzz
+    content -- the same reason category == "modulation" is exempted from
+    the spurious-energy flag (LFO sidebands are legitimate there), fuzz
+    is exempted here. This is a per-effect flag rather than a distinct
+    "fuzz" top-level category because every other category behavior
+    (THD-low flagging, drive-family severity scoring) should still apply
+    to these two exactly as it does to the rest of "drive" -- only the
+    spurious-energy threshold itself doesn't fit."""
     if spectrum is None:
         return []
 
@@ -399,9 +415,14 @@ def describe_spectral_flags(category: str, spectrum: dict | None) -> list[str]:
             flags.append(f"THD {thd:.1f}% is high for a {category} effect")
 
     # LFO-driven sidebands are legitimately non-harmonic for a modulation
-    # effect, not a bug -- report the number (it's still in the summary
-    # columns) but don't flag it.
-    if category != "modulation" and spectrum["spurious_energy_db"] > SPURIOUS_ENERGY_FLAG_DB:
+    # effect, and dense/chaotic harmonics are the intended character of a
+    # fuzz effect -- neither is a bug, so report the number (it's still in
+    # the summary columns) but don't flag either.
+    if (
+        category != "modulation"
+        and not dense_harmonics
+        and spectrum["spurious_energy_db"] > SPURIOUS_ENERGY_FLAG_DB
+    ):
         flags.append(f"spurious spectral energy {spectrum['spurious_energy_db']:.1f} dB is high")
 
     return flags
@@ -443,7 +464,7 @@ def severity_score(
         if derived["hold_diff_nominal"] >= 0.08:
             flags.append("mode change is clearly audible")
 
-    spectral_flags = describe_spectral_flags(category, spectrum)
+    spectral_flags = describe_spectral_flags(category, spectrum, meta.get("dense_harmonics", False))
     flags += spectral_flags
     score += len(spectral_flags)
 
