@@ -386,8 +386,18 @@ These files are useful for:
 - comparing UX and naming conventions against hand-written SDK patches
 - building a listening/test corpus for future fork development
 
-They are not useful for code extraction or line-by-line reverse engineering in the same
-way that `effects/*.cpp` files are.
+They are not a substitute for source: there is no C++ to read, and this repo does not
+transcribe recovered code into `effects/`.
+
+They are, however, genuinely analyzable, and an earlier version of this section
+overstated the opposite. The `.endl` format decodes completely from the file alone,
+entry points are self-describing, and the Thumb-2 code disassembles cleanly at a known
+base address. Structural and statistical analysis of these binaries produced two
+concrete changes to this repo -- see
+[`docs/endl-corpus-study.md`](endl-corpus-study.md) and
+[`docs/endl-binary-format.md`](endl-binary-format.md), with
+[`scripts/endl_inspect.py`](../scripts/endl_inspect.py) and
+[`scripts/endl_analyze.py`](../scripts/endl_analyze.py) as the tooling.
 
 For the official Plates catalog and attribution notes, see
 [`playground/polyend_plates/README.md`](../playground/polyend_plates/README.md). To sync

@@ -31,6 +31,11 @@ If you are preparing to add or change code, read in this order:
    tracks the upstream repo and the fork network;
    [`sthompsonjr-wdf.md`](docs/fork-comparisons/sthompsonjr-wdf.md) is the
    deep-dive on the `sthompsonjr` fork — what we adopted, what we declined
+7. [`docs/endl-corpus-study.md`](docs/endl-corpus-study.md) — what the 42
+   compiled `.endl` binaries in this repo (Polyend's factory plates, the
+   Playground community patches, and our own) reveal about platform norms;
+   [`docs/endl-binary-format.md`](docs/endl-binary-format.md) is the format
+   spec behind it
 
 If you are starting a new patch rather than editing one, also pair
 [`docs/templates/patch-build-walkthrough.md`](docs/templates/patch-build-walkthrough.md)
@@ -43,7 +48,10 @@ These come from
 [`docs/endless-reference.md`](docs/endless-reference.md) §3, §7, §8 and the
 Makefile. Do not violate them; do not restate them in patch files.
 
-- ARM Cortex-M7 target, position-independent code.
+- ARM Cortex-M7 target. The patch image is linked to an absolute address
+  (`PATCH_LOAD_ADDR`, default `0x80000000`) and is **not** position-independent
+  — `readelf` reports `EXEC`, no relocations, no GOT. See
+  [`docs/endl-binary-format.md`](docs/endl-binary-format.md) §5.
 - Build flags include `-std=c++20`, `-fno-exceptions`, `-fno-rtti`,
   `-fsingle-precision-constant`, `-Wdouble-promotion`, `-O3`.
 - No heap: no `new`, `malloc`, `std::vector`, or other dynamic allocation.
@@ -117,6 +125,20 @@ that pattern for future measure-before-deciding experiments: a probe under
 `tests/` (never under `effects/`, so it's never mistaken for a patch), an
 analysis script under `scripts/` if needed, and a doc under `docs/`
 recording the actual numbers and a data-driven conclusion.
+
+## Analyzing compiled patches
+
+`scripts/endl_inspect.py` and `scripts/endl_analyze.py` read `.endl` binaries
+directly — header validation, entry-point resolution, library-routine
+fingerprinting, instruction census. Use them when a question is about what the
+compiler or the platform actually did, rather than what the source says.
+
+Third-party binaries under `playground/` are inputs to analysis only. Polyend
+owns the factory plates (see
+[`playground/polyend_plates/README.md`](playground/polyend_plates/README.md)):
+study them, learn from what they do, and do not transcribe recovered code,
+coefficients, or routines into `effects/`. This is the same line the repo already
+holds on the `sthompsonjr` fork.
 
 ## What this repo deliberately does not do
 
