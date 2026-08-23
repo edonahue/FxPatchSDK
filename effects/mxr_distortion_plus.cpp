@@ -27,6 +27,7 @@
 //      hard-clipping; also adds a small "hot" character at the top of the knob)
 
 #include "../source/Patch.h"
+#include "../source/dsp/parameter_smoother.h"
 #include "../source/dsp/soft_limit.h"
 #include <cmath>
 
@@ -46,6 +47,7 @@ namespace {
     }
 
     using dsp::softLimit;
+    using SmoothedValue = dsp::ParamSmoother;
 }
 
 class MxrDistortionPlus final : public Patch
@@ -57,8 +59,15 @@ public:
     {
         dist_     = 0.42f;
         tone_     = 0.55f;
-        level_    = 0.65f;
         bypassed_ = false;
+
+        // Level is the highest-gain-range knob in the drive family (11.67x
+        // level-ratio, per scripts/analyze_effects.py's derived metrics) and
+        // was the one un-smoothed parameter in this patch -- a fast knob
+        // move here has the largest available un-smoothed gain jump in the
+        // corpus. Time constant matches tube_screamer_wdf.cpp's level_
+        // smoother (also a level-role knob, 18ms).
+        level_.init(0.65f, 18.0f);
 
         // Clear filter state for both channels
         hpPrevL_ = 0.0f;  xPrevL_ = 0.0f;
@@ -88,7 +97,6 @@ public:
         // but uses Endless-tuned curves instead of the original pot law.
         float distClamped = clamp01(dist_);
         float toneClamped = clamp01(tone_);
-        float levelClamped = clamp01(level_);
 
         float driveCurve = 0.08f + 0.92f * std::pow(distClamped, 1.08f);
         float gain       = 2.0f + 18.0f * driveCurve + 10.0f * driveCurve * driveCurve;
@@ -110,12 +118,27 @@ public:
         // The previous law created a big numeric range, but much of that range was
         // spent driving the already-clipped output harder rather than increasing
         // the actual post-DAC loudness the user hears.
-        float levelCurve = levelClamped * (0.5f + 0.5f * levelClamped);
         float outputTrim = 0.78f - 0.04f * driveCurve;
-        float outputGain = (0.06f + 0.64f * levelCurve) * outputTrim;
 
         // --- Process each sample ---
         for (int i = 0; i < numSamples; ++i) {
+
+            // level_.process() must be called once per SAMPLE, not once per
+            // block: dsp::ParamSmoother's time constant is calibrated
+            // assuming exactly one process() call per sample of elapsed
+            // real time (source/dsp/parameter_smoother.h). Calling it once
+            // per block instead makes it settle ~(block size)x slower than
+            // its configured 18ms -- a real bug caught by this session's
+            // own before/after analyze_effects.py comparison, which showed
+            // the Level knob's sweep authority collapsing (level_ratio
+            // 11.67 -> 1.41) because the smoother never got close to
+            // converging within a 1-second test burst. levelCurve/outputGain
+            // themselves are cheap (no transcendental calls), so recomputing
+            // them every sample alongside the smoother step costs nothing
+            // worth hoisting.
+            const float levelClamped = clamp01(level_.process());
+            const float levelCurve   = levelClamped * (0.5f + 0.5f * levelClamped);
+            const float outputGain   = (0.06f + 0.64f * levelCurve) * outputTrim;
 
             // === LEFT CHANNEL ===
 
@@ -175,9 +198,9 @@ public:
     void setParamValue(int idx, float value) override
     {
         switch (idx) {
-            case 0: dist_  = value; break;  // Left  — Distortion
-            case 1: tone_  = value; break;  // Mid   — Tone
-            case 2: level_ = value; break;  // Right — Level (also expression pedal)
+            case 0: dist_ = value; break;              // Left  — Distortion
+            case 1: tone_ = value; break;               // Mid   — Tone
+            case 2: level_.setTarget(value); break;     // Right — Level (also expression pedal)
             default: break;
         }
     }
@@ -207,7 +230,7 @@ private:
     // Knob positions (0.0–1.0)
     float dist_    = 0.5f;
     float tone_    = 0.5f;
-    float level_   = 0.5f;
+    SmoothedValue level_;
 
     bool bypassed_ = false;
 
