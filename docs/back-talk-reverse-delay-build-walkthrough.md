@@ -233,7 +233,22 @@ Per sample, per channel:
 - a few multiplies/adds for envelope, mix, and feedback filtering
 
 This is comfortably within the Endless budget and substantially cheaper than more elaborate
-granular or spectral reverse approaches.
+granular or spectral reverse approaches — in raw arithmetic op count. A later hardware
+research pass in this repo inferred the working buffer is very likely external SDRAM/PSRAM,
+not on-chip SRAM (`docs/patch-authoring-best-practices.md` §6), meaning a read far from the
+write head pays a materially bigger latency cliff than an on-chip cache miss. This patch is
+the single largest exposure to that risk in the corpus: `chunkSamplesFromSpeed()` ranges up
+to 1.2s (~57,600 samples) of reverse-chunk length — about 12x further from the write head
+than the "100 ms delay" example already used to illustrate the concern — and Texture mode
+reads a *second*, simultaneously-offset tap, doubling the exposure per sample. There is no
+code fix to propose for this: a reverse delay inherently needs to read from a variable,
+potentially large offset, and that variability is the effect. If/when real hardware cycle
+measurement ever happens (`docs/hardware-cycle-measurement-howto.md`), **this patch should
+be the first one profiled** — it's the best real-world test of whether "budget real headroom
+for an off-chip round trip" is being followed or violated in practice, since every other
+effect's working-buffer access pattern is either absent or far smaller (compare
+`bbe_sonic_stomp.cpp`'s ~1536-sample doubler tap, over 40x shorter than this patch's maximum
+reverse-chunk reach).
 
 ### Key gotchas
 
@@ -277,3 +292,11 @@ bash tests/check_patches.sh
 - `docs/circuit-to-patch-conversion.md`
 - `docs/endless-reference.md`
 - `internal/PatchCppWrapper.cpp`
+- `docs/back-talk-external-ram-host-probe.md` — a host-side experiment
+  testing whether this patch's external-RAM exposure (see "CPU budget
+  estimate" above) could be approximated on this host; a clean null
+  result, and why
+- `docs/patch-authoring-best-practices.md` §6 — the external-RAM inference
+  this patch is the largest exposure to
+- `docs/hardware-cycle-measurement-howto.md` — the only path to a real
+  answer

@@ -33,6 +33,7 @@
 
 #include "../source/Patch.h"
 #include "../source/dsp/filter_coeff.h"
+#include "../source/dsp/fractional_delay.h"
 
 #include <cmath>
 #include <cstddef>
@@ -349,14 +350,8 @@ class SonicStompEnhancer final : public Patch
                                      int writeIdx,
                                      float delaySamples)
     {
-        float readPos = static_cast<float>(writeIdx) - delaySamples;
-        while (readPos < 0.0f)
-            readPos += static_cast<float>(length);
-
-        const int idx0 = static_cast<int>(readPos) % length;
-        const int idx1 = (idx0 + 1) % length;
-        const float frac = readPos - static_cast<float>(idx0);
-        return buffer[idx0] * (1.0f - frac) + buffer[idx1] * frac;
+        const float readPos = static_cast<float>(writeIdx) - delaySamples;
+        return dsp::lerpRead(buffer, length, readPos);
     }
 
     float contour_ = 0.45f;

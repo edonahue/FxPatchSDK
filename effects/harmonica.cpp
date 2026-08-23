@@ -37,13 +37,13 @@
 #include "../source/Patch.h"
 #include "../source/dsp/dc_blocker.h"
 #include "../source/dsp/filter_coeff.h"
+#include "../source/dsp/fractional_delay.h"
 #include "../source/dsp/soft_limit.h"
 
 #include <cmath>
 #include <cstddef>
 
 namespace {
-constexpr float kPi     = 3.14159265f;
 constexpr float kTwoPi  = 6.28318531f;
 constexpr float kFs     = static_cast<float>(Patch::kSampleRate);
 
@@ -175,14 +175,14 @@ public:
         // --- WAA knob (Right / expression): log-sweep formant-1 center ---
         const float fcRatio = base.form1FcMax / kFormant1FcMin;
         const float f1Fc    = kFormant1FcMin * powf(fcRatio, waa);
-        const float f1      = 2.0f * sinf(kPi * f1Fc / kFs);
+        const float f1      = dsp::svfF1(f1Fc, kFs);
         const float q1      = 1.0f / base.form1Q;
         // Peak of Chamberlin bandpass is Q/2. Normalize to 1.0 via (2/Q) then
         // scale by voicing peak gain (same logic as effects/wah.cpp:125).
         const float bp1Gain = base.form1Gain * 2.0f * q1;
 
         // --- Formant-2 (fixed) ---
-        const float f2      = 2.0f * sinf(kPi * kFormant2Fc / kFs);
+        const float f2      = dsp::svfF1(kFormant2Fc, kFs);
         const float q2      = 1.0f / kFormant2Q;
         const float bp2Gain = 2.0f * q2;  // normalized to unity peak
 
@@ -335,15 +335,13 @@ private:
         y *= trem;
 
         // [H] Micro-chorus (reed detune) — fractional-delay read, write the
-        // post-tremolo signal, linear interpolation.
+        // post-tremolo signal, linear interpolation via dsp::lerpRead
+        // (source/dsp/fractional_delay.h), which wraps a negative readPos
+        // itself.
         delayBuf[write_] = y;
-        float readPos = static_cast<float>(write_) - chorusCenter
-                      - chorusDepth * sinf(chorusPhase * kTwoPi);
-        if (readPos < 0.0f) readPos += static_cast<float>(kChorusLen);
-        const int idx0 = static_cast<int>(readPos) % kChorusLen;
-        const int idx1 = (idx0 + 1) % kChorusLen;
-        const float frac = readPos - static_cast<float>(static_cast<int>(readPos));
-        const float wet = delayBuf[idx0] * (1.0f - frac) + delayBuf[idx1] * frac;
+        const float readPos = static_cast<float>(write_) - chorusCenter
+                             - chorusDepth * sinf(chorusPhase * kTwoPi);
+        const float wet = dsp::lerpRead(delayBuf, kChorusLen, readPos);
         y = chorusDry * y + chorusWet * wet;
 
         // [I] DC blocker (scrubs DC offset from asymmetric clipper) — alpha

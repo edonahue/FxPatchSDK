@@ -414,6 +414,25 @@ A few practical consequences:
   at a self-controlled fixed interval (every 8 samples) instead — see
   that patch's own walkthrough doc (Decision 5) for the full reasoning
   before reaching for the same pattern elsewhere.
+  **Not every per-sample recompute of a `dsp::ParamSmoother`-derived value
+  is safe to hoist, even when it looks like the same shape as the
+  `dimension_chorus.cpp` fix above — measured, not assumed.**
+  `tube_screamer_wdf.cpp`/`big_muff_wdf.cpp` compute `cosf`/`sinf` of
+  their smoothed `tone_`/`blend_` value every sample; hoisting that to
+  block-rate (sampling `.current()` once before the loop, exactly the
+  `dimension_chorus.cpp` pattern) was tried as a throwaway experiment: a
+  hard knob jump (0.0 → 1.0) followed by ~107 ms of audio showed a
+  correlation of 0.999 overall, but the RMS difference between the
+  per-sample and hoisted versions was ~29x larger in the first ~10 ms
+  after the jump (0.0135) than in the settled tail (0.00046) — a real,
+  measured difference concentrated exactly where a knob-move zipper would
+  be audible, not an indistinguishable rounding artifact. Left as-is:
+  these two effects' per-sample trig is earning its keep, not wasted
+  cycles. The difference from `dimension_chorus.cpp`'s case: that fix
+  hoists a *rate* knob feeding an LFO, where a block-granularity step is
+  perceptually forgiving; `tone_`/`blend_` here feed a crossfade weight
+  the ear tracks more closely. Don't assume the two cases generalize to
+  each other — re-measure per effect.
 - **Long delay-line reads are latency-dominated, not arithmetic — and the
   working buffer is very likely external RAM, not on-chip SRAM.** The
   working buffer (`Patch::kWorkingBufferSize` = 2,400,000 floats, 9.6 MB)

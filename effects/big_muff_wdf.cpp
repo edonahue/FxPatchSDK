@@ -136,6 +136,12 @@ public:
             return;
         }
 
+        // lowToneAlpha/highToneLpAlpha take fixed literal cutoffs (245 Hz,
+        // 1180 Hz) -- unlike bypassToneAlpha below, they don't depend on any
+        // knob, so they only need to be computed once, not once per sample.
+        const float lowToneAlpha    = lpCoeff(245.0f);
+        const float highToneLpAlpha = lpCoeff(1180.0f);
+
         for (size_t i = 0; i < left.size(); ++i)
         {
             const float sustainValue = clamp01(sustain_.process());
@@ -161,8 +167,6 @@ public:
             const float stage2Strength   = 0.11f + 0.08f * sustainCurve;
             const float stage2Thermal    = 0.16f - 0.02f * sustainCurve;
             const float inputBoost       = 1.28f + 3.65f * sustainCurve;
-            const float lowToneAlpha     = lpCoeff(245.0f);
-            const float highToneLpAlpha  = lpCoeff(1180.0f);
             const float bypassToneAlpha  = lpCoeff(1220.0f + 3600.0f * toneCurve);
             const float toneLowWeight    = cosf(toneValue * kHalfPi);
             const float toneHighWeight   = sinf(toneValue * kHalfPi);

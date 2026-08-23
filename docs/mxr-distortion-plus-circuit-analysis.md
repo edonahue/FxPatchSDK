@@ -67,11 +67,27 @@ range, from about `2x` to `213x`, with most of the audible change stacked near t
 knob travel.
 
 The current patch keeps the coupling concept but replaces the raw pot law with a smoother
-control curve:
+control curve. (Updated to match the current source — the curve has been retuned since this
+doc was first written, most notably gaining a quadratic term: see
+[`effects/mxr_distortion_plus.cpp`](../effects/mxr_distortion_plus.cpp) for the exact,
+always-current formula rather than trusting this snapshot.)
 
 ```cpp
-float driveCurve = std::pow(dist_, 0.75f);
-float gain = 1.5f + 16.0f * driveCurve;
+float driveCurve = 0.08f + 0.92f * std::pow(dist_, 1.08f);
+float gain = 2.0f + 18.0f * driveCurve + 10.0f * driveCurve * driveCurve;
+```
+
+A "Third pass" retuning also added a two-stage clip: the initial `tanhf` clip is followed by
+a "recovery" stage that recombines the clipped signal with a fraction of the pre-clip gain
+stage, the same cascaded-tanh idiom `tube_screamer.cpp`/`klon_centaur.cpp`/
+`big_muff.cpp` use:
+
+```cpp
+float clipDrive     = 1.05f + 1.55f * driveCurve;
+float recoveryDrive = 1.00f + 0.92f * driveCurve;
+// ...
+float clippedL   = tanhf(gainedL * clipDrive);
+float recoveredL = tanhf((clippedL * recoveryDrive + gainedL * 0.07f) * (1.0f + 0.35f * driveCurve));
 ```
 
 Practical result:
@@ -106,9 +122,12 @@ On guitar, that often sounded like "almost no tone change." The current patch mo
 control into a more obviously useful range:
 
 ```cpp
-float toneCurve = std::pow(tone_, 1.25f);
-float fc_lp = 800.0f + 7200.0f * toneCurve;
+float toneCurve = std::pow(tone_, 1.10f);
+float fc_lp = 650.0f + 6800.0f * toneCurve;
 ```
+
+(Updated to match the current source — the exponent and cutoff range have both been
+retuned since this doc was first written.)
 
 That makes the middle knob act like a real dark-to-bright voicing control instead of a mostly
 inaudible anti-fizz adjustment.
@@ -123,9 +142,14 @@ The current level stage adds two Endless-specific decisions:
 
 ```cpp
 float levelCurve = level_ * (0.5f + 0.5f * level_);
-float outputTrim = 1.15f - 0.45f * driveCurve;
-float out = clippedAndFiltered * levelCurve * outputTrim;
+float outputTrim = 0.78f - 0.04f * driveCurve;
+float outputGain = (0.06f + 0.64f * levelCurve) * outputTrim;
+float out = softLimit(filtered * outputGain);
 ```
+
+(Updated to match the current source — `outputTrim`'s formula was re-tuned in the "Third
+pass" retuning noted in the Distortion section above, and the output stage now goes through
+`outputGain` plus a final `softLimit` safety stage rather than a single direct multiply.)
 
 - the level knob uses a gentler taper
 - output is compensated downward as distortion rises

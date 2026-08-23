@@ -191,15 +191,18 @@ public:
             return;
         }
 
+        // getTs808Voice()/getTs9Voice() return fixed literal constants --
+        // they don't depend on anything sample- or block-varying, so they
+        // only need to be constructed once, not once per sample.
+        const VoiceParams a = getTs808Voice();
+        const VoiceParams b = getTs9Voice();
+
         for (size_t i = 0; i < left.size(); ++i)
         {
             const float driveValue = clamp01(drive_.process());
             const float toneValue  = clamp01(tone_.process());
             const float levelValue = clamp01(level_.process());
             const float ts9Morph   = clamp01(ts9Morph_.process());
-
-            const VoiceParams a = getTs808Voice();
-            const VoiceParams b = getTs9Voice();
 
             const float driveCurve = driveValue * driveValue *
                                      (0.40f + 0.60f * driveValue);

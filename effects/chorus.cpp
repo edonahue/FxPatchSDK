@@ -112,13 +112,14 @@ public:
             delayR_[writeR_] = dryR;
 
             // Compute modulated read positions (sine LFO via dsp::SineLfo::value).
-            float readPosL = static_cast<float>(writeL_) - kCenter
-                             - depthSamples * dsp::SineLfo::value(lfoPhaseL_);
-            float readPosR = static_cast<float>(writeR_) - kCenter
-                             - depthSamples * dsp::SineLfo::value(lfoPhaseR_);
-
-            if (readPosL < 0.0f) readPosL += static_cast<float>(kDelayLen);
-            if (readPosR < 0.0f) readPosR += static_cast<float>(kDelayLen);
+            // dsp::lerpRead() wraps a negative readPos itself (see
+            // source/dsp/fractional_delay.h), so no manual pre-wrap is
+            // needed here -- this used to carry its own `if (readPosL < 0)`
+            // step before that fix landed.
+            const float readPosL = static_cast<float>(writeL_) - kCenter
+                                   - depthSamples * dsp::SineLfo::value(lfoPhaseL_);
+            const float readPosR = static_cast<float>(writeR_) - kCenter
+                                   - depthSamples * dsp::SineLfo::value(lfoPhaseR_);
 
             // Linear-interpolated fractional-delay read from source/dsp/.
             const float wetL = dsp::lerpRead(delayL_, kDelayLen, readPosL);
