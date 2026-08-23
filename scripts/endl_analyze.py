@@ -225,6 +225,21 @@ def source_breakdown(name: str) -> dict | None:
     return totals
 
 
+# Knob names are stored as plain NUL-terminated literals, so scanning for
+# capitalised words is a direct test of whether a patch supplies any -- far
+# more reliable than inferring it from the shape of the accessor.
+# Requiring a NUL on both sides suppresses most false hits from Thumb opcode
+# bytes that happen to be printable (`70 47`, `bx lr`, reads as "pG"). A few
+# still slip through, and the filter is conservative in the other direction
+# too -- a literal packed directly after another string has no leading NUL --
+# so treat the output as a strong indicator, not an exact list.
+NAME_RE = re.compile(rb"\x00([A-Z][A-Za-z]{2,11})\x00")
+
+
+def name_strings(data: bytes) -> list[str]:
+    return sorted({m.decode("ascii") for m in NAME_RE.findall(data)})
+
+
 def analyze(path: Path, group: str, sig: dict[str, set[int]]) -> dict:
     data = path.read_bytes()
     hdr = parse_header(data, str(path))
@@ -249,8 +264,7 @@ def analyze(path: Path, group: str, sig: dict[str, set[int]]) -> dict:
         "problems": problems,
         "libm_routines_detected": libm_detected,
         "all_routines_detected": sorted(detected),
-        "param_name_inlined_stub": entries["agent_get_param_name"].get("inlined_stub"),
-        "param_unit_inlined_stub": entries["agent_get_param_unit"].get("inlined_stub"),
+        "name_strings": name_strings(data),
         "entry_kinds": {k: v["kind"] for k, v in entries.items()},
     }
     record.update(instruction_mix(path, load_addr, hdr["image_size"]))
@@ -270,11 +284,11 @@ def render_markdown(records: list[dict]) -> str:
             continue
         lines.append(f"## {group} ({len(rows)})")
         lines.append("")
-        lines.append("| patch | image | bss | fpu ratio | libm routines | param name |")
+        lines.append("| patch | image | bss | fpu ratio | libm routines | name strings |")
         lines.append("|---|---|---|---|---|---|")
         for r in sorted(rows, key=lambda x: x["name"]):
             libm = ", ".join(r["libm_routines_detected"]) or "none detected"
-            stub = "inlined stub" if r["param_name_inlined_stub"] else "forwards"
+            stub = ", ".join(r["name_strings"][:4]) or "none"
             lines.append(
                 f"| {r['name']} | {r['image_size']} | {r['bss_size']} | "
                 f"{r['fpu_ratio']:.3f} | {libm} | {stub} |"

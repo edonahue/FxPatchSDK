@@ -178,6 +178,16 @@ public:
         }
     }
 
+    const char* getParameterName(int idx) override
+    {
+        switch (idx) {
+            case 0: return "Gain";
+            case 1: return "Treble";
+            case 2: return "Output";
+            default: return nullptr;
+        }
+    }
+
     void setParamValue(int idx, float value) override
     {
         switch (idx) {

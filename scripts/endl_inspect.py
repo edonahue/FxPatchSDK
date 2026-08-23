@@ -67,16 +67,12 @@ RESERVED_WORDS = 16
 # all?" is actually decidable.
 MINIMAL_MAX_INSNS = 6
 
-# For the two string-returning entries we can tell an *inlined* do-nothing stub
-# from a thunk that forwards the call somewhere else. This SDK's stub writes a
-# single zero byte and returns (`movs r3,#0; strb r3,[r2]; bx lr`); Polyend's
-# own plates instead spill their arguments and tail-call through a vtable slot.
-#
-# IMPORTANT: "forwards" does NOT mean "returns a real string". The thunk hides
-# whatever the virtual does, and no factory plate in this corpus contains any
-# readable name text at all (see docs/endl-corpus-study.md, Finding 2). Do not
-# read this flag as evidence that a patch supplies knob names.
-PARAM_STRING_ENTRIES = ("agent_get_param_name", "agent_get_param_unit")
+# NOTE: an earlier version of this file tried to decide whether an entry was
+# "really implemented" from its instruction shape. That heuristic was wrong in
+# both directions -- it read Polyend's vtable-forwarding thunk as a string
+# producer, and this SDK's own switch-based implementation as a stub -- so it
+# was removed. Whether a patch supplies knob names is answered directly by
+# scanning the image for name strings; see scripts/endl_analyze.py.
 
 
 class HeaderError(Exception):
@@ -193,10 +189,9 @@ def _disassemble(path: Path, addr: int, load_addr: int, nbytes: int, prefix: str
 def classify_entries(path: Path, hdr: dict, prefix: str = "arm-none-eabi-") -> dict:
     """Label each ABI entry implemented / stub / null by disassembling it.
 
-    Reports a coarse size label plus, for the two string entries, an
-    `inlined_stub` flag separating an inline do-nothing implementation from one
-    that forwards the call elsewhere. See PARAM_STRING_ENTRIES on what that
-    flag does and does not establish.
+    Reports the entry address and a coarse size label (instruction count to
+    the first return). Size alone does not establish whether an entry does
+    anything useful -- see the NOTE near the top of this file.
     """
     result = {}
     load_addr = hdr["load_addr"] or DEFAULT_LOAD_ADDR
@@ -216,12 +211,7 @@ def classify_entries(path: Path, hdr: dict, prefix: str = "arm-none-eabi-") -> d
                 break
         count = len(body)
         kind = "minimal" if count <= MINIMAL_MAX_INSNS else "substantive"
-        info = {"addr": addr, "kind": kind, "insns": count}
-        if name in PARAM_STRING_ENTRIES:
-            stores = [i for i in body if i.split()[0].startswith("str")]
-            calls = [i for i in body if i.split()[0] in ("bl", "blx")]
-            info["inlined_stub"] = len(stores) <= 1 and not calls
-        result[name] = info
+        result[name] = {"addr": addr, "kind": kind, "insns": count}
     return result
 
 
@@ -248,10 +238,6 @@ def report(hdr: dict, entries: dict | None, problems: list[str]) -> str:
         if entries:
             info = entries[name]
             suffix = f"  [{info['kind']}, {info['insns']} insn]"
-            if info.get("inlined_stub") is True:
-                suffix += "  inlined stub (writes only a terminator)"
-            elif info.get("inlined_stub") is False:
-                suffix += "  forwards elsewhere (content unknown)"
         shown = f"{addr:#010x}" if addr else "NULL"
         lines.append(f"    {name:<26} {shown}{suffix}")
     if problems:

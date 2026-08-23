@@ -70,23 +70,53 @@ extern "C"
         return 0;
     }
 
+    // Copies a NUL-terminated string into the firmware's buffer, truncating
+    // rather than overrunning, and always terminating. A null source yields an
+    // empty string, which is how a patch says "no name/unit for this one".
+    static void copyBounded(char* out, size_t bufferSize, const char* text)
+    {
+        if (out == nullptr || bufferSize == 0)
+        {
+            return;
+        }
+        if (text == nullptr)
+        {
+            out[0] = '\0';
+            return;
+        }
+        size_t i = 0;
+        const size_t limit = bufferSize - 1;
+        while (i < limit && text[i] != '\0')
+        {
+            out[i] = text[i];
+            ++i;
+        }
+        out[i] = '\0';
+    }
+
+    static bool isParamIdx(int idx)
+    {
+        return idx >= 0 && idx < endless::kParams;
+    }
+
     void patch_agent_get_param_name(const PatchEnv* /* env */,
-                                    int /* idx */,
+                                    int idx,
                                     char* out,
                                     size_t bufferSize)
     {
-        if (bufferSize > 0)
-        {
-            out[0] = '\0';
-        }
+        copyBounded(out, bufferSize,
+                    isParamIdx(idx) ? Patch::getInstance()->getParameterName(idx)
+                                    : nullptr);
     }
 
     void patch_agent_get_param_unit(const PatchEnv* /* env */,
-                                    int /* idx */,
+                                    int idx,
                                     char* out,
-                                    size_t /* bufferSize */)
+                                    size_t bufferSize)
     {
-        out[0] = '\0';
+        copyBounded(out, bufferSize,
+                    isParamIdx(idx) ? Patch::getInstance()->getParameterUnit(idx)
+                                    : nullptr);
     }
 
     int patch_agent_get_state_idx(const PatchEnv* /* env */)
