@@ -249,8 +249,8 @@ def analyze(path: Path, group: str, sig: dict[str, set[int]]) -> dict:
         "problems": problems,
         "libm_routines_detected": libm_detected,
         "all_routines_detected": sorted(detected),
-        "param_name_stub": entries["agent_get_param_name"].get("param_string_stub"),
-        "param_unit_stub": entries["agent_get_param_unit"].get("param_string_stub"),
+        "param_name_inlined_stub": entries["agent_get_param_name"].get("inlined_stub"),
+        "param_unit_inlined_stub": entries["agent_get_param_unit"].get("inlined_stub"),
         "entry_kinds": {k: v["kind"] for k, v in entries.items()},
     }
     record.update(instruction_mix(path, load_addr, hdr["image_size"]))
@@ -270,11 +270,11 @@ def render_markdown(records: list[dict]) -> str:
             continue
         lines.append(f"## {group} ({len(rows)})")
         lines.append("")
-        lines.append("| patch | image | bss | fpu ratio | libm routines | name/unit |")
+        lines.append("| patch | image | bss | fpu ratio | libm routines | param name |")
         lines.append("|---|---|---|---|---|---|")
         for r in sorted(rows, key=lambda x: x["name"]):
             libm = ", ".join(r["libm_routines_detected"]) or "none detected"
-            stub = "stub" if r["param_name_stub"] else "provided"
+            stub = "inlined stub" if r["param_name_inlined_stub"] else "forwards"
             lines.append(
                 f"| {r['name']} | {r['image_size']} | {r['bss_size']} | "
                 f"{r['fpu_ratio']:.3f} | {libm} | {stub} |"

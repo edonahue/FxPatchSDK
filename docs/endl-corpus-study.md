@@ -97,32 +97,59 @@ compute it once per block — the pattern `dimension_chorus.cpp` already uses.
 Where one is needed per sample, a bounded polynomial or table approximation is
 what the rest of the platform appears to do.
 
-## Finding 2 — Every third-party patch names its knobs. None of ours do.
+## Finding 2 — Polyend's SDK exposes param name/unit as virtuals. The public SDK throws the slot away. Nobody appears to use it.
 
-| Group | n | provides `agent_get_param_name` / `_unit` |
-|---|---|---|
-| Polyend factory plates | 5 | 5 |
-| Playground (community) | 23 | 23 |
-| This repo | 14 | **0** |
+This finding was initially written as "every third-party patch names its knobs
+and none of ours do." **That was wrong and is corrected here**, because the
+detector that produced it measured the wrong thing.
 
-28 of 28 third-party images versus 0 of 14 of ours — a complete separation.
+What is solid: our images and every third-party image differ completely in how
+`agent_get_param_name` / `agent_get_param_unit` are compiled.
 
-Our images are not failing to do something a patch author forgot. The stub is in
-the SDK: `internal/PatchCppWrapper.cpp` implemented both entry points as a
-single `'\0'` write, so no patch built against this SDK could provide a name or
-unit however it was written. Our `chorus.endl` compiles `get_param_name` to
-`movs r3,#0; strb r3,[r2]; bx lr` — three instructions. `Wax.endl`'s is 19
-instructions with a real stack frame.
+Ours, from `internal/PatchCppWrapper.cpp`, is an inlined do-nothing stub:
 
-This is addressed in the same change set that produced this document: the
-virtuals now exist on `Patch`, the wrapper forwards to them, and all 14 effects
-populate them. See
+```
+800019e4:  cbz   r3, 0x800019ea
+800019e6:  movs  r3, #0
+800019e8:  strb  r3, [r2, #0]
+800019ea:  bx    lr
+```
+
+`Wax.endl`'s — and, byte-for-byte identically, `Malleus_Fuzz.endl`'s — spills
+its arguments, calls a thread-safe local-static guard (`dmb ish`), loads a
+vtable pointer and tail-calls through slot +24:
+
+```
+80002c10:  push  {r4, lr}
+80002c14:  strd  r2, r1, [sp, #8]
+80002c1a:  bl    0x80002ae8      ; singleton accessor with guard
+80002c1e:  ldr   r4, [r0, #0]    ; vtable
+80002c22:  ldr   r4, [r4, #24]   ; slot 24
+80002c30:  bx    ip              ; tail-call the virtual
+```
+
+That is a **virtual dispatch thunk**, structurally the same shape as the rest of
+our own wrapper's forwarding functions. So: **Polyend's internal C++ SDK has
+virtual methods for parameter name and unit that the public FxPatchSDK does not
+expose at all.** The ABI slot is real and their SDK wires it to the patch class;
+ours discards it before a patch author can reach it.
+
+**What this does *not* show — and the reason the original claim was withdrawn:**
+a thunk reveals nothing about what the virtual behind it returns. And scanning
+all five factory plates for printable text finds **no knob-name strings
+whatsoever** — no "Drive", "Mix", "Tone", "Level", nothing. The printable byte
+runs in those images are coincidental opcodes (`pG` is `70 47`, i.e. `bx lr`).
+
+So the most likely reading is that Polyend's plates forward to a virtual that
+returns an empty string, or that display names are carried outside the binary
+entirely (the Plates web catalog has names and descriptions the `.endl` does
+not). **There is no evidence in this corpus that any patch supplies a knob name,
+or that the firmware displays one.**
+
+The slot is still worth wiring up on our side — it is free, additive, and
+restores API surface the ABI defines and Polyend's own SDK uses. It is done in
 [`docs/param-metadata-implementation.md`](param-metadata-implementation.md).
-
-**Not verified on hardware.** That the ABI slot exists and that every
-Polyend-authored patch fills it is strong evidence the firmware consumes it, but
-nobody here has watched an Endless display a knob name. Treat the feature as
-plausible-and-cheap, not confirmed.
+But it is speculative plumbing, not a feature demonstrated to work.
 
 ## Finding 3 — The `bss_size` difference is a build artifact, not a latency signal
 
@@ -176,8 +203,9 @@ range. There is no separate code-bloat problem to chase.
 
 1. **Newlib transcendentals in per-sample paths need justification.** Folded
    into [`docs/patch-authoring-best-practices.md`](patch-authoring-best-practices.md).
-2. **Param names and units are now implemented** — the ABI surface was there the
-   whole time and the SDK was throwing it away.
+2. **Param name/unit virtuals are now exposed** — the ABI slot exists and
+   Polyend's own SDK uses it, though no corpus evidence shows any patch
+   supplying a name or the firmware displaying one.
 3. **Nothing about BSS or image size.** Both looked like findings and neither
    survived being checked.
 
