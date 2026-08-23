@@ -177,6 +177,23 @@ PATCH_METADATA = {
         "secondary_param": 1,
         "hold_note": "Crybaby / Vox toggle",
     },
+    "funk_machine_envelope_filter": {
+        "category": "filter",
+        "priority": "secondary",
+        "identity": "Mu-Tron-style touch envelope filter (not manually swept)",
+        "main_param": 2,
+        # No literal level/mix/output knob exists on this patch (Left=Sensitivity,
+        # Mid=Resonance, Right=Bias) -- level_role intentionally isn't "output" or
+        # "mix" so the unity-centering checks (gated on level_role == "output")
+        # don't misfire against a knob that was never meant to behave like one.
+        # Resonance is the closest analogue: higher resonance makes the wet
+        # signal more prominent, the nearest thing to a "level" knob this patch has.
+        "level_param": 1,
+        "level_role": "resonance",
+        "secondary_param": 0,
+        "hold_note": "Bass/GuitarKeys x Down/Up 4-state Gray-code cycle "
+                     "(voice flips on odd presses, direction flips on even)",
+    },
     "harmonica": {
         "category": "filter",
         "priority": "secondary",
