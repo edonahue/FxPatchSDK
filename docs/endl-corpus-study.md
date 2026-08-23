@@ -84,10 +84,9 @@ all.**
 **Honest limit on this claim:** no cycles were measured.
 [`docs/cycle-budget.md`](cycle-budget.md)'s table is still empty and this study
 does not fill it. What the corpus establishes is a strong prior about platform
-norms, not a demonstrated regression in any of our effects. It is also not
-established *what* the third-party patches do instead — polynomial
-approximations, table lookups, or simply DSP that needs no transcendentals are
-all consistent with the evidence. Their FPU instruction ratios (0.11–0.40) sit
+norms, not a demonstrated regression in any of our effects. What they do *instead* is now answered by
+[`docs/reverse-engineering/factory-patch-idioms.md`](reverse-engineering/factory-patch-idioms.md):
+a cascaded `x / (1 + |x|)` soft-clip, three instructions and no library call. Their FPU instruction ratios (0.11–0.40) sit
 in the same range as ours (0.22–0.39), so they are certainly not avoiding
 floating-point work in general.
 
@@ -231,6 +230,8 @@ paths, so re-running over a fuller corpus needs no code change.
 ## See also
 
 - [`docs/endl-binary-format.md`](endl-binary-format.md) — the format spec
+- [`docs/reverse-engineering/`](reverse-engineering/) — how the audio path was
+  recovered, and the DSP idioms found in it
 - [`docs/cycle-budget.md`](cycle-budget.md) — still-empty measurement table this
   study deliberately does not pretend to fill
 - [`docs/patch-authoring-best-practices.md`](patch-authoring-best-practices.md)

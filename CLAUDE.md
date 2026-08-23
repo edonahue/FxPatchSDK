@@ -35,7 +35,9 @@ If you are preparing to add or change code, read in this order:
    compiled `.endl` binaries in this repo (Polyend's factory plates, the
    Playground community patches, and our own) reveal about platform norms;
    [`docs/endl-binary-format.md`](docs/endl-binary-format.md) is the format
-   spec behind it
+   spec behind it, and
+   [`docs/reverse-engineering/`](docs/reverse-engineering) covers how the audio
+   path is recovered from a stripped image and what Polyend's own DSP idioms are
 
 If you are starting a new patch rather than editing one, also pair
 [`docs/templates/patch-build-walkthrough.md`](docs/templates/patch-build-walkthrough.md)

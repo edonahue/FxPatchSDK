@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import struct
 import subprocess
 import sys
@@ -215,6 +216,81 @@ def classify_entries(path: Path, hdr: dict, prefix: str = "arm-none-eabi-") -> d
     return result
 
 
+# The C++ patch object lives in BSS, so its vtable pointer is written at
+# construction time and is not in the file. The vtable itself is in the image
+# though, and is recognisable: a run of consecutive words that are all valid
+# Thumb code pointers into this image. The first such run is always the
+# PatchHeader entry table at offset 8; the class vtable is a later one.
+MIN_VTABLE_ENTRIES = 8
+
+# Slot labels are NOT assumed from source/Patch.h's declaration order. Polyend's
+# own SDK declares a different set (their plates have 12 virtuals to our 9, and
+# their get_param_name dispatches to +24 where ours is at +16), so labelling a
+# third-party vtable with our order would be wrong. Instead each ABI entry
+# thunk is disassembled and the vtable offset it dispatches through is read out
+# of it -- ground truth, per binary.
+#
+# A thunk looks like:  ldr rA, [rB, #0]   ; load vtable pointer from the object
+#                      ldr rC, [rA, #N]   ; load slot N
+THUNK_VTABLE_RE = re.compile(r"ldr\s+(r\d+), \[(r\d+), #(\d+)\]")
+
+
+def find_vtables(data: bytes, load_addr: int = DEFAULT_LOAD_ADDR) -> list[dict]:
+    """Locate candidate C++ vtables by scanning for runs of Thumb code pointers."""
+    end = load_addr + len(data)
+    words = [
+        struct.unpack_from("<I", data, i)[0] for i in range(0, len(data) - 3, 4)
+    ]
+
+    def is_code_ptr(w: int) -> bool:
+        return bool(w & 1) and load_addr + HEADER_SIZE <= (w & ~1) < end
+
+    runs = []
+    i = 0
+    while i < len(words):
+        if is_code_ptr(words[i]):
+            j = i
+            while j < len(words) and is_code_ptr(words[j]):
+                j += 1
+            if j - i >= MIN_VTABLE_ENTRIES:
+                runs.append({
+                    "addr": load_addr + i * 4,
+                    "count": j - i,
+                    "entries": words[i:j],
+                    "is_patch_header": (i * 4) == ENTRY_TABLE_OFFSET,
+                })
+            i = j
+        else:
+            i += 1
+    return runs
+
+
+def thunk_vtable_offsets(path: Path, hdr: dict, prefix: str = "arm-none-eabi-") -> dict:
+    """Map vtable byte-offset -> ABI entry name, by reading each entry's thunk.
+
+    Each agent_* entry point is a thunk that fetches the object's vtable and
+    tail-calls one slot. Reading the offset out of the thunk tells us what that
+    slot is, without assuming anything about the patch class's layout.
+    """
+    load_addr = hdr["load_addr"] or DEFAULT_LOAD_ADDR
+    found = {}
+    for name, addr in hdr["entries"].items():
+        if not addr:
+            continue
+        vtable_reg = None
+        for ins in _disassemble(path, addr, load_addr, 64, prefix):
+            m = THUNK_VTABLE_RE.match(ins)
+            if not m:
+                continue
+            dst, src, off = m.group(1), m.group(2), int(m.group(3))
+            if off == 0:
+                vtable_reg = dst          # this loaded the vtable pointer
+            elif src == vtable_reg:
+                found.setdefault(off, name)
+                break
+    return found
+
+
 def report(hdr: dict, entries: dict | None, problems: list[str]) -> str:
     lines = []
     lines.append(f"{hdr['path']}")
@@ -255,7 +331,9 @@ def main(argv=None) -> int:
                     help="validate only; print nothing on success, exit 1 on failure")
     ap.add_argument("--json", action="store_true", help="emit JSON")
     ap.add_argument("--entries", action="store_true",
-                    help="disassemble each entry and label stub vs implemented")
+                    help="disassemble each entry and report its size")
+    ap.add_argument("--vtable", action="store_true",
+                    help="locate the C++ vtable and name its slots")
     ap.add_argument("--prefix", default="arm-none-eabi-",
                     help="toolchain prefix for objdump (default: arm-none-eabi-)")
     args = ap.parse_args(argv)
@@ -276,6 +354,8 @@ def main(argv=None) -> int:
 
         problems = validate(hdr)
         entries = classify_entries(path, hdr, args.prefix) if args.entries else None
+        vtables = (find_vtables(data, hdr["load_addr"] or DEFAULT_LOAD_ADDR)
+                   if args.vtable else None)
         if problems:
             failures += 1
 
@@ -283,6 +363,8 @@ def main(argv=None) -> int:
             hdr["problems"] = problems
             if entries:
                 hdr["entry_kinds"] = entries
+            if vtables is not None:
+                hdr["vtables"] = vtables
             results.append(hdr)
         elif args.check:
             if problems:
@@ -291,6 +373,14 @@ def main(argv=None) -> int:
                     print(f"  - {p}", file=sys.stderr)
         else:
             print(report(hdr, entries, problems))
+            slot_names = thunk_vtable_offsets(path, hdr, args.prefix)
+            for vt in vtables or []:
+                if vt["is_patch_header"]:
+                    continue
+                print(f"  vtable @ {vt['addr']:#010x} ({vt['count']} slots):")
+                for k, value in enumerate(vt["entries"]):
+                    label = slot_names.get(k * 4, "")
+                    print(f"    +{k * 4:<3} {value:#010x}  {label}")
 
     if args.json:
         print(json.dumps(results, indent=2))
