@@ -48,8 +48,11 @@ for effect_path in "${PATCH_SOURCES[@]}"; do
         continue
     fi
 
-    header="$(xxd -p -l 4 "$output_bin")"
-    if [[ "$header" != "50544348" ]]; then
+    # Validate the whole 136-byte PatchHeader, not just the 4-byte magic: the
+    # firmware reads image_size, bss_begin/bss_size and 13 Thumb entry pointers
+    # out of it, so a file with a good magic can still be unloadable. This also
+    # drops the dependency on xxd, which is not installed everywhere.
+    if ! python3 scripts/endl_inspect.py --check "$output_bin"; then
         echo "BAD HEADER: $output_bin"
         bad_header=$((bad_header + 1))
         continue
