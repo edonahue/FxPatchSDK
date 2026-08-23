@@ -110,6 +110,14 @@ scaffold.
 |---|---|---|---|---|
 | _none yet_ | — | — | — | populate as real measurements land |
 
+**When real hardware measurement becomes possible, `effects/back_talk_reverse_delay.cpp`
+should be profiled first.** It's the single largest exposure to the external-RAM-latency
+inference in `patch-authoring-best-practices.md` §6 — its reverse-chunk reads range up to
+~57,600 samples from the write head (see that patch's own build-walkthrough doc, "CPU budget
+estimate" section, for the full reasoning), far beyond any other effect's working-buffer
+access pattern. It's the best available real-world test of whether that inference actually
+matters at the magnitudes this corpus produces.
+
 ## Per-primitive cycle costs
 
 | Primitive | `file:line` | Build flags | Source | Cycles / sample | Notes |
