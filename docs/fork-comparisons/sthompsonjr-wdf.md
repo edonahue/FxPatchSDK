@@ -463,6 +463,18 @@ noise and make control-law reviews easier to reason about.
   after the originals diverged within ~261 samples at 48 kHz. High-Q resonant WDF
   sections cannot be assumed stable on this platform; plan for a fallback path before
   committing to one for a wah, phaser, or filter-driven patch.
+  **2026-08-23 check:** this repo's own `WdfAntiparallelDiodePair`
+  (`effects/tube_screamer_wdf.cpp:78-112`) was stress-tested host-side with
+  `tests/ab_capture_probe.cpp` at both effects' most extreme parameter
+  corners (max drive/sustain, both tone extremes, both hold-toggle
+  voicings) and burst input up to 20x nominal amplitude — every capture
+  stayed fully finite and bounded well within `(-1.0, 1.0)`, no divergence
+  found. This is not the same guarantee as the fork's Sallen-Key case
+  (a different filter topology, and host float behavior isn't proof of
+  Cortex-M7 behavior), but it's a real data point in favor of the
+  existing `clampSigned` defensive bounds (2.6f/1.8f/11.0f) being
+  sufficient, not just untested. See `tests/ab_capture_probe.cpp`'s
+  own CLI for reproducing this at other parameter corners.
 - **Template and flash bloat are real risks.** Header-only parametric code is powerful,
   but a careless extract can inflate compile times and binary size quickly.
 - **There is a "too accurate to be useful" trap.** A circuit-faithful model is not
