@@ -23,10 +23,10 @@
 
 #include "../source/Patch.h"
 #include "../source/dsp/clamp.h"
-#include "../source/dsp/filter_coeff.h"
 #include "../source/dsp/soft_limit.h"
 
 #include <cmath>
+#include <cstdint>
 
 namespace {
 using dsp::clamp01;
@@ -42,11 +42,69 @@ constexpr float kReleaseMs = 95.0f;
 // samples. That is a 6 kHz control rate: far faster than the envelope can move,
 // while avoiding powf/sinf in the inner loop on every sample.
 constexpr int kControlInterval = 8;
+constexpr float kPi = 3.14159265359f;
 
 float onePoleTimeCoeff(float ms)
 {
     return expf(-1.0f / (0.001f * ms * kFs));
 }
+
+// --- libm-free control-rate maths -------------------------------------------
+//
+// The frequency chain used to run powf() then sinf() every eight samples: a
+// 6 kHz control rate, so 12,000 newlib transcendental calls per second. No
+// Polyend or Playground patch in docs/endl-corpus-study.md's corpus links a
+// transcendental at all, which prompted replacing these.
+//
+// Accuracy was measured before adopting, not assumed:
+// tests/funk_machine_approx_probe.cpp sweeps both voices across the full
+// bias x envelope space (80,802 points) and reports a worst-case cutoff error
+// of 0.15 cents. Pitch discrimination tops out near 1 cent and filter cutoff
+// is far less sensitive than pitch.
+//
+// Kept file-local rather than promoted to source/dsp/: this is the only effect
+// that needs them so far, and the repo's bar is two users.
+
+// 2^x without libm. The integer part is written straight into the IEEE-754
+// exponent field; the fraction uses the truncated series for e^(f ln2).
+inline float fastExp2(float x)
+{
+    const float xi = __builtin_floorf(x);          // vrintm.f32
+    const float xf = x - xi;
+
+    float p = 0.0013333f;                          // (ln2)^5/120
+    p = p * xf + 0.0096181f;                       // (ln2)^4/24
+    p = p * xf + 0.0555041f;                       // (ln2)^3/6
+    p = p * xf + 0.2402265f;                       // (ln2)^2/2
+    p = p * xf + 0.6931472f;                       // ln2
+    p = p * xf + 1.0f;
+
+    // The reachable exponent range here is 0..4, but clamp regardless so a
+    // stray value cannot synthesise a denormal or an infinity.
+    int e = static_cast<int>(xi);
+    if (e < -60) { e = -60; }
+    if (e > 60)  { e = 60; }
+    const uint32_t bits = static_cast<uint32_t>(e + 127) << 23;
+    return p * __builtin_bit_cast(float, bits);
+}
+
+// sin(x) for small x. fc never exceeds ~2.9 kHz, so pi*fc/fs stays below
+// 0.19 rad and the first omitted term (x^5/120) is under 2.1e-6.
+inline float sinSmall(float x)
+{
+    return x - (x * x * x) * (1.0f / 6.0f);
+}
+
+// log2 of each literal in the frequency windows below. These are constants in
+// the source, so their logarithms are constants too -- which is what removes
+// the runtime logarithm the pow-to-exp2 rewrite would otherwise need.
+constexpr float kLog2_70   = 6.1292830f;
+constexpr float kLog2_900  = 9.8137811f;
+constexpr float kLog2_2p4  = 1.2630344f;
+constexpr float kLog2_150  = 7.2288187f;
+constexpr float kLog2_1600 = 10.6438562f;
+constexpr float kLog2_3    = 1.5849625f;
+constexpr float kLog2_1p8  = 0.8479969f;
 }
 
 enum class FunkVoice
@@ -123,19 +181,23 @@ public:
         // Bias moves the window but deliberately keeps the top frequency under
         // ~3 kHz, where this repo's Chamberlin SVF precedent remains comfortable
         // at the Q values used here.
-        float fcMin;
-        float fcMax;
+        // The window is carried as log2(Hz). 4, 2.4, 3 and 1.8 are literals, so
+        // powf(base, bias) is exp2(bias * log2(base)) with a constant
+        // multiplier -- and in the log2 domain the whole map is affine in bias,
+        // so no logarithm is needed at runtime either.
+        float log2FcMin;
+        float log2FcMax;
         float dryFoundation;
         if (voice_ == FunkVoice::kBass) {
-            fcMin = 70.0f * powf(4.0f, bias);      // 70 .. 280 Hz
-            fcMax = 900.0f * powf(2.4f, bias);    // 900 .. 2160 Hz
+            log2FcMin = kLog2_70 + 2.0f * bias;              // 70 .. 280 Hz
+            log2FcMax = kLog2_900 + kLog2_2p4 * bias;        // 900 .. 2160 Hz
             dryFoundation = 0.28f;
         } else {
-            fcMin = 150.0f * powf(3.0f, bias);    // 150 .. 450 Hz
-            fcMax = 1600.0f * powf(1.8f, bias);   // 1600 .. 2880 Hz
+            log2FcMin = kLog2_150 + kLog2_3 * bias;          // 150 .. 450 Hz
+            log2FcMax = kLog2_1600 + kLog2_1p8 * bias;       // 1600 .. 2880 Hz
             dryFoundation = 0.10f;
         }
-        const float fcRatio = fcMax / fcMin;
+        const float log2FcSpan = log2FcMax - log2FcMin;      // == log2(fcRatio)
 
         // Down (original): fc = fcMin * fcRatio^envNorm -- quiet/idle -> fcMin
         // (dark), loud -> fcMax (bright), envelope opens the filter.
@@ -171,8 +233,12 @@ public:
             // decimation of the audio path.
             if (controlCountdown_ <= 0) {
                 const float exponent = isUp ? (1.0f - envNorm) : envNorm;
-                const float fc = fcMin * powf(fcRatio, exponent);
-                f1_ = dsp::svfF1(fc, kFs);
+                // Same geometric sweep as before, evaluated in the log2 domain:
+                // fc = fcMin * fcRatio^exponent.
+                const float fc = fastExp2(log2FcMin + exponent * log2FcSpan);
+                // dsp::svfF1 is 2*sinf(pi*fc/fs); sinSmall is exact enough here
+                // and costs three multiplies instead of a libm call.
+                f1_ = 2.0f * sinSmall(kPi * fc / kFs);
                 controlCountdown_ = kControlInterval;
             }
             --controlCountdown_;

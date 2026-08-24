@@ -15,7 +15,10 @@
 
 namespace {
 constexpr size_t kFrames = 4096;
-constexpr float kPi = 3.14159265f;
+// kPi is NOT redefined here, for the same reason kFs is not: this file
+// #includes the effect's .cpp, so both land in one anonymous namespace and a
+// local copy is a redefinition. The effect now defines kPi itself (it stopped
+// using dsp::svfF1 when the control chain went libm-free).
 // kFs is NOT redefined here -- funk_machine_envelope_filter.cpp's #include
 // above already brings a `constexpr float kFs` into this translation
 // unit's merged anonymous namespace, and a second definition of the same
