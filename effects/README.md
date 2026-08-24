@@ -65,7 +65,7 @@ For the normal local build flow:
    ```
 2. Run the real ARM build check:
    ```bash
-   bash tests/build_effects.sh
+   bash tests/check_arm_build.sh
    ```
 3. Or build all top-level effects directly into local deployment artifacts:
    ```bash
@@ -317,7 +317,7 @@ These are the best files to read before editing or adding a patch:
 
 ```bash
 bash tests/check_patches.sh
-bash tests/build_effects.sh
+bash tests/check_arm_build.sh
 ```
 
 `check_patches.sh` is the fast host-side syntax/lint preflight.

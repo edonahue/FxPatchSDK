@@ -81,12 +81,12 @@ review burden is on whoever proposes a change.
    Patch files live in `effects/<patch>.cpp`. The default single-patch
    build target is [`source/PatchImpl.cpp`](source/PatchImpl.cpp); for
    batch builds use [`scripts/build_effects.sh`](scripts/build_effects.sh)
-   or [`tests/build_effects.sh`](tests/build_effects.sh) instead of
+   or [`tests/check_arm_build.sh`](tests/check_arm_build.sh) instead of
    manually copying files into `source/PatchImpl.cpp`.
 3. **Validate, in order:**
    - [`tests/check_patches.sh`](tests/check_patches.sh) — host-side
      syntax/lint
-   - [`tests/build_effects.sh`](tests/build_effects.sh) — real ARM `.endl`
+   - [`tests/check_arm_build.sh`](tests/check_arm_build.sh) — real ARM `.endl`
      builds
    - [`tests/analyze_effects.sh`](tests/analyze_effects.sh) — probe sweeps
      for nonlinear growth, unity position, and limiter/headroom behavior

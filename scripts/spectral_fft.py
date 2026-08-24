@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """spectral_fft.py — shared pure-Python FFT/spectral-analysis primitives.
 
 Extracted from scripts/analyze_oversample_alias.py (the repo's only prior

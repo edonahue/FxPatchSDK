@@ -2,8 +2,13 @@
 # check_dsp.sh — Build and run per-primitive unit tests for source/dsp/.
 #
 # Companion to tests/check_patches.sh. Where check_patches.sh syntax-checks
-# every effect translation unit, this script builds and runs each
-# tests/dsp/<primitive>_test.cpp host-side and reports PASS/FAIL.
+# every effect translation unit, this script builds and runs the host-side
+# tests: each tests/dsp/<primitive>_test.cpp, plus the per-effect acceptance
+# tests at tests/*_acceptance_test.cpp.
+#
+# The acceptance tests were previously in no runner at all, which is how
+# funk_machine_acceptance_test.cpp went a whole PR without ever compiling.
+# They #include their effect's .cpp directly, so they need -I source only.
 #
 # Usage:
 #   bash tests/check_dsp.sh          # from repository root
@@ -31,14 +36,14 @@ BUILD_DIR="build/dsp_tests"
 mkdir -p "$BUILD_DIR"
 
 shopt -s nullglob
-TEST_FILES=(tests/dsp/*_test.cpp)
+TEST_FILES=(tests/dsp/*_test.cpp tests/*_acceptance_test.cpp)
 
 if [[ ${#TEST_FILES[@]} -eq 0 ]]; then
-    echo "No DSP tests found in tests/dsp/"
+    echo "No host-side tests found in tests/"
     exit 1
 fi
 
-echo "=== Polyend Endless DSP Primitive Tests ==="
+echo "=== Polyend Endless Host-Side Tests ==="
 echo "Compiler: $(g++ --version | head -1)"
 echo "Flags: ${FLAGS[*]}"
 echo ""
@@ -70,7 +75,7 @@ done
 
 echo ""
 echo "=== Summary ==="
-echo "DSP tests: $PASS passed, $FAIL failed"
+echo "Host-side tests: $PASS passed, $FAIL failed"
 
 if [[ $FAIL -gt 0 ]]; then
     echo ""
@@ -80,5 +85,5 @@ if [[ $FAIL -gt 0 ]]; then
 fi
 
 echo ""
-echo "All DSP tests passed."
+echo "All host-side tests passed."
 exit 0

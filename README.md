@@ -121,7 +121,7 @@ behavior instead of raw RMS span alone.
 [`source/PatchImpl.cpp`](source/PatchImpl.cpp) remains the default SDK build target for
 ad hoc single-patch work. For repeatable local builds across every hand-written effect,
 use [`scripts/build_effects.sh`](scripts/build_effects.sh) or
-[`tests/build_effects.sh`](tests/build_effects.sh) instead of manually copying files
+[`tests/check_arm_build.sh`](tests/check_arm_build.sh) instead of manually copying files
 into `source/PatchImpl.cpp`.
 
 ## Validation
@@ -130,14 +130,14 @@ Run the host-side syntax and lint checks before hardware testing:
 
 ```bash
 bash tests/check_patches.sh
-bash tests/build_effects.sh
+bash tests/check_arm_build.sh
 bash tests/analyze_effects.sh
 ```
 
 This keeps three levels of verification:
 
 - `tests/check_patches.sh`: fast host-side syntax/lint checks
-- `tests/build_effects.sh`: real ARM `.endl` builds for all top-level `effects/*.cpp`
+- `tests/check_arm_build.sh`: real ARM `.endl` builds for all top-level `effects/*.cpp`
 - `tests/analyze_effects.sh`: repeatable probe sweeps that check nonlinear growth,
   unity position, and limiter/headroom behavior for the current control laws
 

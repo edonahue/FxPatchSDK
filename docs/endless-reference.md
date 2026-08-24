@@ -354,7 +354,7 @@ make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_patch
 Current recommended custom-patch workflow in this fork:
 
 1. run `bash tests/check_patches.sh`
-2. run `bash tests/build_effects.sh` for the real ARM build verification pass
+2. run `bash tests/check_arm_build.sh` for the real ARM build verification pass
 3. run `bash tests/analyze_effects.sh` when you are retuning controls, gain staging, or expression behavior
 4. or use `bash scripts/build_effects.sh` to generate deployable `.endl` files for all top-level `effects/*.cpp`
 5. pick up the generated `.endl` files from `effects/builds/`

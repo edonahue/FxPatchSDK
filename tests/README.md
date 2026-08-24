@@ -31,7 +31,19 @@ options that are not available on the host machine. This catches:
 For a real SDK build, use the dedicated ARM build script:
 
 ```bash
-bash tests/build_effects.sh
+bash tests/check_arm_build.sh
+
+`tests/check_patches.sh` invokes `tests/check_dsp.sh` automatically. That runner
+builds and runs every host-side test: the per-primitive tests in `tests/dsp/`
+and the per-effect acceptance tests at `tests/*_acceptance_test.cpp`.
+
+The remaining files in `tests/` are deliberately manual, not part of any runner:
+
+- `ab_capture_probe.cpp` — generic per-effect capture tool, driven by `scripts/ab_compare.py`
+- `oversample_alias_probe.cpp` — the aliasing/oversampling experiment
+- `host_cache_distance_probe.cpp` — the external-RAM host probe (a recorded null result)
+
+Each is documented in its own header comment and in the matching `docs/` writeup.
 ```
 
 ### 2. Lint Checks
@@ -55,7 +67,7 @@ From the repository root:
 
 ```bash
 bash tests/check_patches.sh
-bash tests/build_effects.sh
+bash tests/check_arm_build.sh
 bash tests/analyze_effects.sh
 ```
 
@@ -77,6 +89,8 @@ PASS: effects/bbe_sonic_stomp.cpp
 PASS: effects/big_muff.cpp
 PASS: effects/big_muff_wdf.cpp
 PASS: effects/chorus.cpp
+PASS: effects/dimension_chorus.cpp
+PASS: effects/funk_machine_envelope_filter.cpp
 PASS: effects/harmonica.cpp
 PASS: effects/klon_centaur.cpp
 PASS: effects/mxr_distortion_plus.cpp
@@ -92,7 +106,7 @@ OK: No hardcoded sample rate
 OK: All patches define getInstance()
 
 === Summary ===
-Compile: 12 passed, 0 failed
+Compile: 14 passed, 0 failed
 Lint warnings: 0
 
 All patches passed syntax check.
@@ -174,7 +188,7 @@ fi
 ## Requirements
 
 - `g++` with C++20 support (GCC 10+ or Clang 12+)
-- `arm-none-eabi-g++` and `arm-none-eabi-objcopy` for `tests/build_effects.sh`
+- `arm-none-eabi-g++` and `arm-none-eabi-objcopy` for `tests/check_arm_build.sh`
 - Run from the repository root (not from `tests/`)
 - The `source/Patch.h` header must be present at `source/Patch.h`
 
@@ -183,7 +197,7 @@ fi
 ## Known Limitations
 
 1. **Host syntax is still not hardware validation:** `check_patches.sh` uses host `g++`
-   and cannot replace a real ARM build. Use `tests/build_effects.sh` for deployable
+   and cannot replace a real ARM build. Use `tests/check_arm_build.sh` for deployable
    artifact verification.
 
 2. **No audio testing:** Neither script runs the patch with real audio. Functional

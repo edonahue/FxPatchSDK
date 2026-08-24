@@ -163,7 +163,7 @@ matches the pattern used by `effects/chorus.cpp`.
 
 ```bash
 bash tests/check_patches.sh
-bash tests/build_effects.sh
+bash tests/check_arm_build.sh
 bash tests/analyze_effects.sh
 bash scripts/build_effects.sh --effect harmonica
 ```

@@ -223,7 +223,7 @@ range. There is no separate code-bloat problem to chase.
 python3 scripts/endl_analyze.py --rebuild-signatures
 ```
 
-Rebuilding signatures requires `build/*.elf` from `bash tests/build_effects.sh`.
+Rebuilding signatures requires `build/*.elf` from `bash tests/check_arm_build.sh`.
 Cached signatures live in `build/endl_analysis/libm_signatures.json`.
 
 The corpus here is the 28 third-party binaries committed to the repo.

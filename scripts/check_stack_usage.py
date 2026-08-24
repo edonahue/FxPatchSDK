@@ -8,7 +8,7 @@ inspection of a real .su file:
 
     file:line:col:function-signature<TAB>bytes<TAB>static|dynamic|bound
 
-This script globs build/**/*.su after a tests/build_effects.sh /
+This script globs build/**/*.su after a tests/check_arm_build.sh /
 scripts/build_effects.sh run, aggregates per-effect total stack usage (the
 sum across that effect's own generated_effects/<name>_PatchImpl.su -- the
 shared internal/PatchCppWrapper.cpp and internal/patch_main.c wrapper code

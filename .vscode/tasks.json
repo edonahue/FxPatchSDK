@@ -24,8 +24,10 @@
         {
             "label": "build & deploy",
             "type": "shell",
-            // edit the path to your mounted Endless device 
-            "command": "rm -f build/*.bin && make TOOLCHAIN=/usr/bin/arm-none-eabi- && cp build/*.bin /media/wojtek/ENDLESS/",
+            // EDIT ENDLESS_MOUNT to your mounted Endless device before using this.
+            // The Makefile emits build/<name>_<timestamp>.endl, not .bin -- the
+            // upstream version of this task copied *.bin and always failed.
+            "command": "ENDLESS_MOUNT=\"${ENDLESS_MOUNT:-/media/$USER/ENDLESS}\"; rm -f build/*.endl && make TOOLCHAIN=/usr/bin/arm-none-eabi- && cp build/*.endl \"$ENDLESS_MOUNT\"/",
             "problemMatcher": [
                 "$gcc"
             ],

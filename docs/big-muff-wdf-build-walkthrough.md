@@ -235,7 +235,7 @@ lesson: a clear Tone Bypass-style mids-lift contrast that is easy to hear during
 
 ```bash
 bash tests/check_patches.sh
-bash tests/build_effects.sh
+bash tests/check_arm_build.sh
 bash tests/analyze_effects.sh
 ```
 

@@ -16,7 +16,7 @@ Usage:
     python3 scripts/endl_inspect.py --json PATH...     # machine-readable
     python3 scripts/endl_inspect.py --entries PATH...  # also classify entry points
 
-`--check` is what tests/build_effects.sh uses as its structural gate. It
+`--check` is what tests/check_arm_build.sh uses as its structural gate. It
 validates the whole header rather than only the 4-byte magic.
 """
 

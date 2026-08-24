@@ -522,7 +522,7 @@ this repo already repeats most often:
 Gate that extraction with:
 
 - [`tests/check_patches.sh`](../../tests/check_patches.sh)
-- [`tests/build_effects.sh`](../../tests/build_effects.sh)
+- [`tests/check_arm_build.sh`](../../tests/check_arm_build.sh)
 - [`tests/analyze_effects.sh`](../../tests/analyze_effects.sh)
 
 ### Experiment

@@ -248,7 +248,7 @@ a different kind of control than Mix, not just a renamed copy.
 
 ```bash
 bash tests/check_patches.sh
-bash tests/build_effects.sh
+bash tests/check_arm_build.sh
 bash tests/analyze_effects.sh
 bash scripts/build_effects.sh --effect dimension_chorus
 g++ -std=c++20 -O2 -fsingle-precision-constant -Wall -Wextra -I source \

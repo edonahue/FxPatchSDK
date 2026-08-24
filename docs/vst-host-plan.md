@@ -30,7 +30,7 @@ audition step is the user's to run.
 ## Why
 
 This repo can syntax-check a patch ([`tests/check_patches.sh`](../tests/check_patches.sh)),
-build a real `.endl` ([`tests/build_effects.sh`](../tests/build_effects.sh)), and run a
+build a real `.endl` ([`tests/check_arm_build.sh`](../tests/check_arm_build.sh)), and run a
 synthetic probe ([`tests/analyze_effects.sh`](../tests/analyze_effects.sh)) — but it
 cannot *listen* to a patch without the Endless hardware. A JUCE VST3 (plus Standalone)
 wrapper lets the exact same patch DSP run in a DAW, so control laws and voicing can be
