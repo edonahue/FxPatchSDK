@@ -30,7 +30,7 @@ audition step is the user's to run.
 ## Why
 
 This repo can syntax-check a patch ([`tests/check_patches.sh`](../tests/check_patches.sh)),
-build a real `.endl` ([`tests/build_effects.sh`](../tests/build_effects.sh)), and run a
+build a real `.endl` ([`tests/check_arm_build.sh`](../tests/check_arm_build.sh)), and run a
 synthetic probe ([`tests/analyze_effects.sh`](../tests/analyze_effects.sh)) — but it
 cannot *listen* to a patch without the Endless hardware. A JUCE VST3 (plus Standalone)
 wrapper lets the exact same patch DSP run in a DAW, so control laws and voicing can be
@@ -207,7 +207,7 @@ JUCE itself is never committed; FetchContent re-downloads it per clone.
   existing host probe already makes — accepted, but noted.
 - **Undocumented thread contracts.** `handleAction()` and `getStateLedColor()` have no
   documented thread contract; the plan routes both through the audio thread (FIFO for
-  actions, atomic snapshot for the LED). Fine for the current thirteen effects, which only
+  actions, atomic snapshot for the LED). Fine for the current fourteen effects, which only
   flip bools.
 - **Resampler scope.** Implemented (see "Sample rate and buffer contract" above). Not
   yet exercised against a real DAW/Standalone audition in this environment -- verify

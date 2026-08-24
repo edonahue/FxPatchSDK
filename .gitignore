@@ -1,11 +1,18 @@
 
 __pycache__/
+
+# Unrooted, so this matches any directory named build* at any depth -- including
+# vst/build/ (and the JUCE tree it fetches into vst/build/_deps/) and
+# effects/builds/. The two negations below are what carve the README back out.
 build*/
+
+# effects/builds/ holds local .endl build output, which is not tracked -- but its
+# README is. The `!effects/builds/` line looks redundant and is not: without it
+# build*/ excludes the directory itself and git never descends far enough to
+# apply the README re-inclusion.
 effects/builds/*
 !effects/builds/
 !effects/builds/README.md
 
-# JUCE VST3 wrapper (vst/) — build output and the fetched JUCE tree
-vst/build/
-vst/cmake-build-*/
-vst/_deps/
+# Local agent scratch (settings.local.json and friends)
+.claude/

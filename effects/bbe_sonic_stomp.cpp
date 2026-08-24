@@ -32,6 +32,7 @@
 //   DimBlue    = enhancer + doubler, bypassed
 
 #include "../source/Patch.h"
+#include "../source/dsp/clamp.h"
 #include "../source/dsp/filter_coeff.h"
 #include "../source/dsp/fractional_delay.h"
 
@@ -63,16 +64,6 @@ constexpr float kDoublerModR   = 48.0f;   // ~1.0 ms
 constexpr float kDoublerRateL  = 0.37f;
 constexpr float kDoublerRateR  = 0.53f;
 constexpr float kDoublerToneHz = 3200.0f;
-
-inline float clampUnit(float x)
-{
-    if (x > 1.0f)
-        return 1.0f;
-    if (x < -1.0f)
-        return -1.0f;
-    return x;
-}
-
 inline int clampInt(int x, int lo, int hi)
 {
     if (x < lo)
@@ -83,6 +74,7 @@ inline int clampInt(int x, int lo, int hi)
 }
 
 using dsp::lpCoeff;
+using dsp::clampUnit;
 } // namespace
 
 class SonicStompEnhancer final : public Patch

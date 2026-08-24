@@ -19,12 +19,15 @@
 //   input -> working-buffer circular capture -> reverse chunk playback -> feedback -> mix
 
 #include "../source/Patch.h"
+#include "../source/dsp/clamp.h"
 #include "../source/dsp/crossfade.h"
 
 #include <algorithm>
 #include <cmath>
 
 namespace {
+using dsp::clamp01;
+using dsp::clampUnit;
 constexpr float kHalfPi = 1.57079632679f;
 constexpr int   kDelayLen = 131072;               // 2.73 s per channel @ 48 kHz
 constexpr int   kDelayMask = kDelayLen - 1;
@@ -33,29 +36,6 @@ constexpr float kMaxChunkSec = 1.20f;
 constexpr float kFeedbackFilterAlpha = 0.18f;
 constexpr int   kMaxFadeSamples = 512;
 constexpr int   kMinFadeSamples = 64;
-
-float clamp01(float value)
-{
-    if (value < 0.0f) {
-        return 0.0f;
-    }
-    if (value > 1.0f) {
-        return 1.0f;
-    }
-    return value;
-}
-
-float clampUnit(float value)
-{
-    if (value < -1.0f) {
-        return -1.0f;
-    }
-    if (value > 1.0f) {
-        return 1.0f;
-    }
-    return value;
-}
-
 int wrapIndex(int idx)
 {
     return static_cast<int>(static_cast<unsigned int>(idx) & static_cast<unsigned int>(kDelayMask));

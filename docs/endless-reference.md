@@ -93,6 +93,11 @@ The public interface is one abstract base class:
 - `setWorkingBuffer(std::span<float, kWorkingBufferSize>)`
 - `processAudio(std::span<float> left, std::span<float> right)`
 - `getParameterMetadata(int paramIdx)`
+- `getParameterName(int paramIdx)` — optional; returns a short display name or
+  `nullptr`. Defaults to `nullptr`, so patches written before it exist still
+  compile. See [`param-metadata-implementation.md`](param-metadata-implementation.md).
+- `getParameterUnit(int paramIdx)` — optional; same shape. Every parameter here
+  is a normalized `0..1` control, so this returns `nullptr` throughout.
 - `setParamValue(int paramIdx, float value)`
 - `handleAction(int actionIdx)`
 - `getStateLedColor()`
@@ -208,6 +213,22 @@ does not replace a real ARM build or hardware listening pass.
 - stock-SDK-compatible stereo chorus
 - uses the working buffer for delay lines
 - demonstrates fractional delay, LFO phase offset, and expression-as-mix
+
+### `effects/dimension_chorus.cpp`
+
+- Boss DC-2 Dimension-style stereo widener, architecturally distinct from `chorus.cpp`
+- single mono ring buffer feeding a shared inverted-pair LFO plus cross-feed
+- Right knob carries `Width` (crossfeed intensity) rather than a dry/wet mix, matching the hardware
+- hold toggles a Classic / Mono-safe voicing
+
+### `effects/funk_machine_envelope_filter.cpp`
+
+- Mu-Tron-style touch envelope filter for bass, clav, clean guitar and keys
+- linked-stereo envelope follower driving a Chamberlin SVF bandpass (`dsp::svfF1`)
+- expression controls `Bias`, shifting the whole sweep window
+- hold advances a 4-state cycle: Bass/GuitarKeys voice x Down/Up envelope direction
+- recomputes cutoff every 8 samples rather than once per block — the one
+  deliberate exception to the per-block convention, documented in its walkthrough
 
 ### `effects/harmonica.cpp`
 
@@ -333,7 +354,7 @@ make TOOLCHAIN=/usr/bin/arm-none-eabi- PATCH_NAME=my_patch
 Current recommended custom-patch workflow in this fork:
 
 1. run `bash tests/check_patches.sh`
-2. run `bash tests/build_effects.sh` for the real ARM build verification pass
+2. run `bash tests/check_arm_build.sh` for the real ARM build verification pass
 3. run `bash tests/analyze_effects.sh` when you are retuning controls, gain staging, or expression behavior
 4. or use `bash scripts/build_effects.sh` to generate deployable `.endl` files for all top-level `effects/*.cpp`
 5. pick up the generated `.endl` files from `effects/builds/`
@@ -405,6 +426,12 @@ the current live catalog locally without committing the bulk archive, use
 [`scripts/sync_polyend_plates.sh`](../scripts/sync_polyend_plates.sh).
 
 ---
+
+For a per-patch breakdown of the community bundles, see
+[`playground/examples/SpiralCaster_Examples/CATALOG.md`](../playground/examples/SpiralCaster_Examples/CATALOG.md).
+For rebuilding one of them as an SDK patch, see
+[`playground-to-sdk.md`](playground-to-sdk.md). For what the binaries themselves
+show under analysis, see [`endl-corpus-study.md`](endl-corpus-study.md).
 
 ## 10. Syncing with Upstream
 

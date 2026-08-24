@@ -89,7 +89,7 @@ Two hold across all 42 files with no exceptions:
 
 The second is the useful one: it makes truncation detectable. The repo's
 previous structural check read only the first 4 bytes
-(`xxd -p -l 4`, `tests/build_effects.sh:51`), so a truncated image with an
+(`xxd -p -l 4`), so a truncated image with an
 intact magic passed every gate the repo had. `scripts/endl_inspect.py --check`
 now validates the whole header and is wired into that gate. (It also removes a
 dependency on `xxd`, which is not installed in every environment this repo
@@ -150,12 +150,12 @@ mechanism the toolchain does not implement.
 |---|---|---|---|
 | Polyend factory plates | 5 | 3,012 / 3,948 / 12,984 | 4, 112, 308 |
 | Playground (community) | 23 | 2,632 / 5,764 / 10,044 | 4, 112, 128, 140, 308, 1,192, 3,556 |
-| This repo (handcrafted) | 14 | 5,460 / 9,596 / 13,284 | 5 (every patch) |
+| This repo (handcrafted) | 14 | 5,772 / 9,908 / 13,600 | 5 (every patch) |
 
 Two things stand out, both pursued in
 [`docs/endl-corpus-study.md`](endl-corpus-study.md):
 
-- **Our images are the largest of the three groups by median**, roughly 2.4x
+- **Our images are the largest of the three groups by median**, roughly 2.5x
   Polyend's own factory plates.
 - **Our `bss_size` is 5 bytes for every single patch.** Factory and Playground
   patches keep real state in BSS; we put essentially everything in the 9.6 MB

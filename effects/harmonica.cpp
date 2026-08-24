@@ -35,6 +35,7 @@
 //   effects/chorus.cpp       — fractional-delay line layout in the working buffer
 
 #include "../source/Patch.h"
+#include "../source/dsp/clamp.h"
 #include "../source/dsp/dc_blocker.h"
 #include "../source/dsp/filter_coeff.h"
 #include "../source/dsp/fractional_delay.h"
@@ -97,17 +98,10 @@ constexpr Voicing kOpen = {
 constexpr Voicing kCupped = {
     160.0f,  -5.0f,  6.0f,  4.2f,  0.50f,  1900.0f,  3.4f,  1.30f,  1.4f,  0.16f,  kFormant1FcMaxCup
 };
-
-inline float clamp01(float v)
-{
-    if (v < 0.0f) return 0.0f;
-    if (v > 1.0f) return 1.0f;
-    return v;
-}
-
 // 1-pole filter coefficients now come from source/dsp/filter_coeff.h.
 using dsp::hpCoeff;
 using dsp::lpCoeff;
+using dsp::clamp01;
 
 inline float dbToAmp(float db)
 {

@@ -14,4 +14,5 @@
 #include "one_pole_filter.h"
 #include "parameter_smoother.h"
 #include "ring_buffer.h"
+#include "clamp.h"
 #include "soft_limit.h"

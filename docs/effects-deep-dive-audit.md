@@ -23,7 +23,7 @@ Post-remediation validation was re-run with the same commands:
 
 ```bash
 bash tests/check_patches.sh
-bash tests/build_effects.sh
+bash tests/check_arm_build.sh
 bash tests/analyze_effects.sh
 ```
 
@@ -73,7 +73,7 @@ Validation commands run for this audit:
 
 ```bash
 bash tests/check_patches.sh
-bash tests/build_effects.sh
+bash tests/check_arm_build.sh
 bash tests/analyze_effects.sh
 ```
 
@@ -378,7 +378,7 @@ This replaces the earlier `(0.18 + 1.45·lc)·(0.80 − 0.24·drive)` family, wh
 ### Verification for this pass
 
 1. `bash tests/check_patches.sh` — fast host lint/syntax
-2. `bash tests/build_effects.sh` — ARM cross-compile
+2. `bash tests/check_arm_build.sh` — ARM cross-compile
 3. `bash tests/analyze_effects.sh` — confirm:
    - drive family peak ≥ 0.92 at max Level on a sustained sine
    - wah peak ≥ +6 dB over input at center frequency

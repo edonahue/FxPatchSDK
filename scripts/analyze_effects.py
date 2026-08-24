@@ -33,7 +33,7 @@ LOW_INPUT_SCALE = 0.35
 NOMINAL_INPUT_SCALE = 1.0
 
 # THD/spurious-energy flagging thresholds -- starting points to calibrate
-# against the first real run across all 13 effects, not validated final
+# against the first real run across all 14 effects, not validated final
 # values. Named and grouped here so they're easy to find and adjust.
 SPECTRAL_MAX_HARMONIC = 12
 SPECTRAL_BIN_TOLERANCE = 1

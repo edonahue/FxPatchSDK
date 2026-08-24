@@ -14,6 +14,7 @@ BEFORE STARTING — checklist:
 [ ] Assign parameters: remember this repo's current wrapper exposes expression on param 2 (Right knob)
 [ ] Decide each parameter's taper: linear, log, power-law, or bounded/compensated
 [ ] Choose defaults that land on a usable sound, not just 0.5 by habit
+[ ] Pick short display names (<= 8 chars) for each knob for getParameterName()
 [ ] Choose LED color scheme — verify enum values in source/Patch.h before coding
 [ ] Run bash tests/check_patches.sh after writing the patch
 -->

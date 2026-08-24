@@ -65,7 +65,7 @@ For the normal local build flow:
    ```
 2. Run the real ARM build check:
    ```bash
-   bash tests/build_effects.sh
+   bash tests/check_arm_build.sh
    ```
 3. Or build all top-level effects directly into local deployment artifacts:
    ```bash
@@ -135,6 +135,21 @@ public:
         (void)paramIdx;
         return {0.0f, 1.0f, 0.5f}; // min, max, default
     }
+
+    // Short display names for the three knobs, surfaced through the firmware's
+    // agent_get_param_name ABI slot. Keep them to 8 characters or fewer -- the
+    // buffer size is undocumented and the wrapper truncates silently. Return
+    // nullptr for a knob you deliberately leave unused.
+    const char* getParameterName(int paramIdx) override
+    {
+        switch (paramIdx) {
+            case 0: return "TODO";
+            case 1: return "TODO";
+            case 2: return "TODO";
+            default: return nullptr;
+        }
+    }
+
 
     void setParamValue(int idx, float value) override
     {
@@ -239,7 +254,7 @@ Implications for patch design:
   etc.) — either swap which knob is your live-performance target, or change the
   `idx == 2` condition in `PatchCppWrapper.cpp` to match.
 
-Future improvement: add a virtual `isParamEnabled()` method to `Patch.h` so each patch
+Considered and declined: a virtual `isParamEnabled()` on `Patch.h` so each patch
 declares its own expression routing without editing shared infrastructure.
 
 See [`docs/endless-reference.md`](../docs/endless-reference.md) for the full SDK reference.
@@ -282,6 +297,7 @@ These are the best files to read before editing or adding a patch:
   design log for the WDF-style `tube_screamer_wdf.cpp` sibling
 - [`docs/wah-build-walkthrough.md`](../docs/wah-build-walkthrough.md) —
   complete design log for `wah.cpp`
+- [`docs/funk-machine-envelope-filter-build-walkthrough.md`](../docs/funk-machine-envelope-filter-build-walkthrough.md)
 - [`docs/harmonica-build-walkthrough.md`](../docs/harmonica-build-walkthrough.md) —
   design log for `harmonica.cpp`
 - [`docs/mxr-distortion-plus-circuit-analysis.md`](../docs/mxr-distortion-plus-circuit-analysis.md) —
@@ -301,7 +317,7 @@ These are the best files to read before editing or adding a patch:
 
 ```bash
 bash tests/check_patches.sh
-bash tests/build_effects.sh
+bash tests/check_arm_build.sh
 ```
 
 `check_patches.sh` is the fast host-side syntax/lint preflight.

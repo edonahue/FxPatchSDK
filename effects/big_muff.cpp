@@ -18,6 +18,7 @@
 //   LED         — Red/DarkRed Ram's Head, Magenta/DimCyan Tone Bypass
 
 #include "../source/Patch.h"
+#include "../source/dsp/clamp.h"
 #include "../source/dsp/crossfade.h"
 #include "../source/dsp/filter_coeff.h"
 
@@ -30,29 +31,8 @@ constexpr float kFs     = static_cast<float>(Patch::kSampleRate);
 
 using dsp::hpCoeff;
 using dsp::lpCoeff;
-
-float clamp01(float value)
-{
-    if (value < 0.0f) {
-        return 0.0f;
-    }
-    if (value > 1.0f) {
-        return 1.0f;
-    }
-    return value;
-}
-
-float clampUnit(float value)
-{
-    if (value < -1.0f) {
-        return -1.0f;
-    }
-    if (value > 1.0f) {
-        return 1.0f;
-    }
-    return value;
-}
-
+using dsp::clamp01;
+using dsp::clampUnit;
 // Equal-power crossfade: dsp::equalPower(clamp01(blend)) gives {dry, wet}.
 // (The 0.94 factor in earlier releases capped max-Blend loudness at ~0.75-0.84
 // after tanh; the tanh stages downstream already act as soft limiters, so

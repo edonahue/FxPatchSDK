@@ -1,39 +1,59 @@
+// GENERATED FROM effects/phase_90.cpp -- do not hand-edit.
+//
+// This is the default target for a bare `make` (the Makefile's
+// PATCH_IMPL_SRC). It is a copy of a real effect with its include paths
+// rewritten for this directory. To refresh it after phase_90.cpp changes,
+// run this from the repository root:
+//
+//   sed -e 's|"../source/Patch.h"|"Patch.h"|' -e 's|"../source/dsp/|"dsp/|' effects/phase_90.cpp > source/PatchImpl.cpp
+//
+// It had previously drifted into a stale hand-copy: older voice tuning, an
+// inline triangle LFO instead of dsp::TriangleLfo, and no getParameterName,
+// so the one artifact a default `make` produces shipped unnamed knobs.
+//
+// To build a different effect, prefer scripts/build_effects.sh, which
+// generates into build/generated_effects/ without touching this file.
+
+// Phase 90-inspired phaser for Polyend Endless
+// Phase 90-inspired phaser for Polyend Endless
+//
+// Primary voice:
+//   Block-logo Phase 90 style with a more pronounced, chewy sweep driven by
+//   four all-pass stages plus the stronger feedback path.
+//
+// Alternate voice:
+//   Hold toggles a script-mod / vintage voice with the feedback removed for a
+//   smoother, softer sweep closer to the early script-logo units.
+//
+// Controls:
+//   Mid knob    — Speed
+//   Expression  — mirrors Speed in this fork because param 2 is hardwired
+//   Footswitch  — Press: bypass, Hold: block / script toggle
+//   LED         — Blue/DimBlue block, Beige/DimWhite script
+//
+// Notes:
+//   - Left knob is intentionally unused
+//   - Right knob is reserved for the expression lane; if turned without an
+//     expression pedal attached it will mirror Speed rather than expose a
+//     second public control
+
 #include "Patch.h"
+#include "dsp/clamp.h"
+#include "dsp/lfo.h"
 
 #include <cmath>
 
 namespace {
+using dsp::clamp01;
+using dsp::clampUnit;
 constexpr float kPi    = 3.14159265359f;
 constexpr float kTwoPi = 6.28318530718f;
 constexpr float kFs    = static_cast<float>(Patch::kSampleRate);
-
-float clamp01(float x)
-{
-    if (x < 0.0f) {
-        return 0.0f;
-    }
-    if (x > 1.0f) {
-        return 1.0f;
-    }
-    return x;
-}
-
-float clampUnit(float x)
-{
-    if (x < -1.0f) {
-        return -1.0f;
-    }
-    if (x > 1.0f) {
-        return 1.0f;
-    }
-    return x;
-}
-
-float triangleLfo(float phase)
-{
-    const float wrapped = phase - floorf(phase);
-    return 1.0f - 4.0f * fabsf(wrapped - 0.5f);
-}
+// Triangle LFO shape comes from source/dsp/lfo.h. phase_90 manages its own
+// phase counter (lfoPhase_) outside this call, so the stateless value()
+// helper is the right fit; the stateful TriangleLfo class is the choice for
+// new effects.
+inline float triangleLfo(float phase) { return dsp::TriangleLfo::value(phase); }
 
 float mapSpeedHz(float value)
 {
@@ -67,11 +87,16 @@ struct VoiceParams
 
 VoiceParams getVoice(bool scriptMode)
 {
+    // Script voice (no feedback, softer blend) intentionally keeps the gentler
+    // Phase 90 script-logo feel. The block voice got a deeper feedback path
+    // (0.36 → 0.58) and a more forward wet mix (0.62 → 0.72) — the previous
+    // numbers produced a sweep that was audibly present but never really
+    // "chewy" the way the real block-logo pedal is.
     if (scriptMode) {
-        return {0.00f, 110.0f, 1450.0f, 0.78f, 0.58f};
+        return {0.00f, 110.0f, 1450.0f, 0.78f, 0.62f};
     }
 
-    return {0.36f, 120.0f, 1650.0f, 0.76f, 0.62f};
+    return {0.58f, 120.0f, 1650.0f, 0.74f, 0.72f};
 }
 
 struct AllpassStage
@@ -106,10 +131,10 @@ class Phase90Patch final : public Patch
 public:
     void init() override
     {
-        speed_     = 0.34f;
-        bypassed_  = false;
-        script_    = false;
-        lfoPhase_  = 0.0f;
+        speed_    = 0.34f;
+        bypassed_ = false;
+        script_   = false;
+        lfoPhase_ = 0.0f;
         feedbackL_ = 0.0f;
         feedbackR_ = 0.0f;
         clearState();
@@ -117,6 +142,7 @@ public:
 
     void setWorkingBuffer(std::span<float, kWorkingBufferSize> /* buf */) override
     {
+        // No working buffer required.
     }
 
     void processAudio(std::span<float> left, std::span<float> right) override
@@ -167,10 +193,20 @@ public:
     ParameterMetadata getParameterMetadata(int idx) override
     {
         switch (idx) {
-            case 0: return {0.0f, 1.0f, 0.0f};
-            case 1: return {0.0f, 1.0f, 0.34f};
-            case 2: return {0.0f, 1.0f, 0.34f};
+            case 0: return {0.0f, 1.0f, 0.0f};  // intentionally unused
+            case 1: return {0.0f, 1.0f, 0.34f}; // Speed
+            case 2: return {0.0f, 1.0f, 0.34f}; // Expression mirrors Speed
             default: return {0.0f, 1.0f, 0.5f};
+        }
+    }
+
+    const char* getParameterName(int idx) override
+    {
+        switch (idx) {
+            case 0: return nullptr; // intentionally unused
+            case 1: return "Speed";
+            case 2: return "Speed";
+            default: return nullptr;
         }
     }
 

@@ -338,9 +338,9 @@ maintainer keeps current on purpose.
 
 Three new native test harnesses landed alongside the variant work:
 
-- `tests/opamp_big_muff_test.cpp` (op-amp Big Muff)
-- `tests/tone_stack_test.cpp` (variant-aware tone stack)
-- `tests/power_puff_test.cpp` (the five-variant selector)
+- `tests/opamp_big_muff_test.cpp` (in the fork, not here) (op-amp Big Muff)
+- `tests/tone_stack_test.cpp` (in the fork, not here) (variant-aware tone stack)
+- `tests/power_puff_test.cpp` (in the fork, not here) (the five-variant selector)
 
 That brings the fork's native test count from 20 to 23. For our purposes the relevance is
 indirect: the fork is still the precedent that says "isolated, headless C++ tests for each
@@ -483,10 +483,11 @@ noise and make control-law reviews easier to reason about.
 - **The SDK divergence is non-trivial.** The fork's `isParamEnabled(...)` hook solves a
   real problem, but importing it would change this repo's `Patch` ABI and patch template
   expectations.
-- **A bulk migration would still be wasteful.** This repo now has thirteen top-level
+- **A bulk migration would still be wasteful.** This repo now has fourteen top-level
   custom effects, and several of them do not want WDF at all. Even with two sibling
   experiments now in tree, a repo-wide migration would still blur where the audible
-  wins came from. (`dimension_chorus.cpp`, the thirteenth effect, is not a third WDF
+  wins came from. (Neither of the two effects added since — `dimension_chorus.cpp`,
+  the thirteenth, nor `funk_machine_envelope_filter.cpp`, the fourteenth — is a third WDF
   sibling — it doesn't perform a WDF nonlinear network solve; see
   [`upstream-and-forks.md`](upstream-and-forks.md) and
   [`docs/dimension-chorus-research.md`](../dimension-chorus-research.md) for what it
@@ -521,7 +522,7 @@ this repo already repeats most often:
 Gate that extraction with:
 
 - [`tests/check_patches.sh`](../../tests/check_patches.sh)
-- [`tests/build_effects.sh`](../../tests/build_effects.sh)
+- [`tests/check_arm_build.sh`](../../tests/check_arm_build.sh)
 - [`tests/analyze_effects.sh`](../../tests/analyze_effects.sh)
 
 ### Experiment

@@ -89,7 +89,7 @@ Revisit once someone can see what the pedal actually renders.
 ## Verification
 
 - `bash tests/check_patches.sh` — 14/14 lint PASS under `-Werror`, 9/9 DSP tests.
-- `bash tests/build_effects.sh` — 14/14 ARM builds, structural gate PASS, 0
+- `bash tests/check_arm_build.sh` — 14/14 ARM builds, structural gate PASS, 0
   functions over the stack threshold.
 - **DSP unchanged:** `bash tests/analyze_effects.sh` compared field-by-field
   against the pre-change run — **12,107 scalar fields, 0 differences.** Adding

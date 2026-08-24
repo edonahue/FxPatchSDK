@@ -16,6 +16,7 @@
 //   LED         — Red/DarkRed Ram's Head, Magenta/DimCyan Tone Bypass
 
 #include "../source/Patch.h"
+#include "../source/dsp/clamp.h"
 #include "../source/dsp/crossfade.h"
 #include "../source/dsp/filter_coeff.h"
 #include "../source/dsp/one_pole_filter.h"
@@ -31,6 +32,9 @@ constexpr float kFs     = static_cast<float>(Patch::kSampleRate);
 
 using dsp::hpCoeff;
 using dsp::lpCoeff;
+using dsp::clamp01;
+using dsp::clampSigned;
+using dsp::clampUnit;
 using SmoothedValue = dsp::ParamSmoother;
 
 // Per-effect tuning of the safety soft-limit: (0.92, 0.24, 0.08) gives a
@@ -41,34 +45,6 @@ inline float softLimit(float value)
 {
     return dsp::softLimit(value, 0.92f, 0.24f, 0.08f);
 }
-
-float clamp01(float value)
-{
-    if (value < 0.0f) {
-        return 0.0f;
-    }
-    if (value > 1.0f) {
-        return 1.0f;
-    }
-    return value;
-}
-
-float clampSigned(float value, float limit)
-{
-    if (value < -limit) {
-        return -limit;
-    }
-    if (value > limit) {
-        return limit;
-    }
-    return value;
-}
-
-float clampUnit(float value)
-{
-    return clampSigned(value, 1.0f);
-}
-
 using OnePoleLowpass  = dsp::OnePoleLowpass;
 using OnePoleHighpass = dsp::OnePoleHighpass;
 

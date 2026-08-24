@@ -1,7 +1,7 @@
 # Patch Authoring Best Practices for the Polyend Endless
 
 This document is the canonical "how to handcraft a good Endless patch" reference.
-It crystallises lessons learned across the thirteen effects in
+It crystallises lessons learned across the fourteen effects in
 [`effects/`](../effects), the primitives extracted in
 [`source/dsp/`](../source/dsp), and the per-patch walkthroughs in
 [`docs/`](.). Read it once before authoring a new effect; refer back to it
@@ -65,12 +65,20 @@ guitar-pedal idiom where one exists:
   reaches for, which is usually the expression pedal — so the Right knob
   carries the sweep position (and so does param 2).
 
-When in doubt, **Mix on the Right knob, expression-mapped**. Every effect in
-this fork that exposes a dry/wet blend puts it there. This convention is the
-reason a player can pick up any of the twelve effects that have one and know
-within a few seconds where the wet/dry control lives. `dimension_chorus.cpp`
-is the one documented exception — the real hardware it's modeled on has no
-mix knob at all, so its Right knob carries Width (crossfeed intensity)
+When in doubt, **Mix on the Right knob, expression-mapped**. Five of the
+fourteen effects expose a dry/wet blend at all, and four of those put it
+there: `back_talk_reverse_delay` (`Mix`), `big_muff` and `big_muff_wdf`
+(`Blend`), and `chorus` (`Mix`). A player who finds the blend on one of them
+knows where it lives on the others.
+
+`wah.cpp` is the exception that proves the rule: its `Mix` is on the **Left**
+knob, because its Right knob carries the expression-driven sweep position,
+which is the control a player actually needs underfoot. When the two
+conventions collide, the expression lane wins.
+
+`dimension_chorus.cpp` is a separate documented case — the real hardware it's
+modeled on has no mix knob at all, so its Right knob carries Width (crossfeed
+intensity)
 instead; see `docs/dimension-chorus-build-walkthrough.md`'s Decision 3 for
 why that's a deliberate divergence, not an oversight.
 
@@ -160,9 +168,14 @@ hand-rolling new code.
 
 [`source/dsp/filter_coeff.h`](../source/dsp/filter_coeff.h) gives
 `dsp::lpCoeff(fc)` and `dsp::hpCoeff(fc)` — the workhorses. Eight of the
-thirteen effects use them. A one-pole IIR at 48 kHz single precision is
+fourteen effects use them. A one-pole IIR at 48 kHz single precision is
 cheap, well-behaved, and the right answer for the broad voicing filters
-most pedal-style effects need before or after a clipper. See
+most pedal-style effects need before or after a clipper.
+
+The same header also carries `dsp::svfF1(fc, fs)`, the Chamberlin
+state-variable coefficient `2*sin(pi*fc/fs)`, used by `wah.cpp`,
+`funk_machine_envelope_filter.cpp` and `harmonica.cpp` where a resonant
+sweepable filter is the point rather than a fixed voicing shelf. See
 [`effects/tube_screamer.cpp`](../effects/tube_screamer.cpp) for the
 canonical body/edge split, and
 [`effects/klon_centaur.cpp`](../effects/klon_centaur.cpp) for the active
@@ -324,7 +337,7 @@ reverb tails when we add one).
 constexpr` arrays), scratch state (put it in patch members), per-sample
 temporaries (use locals).
 
-Of the thirteen effects in the catalogue today, only five actually allocate
+Of the fourteen effects in the catalogue today, only five actually allocate
 inside the working buffer:
 
 - `back_talk_reverse_delay`: 2 × 131072 floats (2.73 s per channel)
@@ -334,7 +347,7 @@ inside the working buffer:
   per-channel pair — see section 3's ring buffer subsection)
 - `harmonica`: 2 × 480 floats (micro-chorus)
 
-The other eight hold scalar state in members and return early from
+The other nine hold scalar state in members and return early from
 `setWorkingBuffer`. That is fine and expected — distortion-family effects
 do not need long memory.
 
@@ -413,10 +426,12 @@ What they do instead, recovered from the disassembly
 ([`docs/reverse-engineering/factory-patch-idioms.md`](reverse-engineering/factory-patch-idioms.md)):
 a cascaded `x / (1 + |x|)` soft-clip — `vabs`, `vadd`, `vdiv`, no call — plus
 branchless `ite`-predicated asymmetry and single-instruction `vmaxnm`/`vminnm`
-clamping. That doc also measures a clamp idiom worth knowing about: under this
-Makefile's `-fno-builtin`, our `if`-chain `clamp01` is 6 instructions and a
+clamping. That doc also measured a clamp idiom that has since been adopted: under this
+Makefile's `-fno-builtin`, an `if`-chain `clamp01` is 6 instructions and a
 branch, plain `fminf`/`fmaxf` become real library calls, and only
 `__builtin_fminf`/`__builtin_fmaxf` give the 2-instruction branchless form.
+Use [`dsp::clamp01`/`clampSigned`/`clampUnit`](../source/dsp/clamp.h) rather
+than hand-rolling one.
 
 Practical reading: treat a newlib transcendental in a per-sample path as a cost
 to justify rather than a default. At control rate it is a non-issue — compute it
@@ -526,7 +541,7 @@ Endless ships with 2000 Playground tokens (≈$20) bundled. A simple delay
 generation runs roughly $1–2 in tokens; a complex granular looper runs up
 to ~$5. Hand-coding via this SDK costs nothing per iteration and has no
 ceiling on how many times a control law can be nudged and re-probed
-before it's right — the entire thirteen-effect corpus this document
+before it's right — the entire fourteen-effect corpus this document
 describes, plus every experiment and refactor recorded in
 `docs/fork-comparisons/`, cost zero incremental tokens. For
 anyone iterating heavily on a control law (which §2 above argues is where
