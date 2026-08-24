@@ -406,6 +406,12 @@ the current live catalog locally without committing the bulk archive, use
 
 ---
 
+For a per-patch breakdown of the community bundles, see
+[`playground/examples/SpiralCaster_Examples/CATALOG.md`](../playground/examples/SpiralCaster_Examples/CATALOG.md).
+For rebuilding one of them as an SDK patch, see
+[`playground-to-sdk.md`](playground-to-sdk.md). For what the binaries themselves
+show under analysis, see [`endl-corpus-study.md`](endl-corpus-study.md).
+
 ## 10. Syncing with Upstream
 
 **Upstream status (surveyed 2026-05-18): dormant, and this fork is fully caught up.**

@@ -23,6 +23,18 @@ version-controlled SDK development.
 That separation is intentional. The docs attribute the official catalog to Polyend and
 keep the bulk synced downloads local-only for personal archival/reference use.
 
+## Reading the artifacts
+
+- [`examples/SpiralCaster_Examples/CATALOG.md`](examples/SpiralCaster_Examples/CATALOG.md)
+  — all 23 community patches with knob assignments, footswitch behavior and LED
+  states, taken from their prompt logs and corroborated against the binaries.
+- [`prompting-best-practices.md`](prompting-best-practices.md) — how the
+  Playground pipeline reads a prompt, and what it needs you to specify.
+- [`../docs/playground-to-sdk.md`](../docs/playground-to-sdk.md) — taking a
+  Playground effect you like and rebuilding it as an SDK patch you own.
+- [`../docs/endl-corpus-study.md`](../docs/endl-corpus-study.md) — what these
+  binaries reveal about platform norms, and what changed here as a result.
+
 See [`playground/examples/SpiralCaster_Examples/README.md`](examples/SpiralCaster_Examples/README.md)
 for the creator archive and [`playground/polyend_plates/README.md`](polyend_plates/README.md)
 for the documented Plates archive and its quick knob / switch reference tables.
