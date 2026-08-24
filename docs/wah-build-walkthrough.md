@@ -59,11 +59,11 @@ as DSP targets. This is the "simplified physically-informed model" approach — 
 
 ---
 
-## Decision 1 — Filter Topology
+## Decision 1 — Filter Topology (superseded 2026-08-24, see addendum)
 
 **Goal:** A resonant bandpass filter with independently controllable center frequency and Q.
 
-**Options considered:**
+**Options considered (at the time):**
 
 | Option | Pros | Cons |
 |---|---|---|
@@ -71,28 +71,42 @@ as DSP targets. This is the "simplified physically-informed model" approach — 
 | Biquad bandpass (Audio EQ Cookbook) | Well-documented; standard; 5 coefficients | Coefficient update involves sinf + cosf; Q and fc coupled in some formulations |
 | Chamberlin SVF (2nd order) | 3 lines/sample; direct BP output; f1 and q1 independent; same cost | Chamberlin-specific stability constraint (see below) |
 
-**Chose: Chamberlin SVF.** The state-variable filter directly yields bandpass, lowpass, and
+**Chose (originally): Chamberlin SVF.** The state-variable filter directly yields bandpass, lowpass, and
 highpass outputs from a single pass through three equations. The frequency coefficient `f1`
 and damping `q1` are completely independent, which maps naturally to the Q knob and the
 expression-pedal-swept frequency.
 
-**Stability note:** The Chamberlin SVF can become unstable if `f1 > 2*q1`. Within our
-parameter space (fc ≤ 2.5 kHz at 48 kHz, Q ≤ 10):
+**This reasoning turned out to be backwards.** The biquad's "con" — "Q and fc coupled in
+some formulations" — is a real property of the Chamberlin SVF, not the biquad: measuring
+the *actual* resonant peak (not just the pole angle) shows it drifts up to 174 cents from
+its target as Q drops, while the RBJ biquad measures 0.007 cents error across the same
+sweep. See the 2026-08-24 addendum below — this decision was reversed.
+
+**Stability note (on the now-replaced SVF):** The Chamberlin SVF can become unstable if
+`f1 > 2*q1`. Within our parameter space (fc ≤ 2.5 kHz at 48 kHz, Q ≤ 10):
 - Maximum f1 = 2×sin(π×2500/48000) ≈ 0.325
 - Minimum 2×q1 at Q=10: 2×(1/10) = 0.2
 
-This is a borderline condition at Q=10 and fc=2500 Hz. In practice, the player is unlikely
-to hold both at maximum simultaneously, and the result at that corner case would be a very
-slightly distorted resonance rather than a crash. Accepted for the implementation.
+This was flagged as a borderline condition at Q=10 and fc=2500 Hz. In practice it never
+actually diverged — direct simulation across the full fc×Q grid never produced a NaN or
+runaway state. The real risk at that corner turned out to be the much larger, undetected
+detuning error above, not instability.
 
 ---
 
-## Decision 2 — Gain Normalization
+## Decision 2 — Gain Normalization (superseded 2026-08-24, see addendum)
 
-**Problem:** The Chamberlin SVF bandpass output has peak gain = Q/2. At Q=10, the bandpass
-signal is 5× the input amplitude at the resonant frequency — much too loud.
+**Problem (as originally understood):** The Chamberlin SVF bandpass output has peak gain =
+Q/2. At Q=10, the bandpass signal is 5× the input amplitude at the resonant frequency — much
+too loud.
 
-**Solution:** Multiply the bandpass output by `2.0f * q1` (= 2/Q):
+**This premise was wrong.** Direct measurement of the actual recursion
+(`low += f1*band; hi = in - low - q1*band; band += f1*hi`) across Q=1..20 shows the true raw
+peak gain is **Q**, not Q/2 — confirmed to 4 decimal places. See the addendum for what this
+meant in practice (the `(2/Q)` correction below happened to cancel the real Q-dependence
+anyway, just not for the reason this section claimed).
+
+**Solution (as shipped, until 2026-08-24):** Multiply the bandpass output by `2.0f * q1` (= 2/Q):
 
 ```cpp
 const float bpGain = 2.0f * q1;  // 2/Q
@@ -100,12 +114,14 @@ const float bpGain = 2.0f * q1;  // 2/Q
 float wetL = bandL_ * bpGain;
 ```
 
-This normalizes the peak gain to exactly 1.0 (0 dB) at the resonant frequency, independent
-of Q. Off-resonance, the output is attenuated by the bandpass rolloff — which is what creates
-the wah character when blended with the dry signal via the Mix knob.
+This was intended to normalize the peak gain to exactly 1.0 (0 dB) at the resonant frequency,
+independent of Q — and it *did* end up Q-independent, but at 2× the intended peak (since the
+real raw peak is Q, and `(2/Q)*Q = 2`, not 1). Off-resonance, the output is attenuated by the
+bandpass rolloff — which is what creates the wah character when blended with the dry signal
+via the Mix knob; that part of the reasoning holds regardless of filter form.
 
-**Gain staging result (Mix = 1.0, full wet):**
-- At resonant frequency: output = 1.0 × input (unity gain)
+**Gain staging result (Mix = 1.0, full wet), as understood at the time:**
+- At resonant frequency: output = 1.0 × input (unity gain) — **actually 2× input**, per above
 - Well away from resonance: output → 0 (bandpass rejection)
 - The wah sweep moves the resonance → creates the classic vowel-filter sweeping effect
 
@@ -232,19 +248,32 @@ void clearFilterState() {
 
 ### No working buffer needed
 
-The SVF requires only 4 float state variables (lowL, bandL, lowR, bandR). These live as
-class members in internal SRAM. The external working buffer (2.4M floats) is not used.
+The filter requires only 2 float state variables per channel (4 total: `bpL_`/`bpR_`, each a
+`dsp::BandpassBiquad`). These live as class members in internal SRAM. The external working
+buffer (2.4M floats) is not used.
 
 ### CPU budget
 
-Per sample cost (one channel):
-- 1× addition + 1× multiply (lowpass update)
-- 3× addition + 2× multiply (highpass compute)
-- 1× addition + 1× multiply (bandpass update)
-- 1× multiply + 1× addition (gain normalization + mix)
+**This section was written for the original Chamberlin SVF and never updated when the growl
+and output-limiter tanh stages were added — it significantly understated the real per-sample
+cost even before the 2026-08-24 filter swap. Corrected here.**
 
-Total: ~8 multiplies, ~6 additions per sample per channel. At 48 kHz, stereo: ~16 ops per sample
-pair, ~768 kops/s. The Cortex-M7 at 720 MHz handles this trivially — headroom for many more effects.
+Per sample cost (one channel):
+- Biquad: `dsp::BandpassBiquad::process` — 2 multiplies computing the output, 4 more updating
+  state (see `source/dsp/biquad.h`) — comparable to the 3-multiply Chamberlin recursion it
+  replaced.
+- Growl stage: 1 multiply (gain) + **1 `tanhf` call**.
+- Output limiter: 1 multiply (mix) + 1 multiply (drive) + **1 `tanhf` call**.
+
+**Two `tanhf` calls per channel per sample — four per stereo sample pair, unconditional, not
+gated by an overshoot check.** This is the dominant per-sample cost in the patch by a wide
+margin; the biquad/filter math itself is a handful of multiply-adds. Whether these can be
+replaced with something cheaper was investigated directly (not assumed) as part of the
+2026-08-24 work — see the addendum below for the outcome.
+
+Coefficient computation (`dsp::rbjBandpassCoeffs`: one `sinf`, one `cosf`, one divide) happens
+once per `processAudio` call, not per sample — negligible at typical block sizes, same as the
+`powf` log-taper computation above it.
 
 ### Parked wah (no expression pedal)
 
@@ -274,6 +303,12 @@ bash tests/check_patches.sh
 - [ ] Short press bypasses; LED dims to DarkRed or DimYellow depending on current mode
 - [ ] Re-engaging after bypass has no pop or click
 - [ ] Mode toggle while active has no pop or click
+- [ ] **New 2026-08-24:** toe position hits the intended bright endpoint at every Q
+      setting, not just at high Q — sweep the Q knob at toe and confirm the pitch of
+      the resonant peak stays put (Q used to visibly detune it, worst at Q=1)
+- [ ] **New 2026-08-24:** loudness at the resonant peak stays roughly constant as the
+      Q knob is swept full-range (it was already meant to be constant; confirm it
+      still is with the new filter)
 
 ---
 
@@ -294,6 +329,91 @@ bash tests/check_patches.sh
 
 ---
 
+## 2026-08-24 — fixing the Q-dependent detuning and gain-staging bugs
+
+Applying this repo's reverse-engineering methodology (originally built for
+`funk_machine_envelope_filter.cpp`) to `wah.cpp` surfaced two real bugs in the
+original Chamberlin SVF implementation, both dating to the initial release.
+
+### Bug 1 — the resonant peak was not where the knobs said it was
+
+Driving the actual per-sample recursion with swept sine tones and measuring where
+the output truly peaks — not where the pole angle points, which diverge for this
+filter's zero structure at low Q — shows the resonant frequency drifts sharply as
+Q drops:
+
+| fc target | Q=1 (old error) | Q=10 (old error) |
+|---|---|---|
+| 350 Hz (heel) | +20.7 cents | +3.5 cents |
+| 935 Hz (mid) | +57.9 cents | +6.9 cents |
+| 2500 Hz (toe, Crybaby) | **+174.4 cents** | +13.8 cents |
+
+At Q=1 — a fully reachable knob position — the Crybaby toe position, intended to
+hit 2500 Hz, actually peaked at 2765 Hz: 1.7 semitones sharp. Verified two
+independent ways: a C++ probe running the exact recursion, and a from-scratch
+Python reimplementation, agreeing to the Hz. This is a documented limitation of
+the Chamberlin SVF in the DSP literature — Lazzarini & Timoney,
+["Improving the Chamberlin Digital State Variable Filter"](https://arxiv.org/abs/2111.05592)
+(arXiv:2111.05592) — not something specific to this codebase.
+
+**Fix:** replaced the Chamberlin SVF with the RBJ constant-peak-gain bandpass
+biquad (`dsp::rbjBandpassCoeffs` / `dsp::BandpassBiquad`,
+[`source/dsp/biquad.h`](../source/dsp/biquad.h)), whose peak sits at exactly the
+target frequency for any Q, by construction. Measures **0.007 cents** worst-case
+error across the same grid — see
+[`tests/wah_svf_accuracy_probe.cpp`](../tests/wah_svf_accuracy_probe.cpp), which
+keeps the old recursion around specifically so this comparison stays
+reproducible. Reversed Decision 1 above: the biquad's "con" was in fact the
+Chamberlin SVF's own, larger problem.
+
+This is not wah-specific — `funk_machine_envelope_filter.cpp` (Q floor 1.2, 165
+cents worst case) and `harmonica.cpp` (Q floor 2.0–3.0, 51 cents) were also
+measurably affected and received the same fix.
+
+### Bug 2 — the "peak gain = Q/2" premise behind Decision 2 was wrong
+
+Independent of the detuning: direct measurement of the *raw* Chamberlin
+recursion's peak amplitude (before any correction) across Q=1..20 shows it is
+**Q**, not **Q/2**, confirmed to 4 decimal places. Decision 2's `bpGain = 2*q1`
+(intended to normalize `Q/2` to `1.0`) therefore actually normalized `Q` to `2.0`
+— by coincidence still Q-independent (the wrong `/2` and the real factor of `Q`
+happened to cancel), just at exactly twice the peak the design doc described.
+
+**Fix:** `kResonanceGain` is now set to `5.6` — the *actual* old peak
+(`2 × 2.8`), not the value the old formula's own comment claimed. The new
+biquad's peak is a true `1.0×` by construction rather than an accidental
+cancellation, so `kResonanceGain` alone is now the whole gain story. Verified via
+`scripts/analyze_effects.py` field-by-field against the pre-fix build: at
+default settings, output RMS and fundamental gain match to within measurement
+noise (e.g. `fundamental_gain` 0.198954 → 0.198664); the ~400 fields that do
+differ are all in off-resonance/sweep operating points where the filter's
+frequency-response *shape* legitimately differs between the two topologies, not
+in default loudness.
+
+### Verification
+
+- `tests/dsp/biquad_test.cpp` — the shared primitive's own accuracy/stability
+  coverage.
+- `tests/wah_svf_accuracy_probe.cpp` — old-vs-new comparison specific to
+  wah.cpp's reachable fc×Q space.
+- A dedicated stability sweep (extreme Q/wahPos/mix corners, both modes, rapid
+  knob jumps every 16 blocks, 20× input overload) stayed bounded and finite
+  throughout — no instability at the corner Decision 1's stability note used to
+  worry about.
+- `scripts/analyze_effects.py` before/after: 0 differences in every other
+  effect; no new or lost qualitative flags for `wah`; default-settings loudness
+  matches to within noise.
+
+### Not done in this pass
+
+The growl and output-limiter `tanhf` stages (Bug 2's discovery — an actual old
+peak of 5.6×, not 2.8× — means they were already saturating harder and more
+often than the original design intended). Whether a cheaper saturator could
+replace them without an audible difference is investigated separately; see
+below for the outcome once that lands, rather than assuming an answer here.
+
+---
+
 ## Related Files
 
 - `effects/wah.cpp` — the patch implementation
@@ -301,3 +421,8 @@ bash tests/check_patches.sh
 - `docs/endless-reference.md` — full SDK reference, including current expression pedal routing
 - `internal/PatchCppWrapper.cpp` — expression pedal hardcoded to param 2
 - `docs/templates/patch-build-walkthrough.md` — blank template for future patches
+- `source/dsp/biquad.h` / `source/dsp/filter_coeff.h` — the RBJ bandpass biquad
+  primitive this patch now uses, and the warning on the Chamberlin `svfF1` it replaced
+- `tests/wah_svf_accuracy_probe.cpp` — the before/after accuracy measurement
+- `docs/endl-corpus-study.md` / `docs/reverse-engineering/` — the methodology
+  this fix came from, originally built for `funk_machine_envelope_filter.cpp`
