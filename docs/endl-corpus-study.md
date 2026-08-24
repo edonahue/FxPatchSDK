@@ -95,6 +95,14 @@ a cascaded `x / (1 + |x|)` soft-clip, three instructions and no library call. Th
 in the same range as ours (0.22–0.39), so they are certainly not avoiding
 floating-point work in general.
 
+**Worked example:** `funk_machine_envelope_filter.cpp` was taken the rest of the
+way — see
+[its walkthrough](funk-machine-envelope-filter-build-walkthrough.md#2026-08-24--applying-the-reverse-engineering-findings).
+Its `powf`+`sinf` control chain became arithmetic, the image dropped from 10,244
+to 4,508 bytes, and the measured cutoff error is 0.15 cents. The `tanhf` in its
+output limiter was measured and deliberately left: at real operating levels the
+limiter never engages, so it is linked but never called.
+
 **Suggested practice:** treat a newlib transcendental in a per-sample path as a
 cost to justify, not a default. Where one is needed for a control-rate value,
 compute it once per block — the pattern `dimension_chorus.cpp` already uses.
