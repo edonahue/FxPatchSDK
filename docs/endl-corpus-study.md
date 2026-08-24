@@ -58,6 +58,11 @@ be in there.
 
 What that costs us, measured from our own symbol tables:
 
+Measured before parameter names were added (each image is ~308 bytes larger
+now; see [`param-metadata-implementation.md`](param-metadata-implementation.md)).
+The libm proportions are what matter here and they move by well under a
+percentage point.
+
 | Effect | image | libm bytes | libm % | effect code |
 |---|---|---|---|---|
 | wah | 8,472 | 6,062 | **83.4%** | 1,126 |
@@ -194,9 +199,9 @@ mildly interesting and entirely unactionable.
 |---|---|
 | Polyend factory plates | 3,012 / 3,948 / 12,984 |
 | Playground (community) | 2,632 / 5,764 / 10,044 |
-| This repo | 5,460 / **9,596** / 13,284 |
+| This repo | 5,772 / **9,908** / 13,600 |
 
-Our median image is ~2.4x the factory plates'. Subtract the libm that only we
+Our median image is ~2.5x the factory plates'. Subtract the libm that only we
 link and our effect code is 1,126–4,990 bytes, squarely inside the third-party
 range. There is no separate code-bloat problem to chase.
 

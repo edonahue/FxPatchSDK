@@ -155,9 +155,9 @@ Do not "helpfully" re-introduce them without explicit direction:
 - No `docs_sync`-style auto-regeneration of inventory files.
 - No speculative expansion of [`source/dsp/`](source/dsp). The current
   primitives are the proven duplicates from the 2026-06-13 and 2026-06-14
-  audits (most recently `dsp::OnePoleLowpass`/`dsp::OnePoleHighpass`,
-  extracted when a second effect turned out to already have a
-  byte-identical file-local copy). Add a new primitive only when at least
+  audits, plus `dsp::svfF1` (2026-08-23, a third effect made it a duplicate)
+  and `dsp::clamp01`/`clampSigned` (extracted when six effects turned out to
+  carry byte-identical copies). Add a new primitive only when at least
   two effects would use it; otherwise keep it inline in the effect that
   needs it. The scope is "extract the duplicates", not "build a library."
 - No SDK API change for per-patch expression routing
@@ -184,8 +184,10 @@ Do not "helpfully" re-introduce them without explicit direction:
   not.
 
 One fork idea *has* been accepted: a JUCE VST3 wrapper for auditioning
-patches on the desktop, from the `andybalham` fork. It is planned but not
-built — see [`docs/vst-host-plan.md`](docs/vst-host-plan.md). Upstream
+patches on the desktop, from the `andybalham` fork. It is **built** and lives
+in [`vst/`](vst) — see [`docs/vst-host-plan.md`](docs/vst-host-plan.md). Treat
+it as experimental: host floats are not Cortex-M7 floats, so hardware
+listening is still the final word. Upstream
 `polyend/FxPatchSDK` is dormant and this fork is fully caught up with it;
 [`docs/fork-comparisons/upstream-and-forks.md`](docs/fork-comparisons/upstream-and-forks.md)
 is the place to confirm that before spending time on an upstream sync.

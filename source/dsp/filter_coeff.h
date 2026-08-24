@@ -1,7 +1,7 @@
 // source/dsp/filter_coeff.h — filter coefficient helpers.
 //
 // One-pole low/high-pass: harvested from effects/tube_screamer.cpp:61-70;
-// the same idiom recurs identically in 8 of the 12 effects. One-pole IIRs
+// the same idiom recurs identically in 8 of the 14 effects. One-pole IIRs
 // are the workhorse of this corpus: cheap, well-behaved at 48 kHz single
 // precision, easy to reason about, and adequate for the broad voicing
 // filters most pedal-style effects need before or after a clipper.

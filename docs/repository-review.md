@@ -1,193 +1,91 @@
-# Repository Review: Fork State, Branches, and Development Direction
+# Repository Review: Current State
 
-Reviewed on 2026-04-07 against local `master`, remote
-`origin/claude/polyend-endless-docs-OJnCb`, the official Polyend product pages, and the
-official upstream SDK repository.
+**Reviewed:** 2026-08-24, against `master` at the merge of PR #12.
+**Supersedes:** the 2026-04-07 review, which described a three-patch repo and a
+branch situation that no longer exists. Nothing from it survived contact with
+the current tree; it was rewritten rather than patched.
 
----
-
-## Summary
-
-This fork has moved well beyond the official `polyend/FxPatchSDK` without abandoning its
-core architecture. It keeps the stock SDK API and ABI, then adds three substantial custom
-patches, host-side validation, reverse-engineered documentation, and a growing archive of
-Playground outputs for reference.
-
-The key branch conclusion is straightforward:
-
-- `master` is the current development baseline.
-- `origin/claude/polyend-endless-docs-OJnCb` is older and behind `master`.
-- There is no evidence that `claude` contains newer code that should supersede `master`.
-
-Future work should branch from `master`.
+This is item #1 in [`CLAUDE.md`](../CLAUDE.md)'s reading order, so it aims to
+answer one question: *what is actually here right now?*
 
 ---
 
-## Branch Findings
+## Shape of the repo
 
-### `master`
+| | |
+|---|---|
+| Custom effects | **14** in `effects/*.cpp`, plus one external reference in `effects/examples/reverb.cpp` |
+| Shared DSP primitives | **10** header-only files in `source/dsp/`, with **9** unit tests in `tests/dsp/` |
+| Compiled `.endl` binaries | **42** — 14 our own (untracked build output), 23 community Playground bundles, 5 Polyend factory plates |
+| Documentation | 35 top-level docs in `docs/`, plus `fork-comparisons/`, `reverse-engineering/`, `templates/` |
+| Desktop host | JUCE VST3 / LV2 / Standalone wrapper in `vst/` — built and working, experimental |
+| Commits on `master` | 101 |
 
-`master` contains:
+## Branches
 
-- the older claude-era documentation work
-- stereo chorus
-- expression-pedal notes and current hardcoded routing
-- MXR Distortion+ patch and analysis
-- dual-mode wah patch and walkthrough
-- syntax/lint validation in `tests/`
-- Playground example directories and SpiralCaster artifacts
+`master` is the only long-lived branch and the base for all work. Development
+happens on short-lived branches named in the session instructions; they are
+deleted once merged. See [`CLAUDE.md`](../CLAUDE.md)'s operational notes.
 
-This is the branch with the broadest practical development value.
+For fork and upstream history — which is a different question from branch state
+— use
+[`fork-comparisons/upstream-and-forks.md`](fork-comparisons/upstream-and-forks.md).
+Upstream `polyend/FxPatchSDK` is dormant and this fork is caught up with it.
 
-### `origin/claude/polyend-endless-docs-OJnCb`
+## What this fork adds over upstream
 
-This branch appears to be a historical documentation branch. Relative to `master`, it lacks:
+Upstream is the SDK skeleton plus one example. This fork keeps the stock API and
+ABI unchanged and adds:
 
-- MXR Distortion+ work
-- wah work
-- the test directory
-- the Playground example archive
+- **14 patches**, each with a build walkthrough in `docs/` explaining the *why*
+  of its control laws, not just the what.
+- **A shared DSP layer** (`source/dsp/`) extracted only from proven duplicates —
+  the standing rule is that a primitive needs two or more real users before it
+  earns a file.
+- **Host-side validation** that runs without hardware: syntax/lint with `-Werror`
+  parity against the real ARM flags, per-primitive unit tests, real ARM `.endl`
+  builds with a RAM-budget and header gate, and behavioral probe sweeps with
+  NaN/Inf detection and THD/spectral analysis.
+- **Binary analysis tooling** (`scripts/endl_inspect.py`, `scripts/endl_analyze.py`)
+  that reads compiled `.endl` images directly — header validation, entry-point
+  and vtable recovery, library-routine fingerprinting.
+- **A desktop audition path** via `vst/`.
 
-Its meaningful documentation additions are already present or superseded on `master`.
+## Validation surface
 
-### Merge conclusion
+```bash
+bash tests/check_patches.sh    # syntax + lint (-Werror) and the DSP unit tests
+bash tests/check_arm_build.sh  # real ARM .endl builds, header + RAM + stack gates
+bash tests/analyze_effects.sh  # probe sweeps, THD/spectral, control-law metrics
+```
 
-Do not merge `claude` into `master` directly. The sensible move is to keep `master` as the
-source of truth and preserve `claude` only as history.
+All three run with no hardware attached. What they cannot tell you is how a patch
+*sounds* — see "Known gaps".
 
----
+## Known gaps
 
-## Codebase Understanding
+These are real and currently open. Closed gaps have been removed from this list
+rather than left in place looking urgent.
 
-### Upstream-compatible core
+1. **No measured cycle data.** [`cycle-budget.md`](cycle-budget.md)'s per-patch
+   and per-primitive tables are still empty. The 15k cycles/sample ceiling is a
+   rule of thumb inherited from the `sthompsonjr` fork, not a Polyend figure.
+   [`hardware-cycle-measurement-howto.md`](hardware-cycle-measurement-howto.md)
+   describes the DWT approach but is unverified, and requires opening the pedal
+   and attaching an SWD probe.
+2. **No hardware listening loop in this environment.** Every patch and every
+   change is validated on the host only. Several claims in this repo —
+   parameter-name display being the most recent — are inference from the ABI and
+   from Polyend's own binaries, not observation.
+3. **No CI.** There is no `.github/workflows/`, despite four runnable validation
+   scripts. Everything is run by hand.
+4. **No persistent storage API.** Patches cannot save state across power cycles;
+   upstream issue #1 asks for it and remains unanswered.
+5. **Expression is hardwired to param 2** in `internal/PatchCppWrapper.cpp`. A
+   per-patch `isParamEnabled()` routing API is a known possibility that this repo
+   has deliberately declined — see `CLAUDE.md`.
 
-The architectural center of gravity is still the official SDK layout:
+## Where to go next
 
-- `source/Patch.h`: developer-facing API
-- `internal/PatchABI.h`: firmware-facing ABI
-- `internal/PatchCppWrapper.cpp`: bridge between the two
-- `Makefile`: `.endl` image generation
-
-That matters because it keeps this fork close enough to upstream that future sync work is
-still tractable.
-
-### Where the fork adds real value
-
-- `effects/`: actual custom DSP work, not just the stock bitcrusher example
-- `docs/`: reasoning and design records that make future edits safer
-- `tests/`: lightweight guardrails before hardware deployment
-- `playground/`: artifact collection showing what the hosted Polyend workflow produces
-
-### Present custom-patch profile
-
-- `chorus.cpp`: practical delay-line and LFO example
-- `mxr_distortion_plus.cpp`: good first circuit-to-DSP distortion reference
-- `wah.cpp`: strongest example of stateful control behavior and mode design in the repo
-
-The codebase now supports more than “SDK orientation”; it supports real patch iteration.
-
----
-
-## What the Repo Teaches Well Today
-
-- How the stock Endless SDK is structured
-- How to write patches that remain compatible with the stock SDK
-- How to map analog pedal concepts into simple DSP blocks
-- How the current fork routes expression control in practice
-- How to validate custom patch files before hardware testing
-
-The documentation now gives enough context for another engineer to start feature work
-without having to rediscover the repo shape from scratch.
-
----
-
-## Current Gaps
-
-### 1. Expression routing remains global
-
-The largest architectural rough edge is the hardcoded expression-pedal routing in
-`internal/PatchCppWrapper.cpp`. It is manageable for current patches, but it will become a
-real design constraint as soon as the fork adds more multi-mode or circuit-selection effects.
-
-### 2. Build workflow is still copy-based
-
-The repo still expects developers to copy a selected effect into `source/PatchImpl.cpp`
-before building. That is acceptable for a small fork, but it is a friction point for
-larger effect inventories.
-
-### 3. No real hardware or ARM smoke test in the repo
-
-`tests/check_patches.sh` is useful but intentionally shallow. There is no automated check
-that the cross-toolchain is installed, that `make` succeeds for a chosen patch, or that a
-generated `.endl` artifact is structurally sane on this machine.
-
-### 4. Playground assets are not yet tied into a repeatable review workflow
-
-The repository contains useful `.endl` and PDF examples, but there is no indexed summary
-of what sonic categories they cover, how they compare to the hand-written effects, or which
-ones are most valuable as future inspiration or listening references.
-
----
-
-## Recommended Next Development Moves
-
-### High value
-
-1. Add per-patch expression routing to `Patch.h` and `PatchCppWrapper.cpp` with a safe
-default that preserves current behavior.
-2. Replace the copy-into-`source/PatchImpl.cpp` build flow with a parameterized effect
-selection mechanism in the Makefile.
-3. Add one real ARM build smoke test path for at least one effect.
-
-### Medium value
-
-1. Expand the effect library with one time-domain patch and one dynamics patch.
-2. Add tiny host-side golden tests for deterministic helper code where practical.
-3. Index the Playground archive by effect family and likely DSP category.
-
-### Lower value but still useful
-
-1. Add a concise changelog or release-notes style history for the fork.
-2. Add a compatibility note when upstream SDK changes land.
-
----
-
-## Official Platform Understanding
-
-Polyend’s official materials present Endless as a programmable pedal plus a hosted creation
-platform. The distinction matters for this fork:
-
-- Playground is excellent for rapid effect generation and idea exploration.
-- The SDK path is the right fit when you need source control, maintainability, deliberate
-  DSP choices, and repeatable iteration.
-
-That split is now reflected directly in this repository:
-
-- `effects/` represents the SDK path
-- `playground/` represents observation of the hosted path
-
----
-
-## Validation Snapshot
-
-At review time, `bash tests/check_patches.sh` passes cleanly for:
-
-- `effects/chorus.cpp`
-- `effects/mxr_distortion_plus.cpp`
-- `effects/wah.cpp`
-
-That does not prove hardware correctness, but it does confirm that the current custom patch
-set is syntactically healthy and respects the repo’s host-side lint expectations.
-
----
-
-## Practical Takeaway
-
-Treat this fork as a stock-SDK-compatible Endless development lab. The most important
-conceptual anchors for future work are:
-
-- stay close to upstream in core SDK files
-- do real development in `effects/`
-- use `docs/` to preserve design intent
-- treat Playground artifacts as reference material, not editable source
-- branch from `master`
+Follow [`CLAUDE.md`](../CLAUDE.md)'s reading order rather than this document.
+This file records state; the reading order records how to work.

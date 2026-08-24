@@ -72,7 +72,7 @@ same in both repos.
   is **no persistent-storage / preset-save facility** in the SDK. This is recorded as a
   known limitation in [`docs/endless-reference.md`](../endless-reference.md).
 - Issue #4 (opened 2026-05-01) — request for "more complex code samples." This fork
-  already has thirteen documented effects; contributing one or more upstream as worked
+  already has fourteen documented effects; contributing one or more upstream as worked
   examples would be a low-effort, high-goodwill move. See the closed PR #3 note
   below for why we are not pursuing this for now.
 
@@ -195,7 +195,7 @@ anywhere in the fork network.
 - **`source/effects/` — six classic effects** (Bitcrush, Saturation, Distortion,
   Delay, Flanger, Reverb) written as header-only `Patch` subclasses. They are
   textbook implementations (Freeverb, LFO-modulated delay, etc.) and not more
-  advanced than this repo's thirteen effects; no porting need.
+  advanced than this repo's fourteen effects; no porting need.
 - **Its own `CLAUDE.md`** — a teaching-oriented SDK guide. Our `CLAUDE.md` is
   deliberately a terse pointer file instead; no change wanted.
 
@@ -204,7 +204,7 @@ Nothing else in `andybalham` needs adopting. The VST3 idea is the takeaway.
 ## Where this fork stands
 
 For perspective: among the six forks, this one (`edonahue`) is the most
-documentation- and tooling-complete — thirteen documented effects, validation scripts,
+documentation- and tooling-complete — fourteen documented effects, validation scripts,
 circuit-to-DSP playbooks, and per-patch walkthroughs. `sthompsonjr` has the broader
 reusable WDF/DSP *library*; this fork has the deeper authoring *process*. The two
 forks are strong in different dimensions, which is why the comparison docs treat

@@ -148,6 +148,21 @@ class PatchImpl final : public Patch
         }
     }
 
+    // Short display names for the three knobs, surfaced through the firmware's
+    // agent_get_param_name ABI slot. Keep them to 8 characters or fewer -- the
+    // buffer size is undocumented and the wrapper truncates silently. Return
+    // nullptr for a knob you deliberately leave unused.
+    const char* getParameterName(int paramIdx) override
+    {
+        switch (paramIdx) {
+            case 0: return "TODO";
+            case 1: return "TODO";
+            case 2: return "TODO";
+            default: return nullptr;
+        }
+    }
+
+
     void setParamValue(int paramIdx, float value) override
     {
         switch (paramIdx) {

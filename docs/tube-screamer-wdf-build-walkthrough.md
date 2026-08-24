@@ -157,14 +157,21 @@ output control instead?
 
 ## Decision 4.5 — Primitive Reuse
 
-This patch also keeps its helpers local for now:
+This patch kept its helpers local when it was written:
 
-- the repo does not yet have a shared `source/dsp/` layer
+- there was no shared `source/dsp/` layer at the time
 - the local `WdfAntiparallelDiodePair` is part of the experiment, not a settled abstraction
 - a future extraction should wait until the sibling has justified itself by ear and under tests
 
 The reuse lesson here is procedural rather than structural: land the experiment first, then
 extract the durable parts.
+
+**Since then**, that is exactly what happened. `source/dsp/` now exists, and this
+patch draws `dsp::lpCoeff`/`dsp::hpCoeff`, `dsp::ParamSmoother`,
+`dsp::OnePoleLowpass`/`dsp::OnePoleHighpass` and `dsp::softLimit` from it — the
+one-pole filters specifically because this patch and `big_muff_wdf.cpp` turned
+out to carry byte-identical local copies. `WdfAntiparallelDiodePair` is still
+local, and still deliberately so.
 
 ---
 

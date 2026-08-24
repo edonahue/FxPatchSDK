@@ -138,7 +138,7 @@ with the footswitch hold rather than adjusting a knob mid-phrase. The final knob
 | Mid | 1 | Q resonance | 0→Q=1.0, 1→Q=10.0 | 0.444 (→ Q≈5) |
 | Right / Exp | 2 | Wah position | 0=heel/350Hz, 1=toe/fc_max | 0.5 (mid/"cocked wah") |
 
-**Future improvement:** Implementing a virtual `isParamEnabled()` method on `Patch.h` would
+**Considered and declined** (see `CLAUDE.md`): a virtual `isParamEnabled()` on `Patch.h` would
 allow this patch to declare the expression pedal on a
 non-Right knob, freeing param 2 for Sweep Range. Not available in the stock SDK.
 
@@ -282,7 +282,7 @@ bash tests/check_patches.sh
 1. **Auto-wah LFO:** When no expression pedal is connected, an LFO could sweep `wahPos_`
    automatically. A Rate knob could replace the fixed-position parked wah behavior.
 
-2. **Per-patch expression pedal routing:** Implement virtual `isParamEnabled()` on `Patch.h`.
+2. **Per-patch expression pedal routing:** would need a virtual `isParamEnabled()` on `Patch.h` — declined for now, see `CLAUDE.md`.
    This would allow assigning the expression pedal to
    a different param, freeing param 2 (Right knob) for a Sweep Range control.
 

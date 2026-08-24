@@ -93,6 +93,11 @@ The public interface is one abstract base class:
 - `setWorkingBuffer(std::span<float, kWorkingBufferSize>)`
 - `processAudio(std::span<float> left, std::span<float> right)`
 - `getParameterMetadata(int paramIdx)`
+- `getParameterName(int paramIdx)` — optional; returns a short display name or
+  `nullptr`. Defaults to `nullptr`, so patches written before it exist still
+  compile. See [`param-metadata-implementation.md`](param-metadata-implementation.md).
+- `getParameterUnit(int paramIdx)` — optional; same shape. Every parameter here
+  is a normalized `0..1` control, so this returns `nullptr` throughout.
 - `setParamValue(int paramIdx, float value)`
 - `handleAction(int actionIdx)`
 - `getStateLedColor()`
@@ -208,6 +213,22 @@ does not replace a real ARM build or hardware listening pass.
 - stock-SDK-compatible stereo chorus
 - uses the working buffer for delay lines
 - demonstrates fractional delay, LFO phase offset, and expression-as-mix
+
+### `effects/dimension_chorus.cpp`
+
+- Boss DC-2 Dimension-style stereo widener, architecturally distinct from `chorus.cpp`
+- single mono ring buffer feeding a shared inverted-pair LFO plus cross-feed
+- Right knob carries `Width` (crossfeed intensity) rather than a dry/wet mix, matching the hardware
+- hold toggles a Classic / Mono-safe voicing
+
+### `effects/funk_machine_envelope_filter.cpp`
+
+- Mu-Tron-style touch envelope filter for bass, clav, clean guitar and keys
+- linked-stereo envelope follower driving a Chamberlin SVF bandpass (`dsp::svfF1`)
+- expression controls `Bias`, shifting the whole sweep window
+- hold advances a 4-state cycle: Bass/GuitarKeys voice x Down/Up envelope direction
+- recomputes cutoff every 8 samples rather than once per block — the one
+  deliberate exception to the per-block convention, documented in its walkthrough
 
 ### `effects/harmonica.cpp`
 

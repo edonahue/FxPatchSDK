@@ -61,7 +61,7 @@ handcraft-vs-Playground positioning that animates this fork.
 
 ## Included Effect Work
 
-This fork currently includes thirteen stock-SDK-compatible custom effects:
+This fork currently includes fourteen stock-SDK-compatible custom effects:
 
 - `effects/back_talk_reverse_delay.cpp`: Back Talk-inspired reverse delay with a texture mode and expression-as-mix
 - `effects/bbe_sonic_stomp.cpp`: guitar-oriented sonic enhancer inspired by BBE Sonic Stomp / Aion Lumin
@@ -69,6 +69,7 @@ This fork currently includes thirteen stock-SDK-compatible custom effects:
 - `effects/big_muff_wdf.cpp`: hybrid WDF-style Big Muff sibling that keeps the same `Sustain` / `Tone` / `Blend` control story while replacing the clip core with wave-solved diode-pair stages
 - `effects/chorus.cpp`: stereo modulated-delay chorus
 - `effects/dimension_chorus.cpp`: Boss DC-2 Dimension-style stereo widener with a mono ring buffer, shared inverted-pair LFO, and cross-feed Width instead of a mix knob
+- `effects/funk_machine_envelope_filter.cpp`: touch-sensitive envelope filter with a 4-state voice x direction cycle (Bass/GuitarKeys, Down/Up) and expression-as-bias
 - `effects/harmonica.cpp`: blues bullet-mic harmonica voicing of a guitar, with an Open/Cupped voicing toggle and expression-driven hand-cup sweep
 - `effects/klon_centaur.cpp`: Klon-inspired transparent overdrive with a Tone Mod alternate voice and expression-as-output
 - `effects/mxr_distortion_plus.cpp`: MXR Distortion+ inspired distortion, retuned for smoother Endless control
@@ -168,6 +169,9 @@ Then read the specific walkthroughs for any effect you plan to extend:
 - [`docs/big-muff-research.md`](docs/big-muff-research.md)
 - [`docs/big-muff-build-walkthrough.md`](docs/big-muff-build-walkthrough.md)
 - [`docs/big-muff-wdf-build-walkthrough.md`](docs/big-muff-wdf-build-walkthrough.md)
+- [`docs/dimension-chorus-research.md`](docs/dimension-chorus-research.md)
+- [`docs/dimension-chorus-build-walkthrough.md`](docs/dimension-chorus-build-walkthrough.md)
+- [`docs/funk-machine-envelope-filter-build-walkthrough.md`](docs/funk-machine-envelope-filter-build-walkthrough.md)
 - [`docs/harmonica-build-walkthrough.md`](docs/harmonica-build-walkthrough.md)
 - [`docs/klon-centaur-research.md`](docs/klon-centaur-research.md)
 - [`docs/klon-centaur-build-walkthrough.md`](docs/klon-centaur-build-walkthrough.md)
