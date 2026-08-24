@@ -120,15 +120,24 @@ same per-block hoisting this repo already practises.
 
 ## What this changes
 
-1. **`x/(1+|x|)` belongs in `source/dsp/`** as a cheap alternative to
-   `dsp::softLimit`'s `tanhf`, for the safety stage and for drive effects where
-   the exact `tanh` curve is not the point. Two effects would need it before it
-   meets this repo's own extraction bar.
+1. **`x/(1+|x|)` as a cheap alternative to `dsp::softLimit`'s `tanhf`** — for
+   drive effects where the exact `tanh` curve is not the point. Measured on
+   `funk_machine_envelope_filter.cpp` and **declined there**: `softLimit` passes
+   `|x| <= threshold` through untouched, and at real operating levels that
+   effect's limiter never engages at all, so the `tanhf` is linked but never
+   called (`tests/funk_machine_limiter_probe.cpp`). The swap is still worth
+   considering for an effect whose limiter runs hot; it is not a blanket win.
 2. **Clamp helpers now use `__builtin_fminf`/`__builtin_fmaxf`** — 6 insns plus
    a branch down to 2, in code every effect runs several times per sample.
    Extracted to `source/dsp/clamp.h`; see Finding C.
 3. **Branchless mode selection** via `vsel`-friendly ternaries is worth
    preferring over `if` in per-sample paths.
+
+The transcendental finding has one worked example:
+`funk_machine_envelope_filter.cpp`'s `powf`+`sinf` control chain is now
+arithmetic, at a measured 0.15-cent cutoff error, taking its image from 10,244
+to 4,508 bytes. See
+[its walkthrough](../funk-machine-envelope-filter-build-walkthrough.md#2026-08-24--applying-the-reverse-engineering-findings).
 
 None of this is cycle-measured. [`docs/cycle-budget.md`](../cycle-budget.md) is
 still empty, and instruction counts are not cycles — but "6 instructions and a

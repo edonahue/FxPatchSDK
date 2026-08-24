@@ -146,3 +146,89 @@ g++ -std=c++20 -O2 -fsingle-precision-constant -Wall -Wextra -I source \
 - `docs/patch-backlog.md`
 - `docs/circuit-to-patch-conversion.md`
 - `docs/patch-authoring-best-practices.md`
+
+---
+
+## 2026-08-24 — applying the reverse-engineering findings
+
+[`docs/endl-corpus-study.md`](endl-corpus-study.md) established that no Polyend
+factory plate and no Playground patch links a newlib transcendental, while all
+fourteen of ours did. That was left as a documented prior. This patch is where
+it was acted on, as a worked example.
+
+### What the control chain cost
+
+The frequency map ran `powf()` then `sinf()` every eight samples. The 8-sample
+interval was chosen deliberately (Decision 5) to keep transcendentals out of the
+per-sample path — and it does — but 8 samples at 48 kHz is still a 6 kHz control
+rate, so **12,000 newlib calls per second**. The comment above
+`kControlInterval` claimed to be "avoiding powf/sinf in the inner loop", which
+was true and beside the point.
+
+### The rewrite
+
+Two observations collapse the chain to arithmetic:
+
+1. The windows are built as `70 * powf(4, bias)` and friends. `4`, `2.4`, `3`
+   and `1.8` are literals, so `powf(base, bias)` is `exp2(bias * log2(base))`
+   with a **constant** multiplier. Carrying the window as `log2(Hz)` makes the
+   whole map affine in `bias`, so no runtime logarithm is needed either — the
+   pow disappears without a log taking its place.
+2. `fc` never exceeds ~2.9 kHz, so `pi*fc/fs` stays below 0.19 rad, where
+   `sin(x) = x - x³/6` has its first omitted term below `2.1e-6`.
+
+Per control tick that leaves one `exp2` — a degree-5 polynomial plus an
+IEEE-754 exponent-field write — and three multiplies.
+
+### Accuracy, measured before adopting
+
+[`tests/funk_machine_approx_probe.cpp`](../tests/funk_machine_approx_probe.cpp)
+sweeps both voices across the full bias × envelope space, 80,802 points:
+
+| | |
+|---|---|
+| worst relative error in `f1` | `8.8e-05` |
+| worst cutoff error | 0.18 Hz |
+| **worst cutoff error** | **0.15 cents** |
+
+Pitch discrimination tops out near 1 cent and filter cutoff is far less
+sensitive than pitch, so this is comfortably inaudible. End-to-end, the probe
+sweeps move by at most **0.024 dB** with no flag changes.
+
+### Result
+
+| | before | after |
+|---|---|---|
+| image size | 10,244 B | **4,508 B** |
+| libm routines linked | 13 | 4 |
+| transcendental calls/sec | ~12,000 | 0 |
+| `bl` into libm from `processAudio` | `powf`, `sinf`, `tanhf`, `fabsf`, `fmaxf` | `tanhf` only |
+
+It is now the smallest effect in the repo — the next smallest is 5,588 bytes —
+and sits inside Polyend's own factory range of 3,012–12,984.
+
+### The tanhf that was left alone
+
+The only newlib call remaining is the `tanhf` inside `dsp::softLimit`.
+`Malleus_Fuzz` uses a cascaded `x/(1+|x|)` instead, so the swap was the obvious
+next move. It was measured and **declined**.
+
+[`tests/funk_machine_limiter_probe.cpp`](../tests/funk_machine_limiter_probe.cpp)
+drives the effect at maximum sensitivity and resonance and counts how often the
+limiter reaches its nonlinear region:
+
+| input level | output peak | samples over threshold |
+|---|---|---|
+| 0.25x | 0.196 | 0 / 51,200 |
+| 1.0x nominal | 0.554 | 0 / 51,200 |
+| 4.0x (deliberate overload) | 1.000 | 21,730 / 51,200 (42%) |
+
+`dsp::softLimit` passes `|x| <= 0.90` through untouched, so at real operating
+levels **the tanhf is never called** — it is linked but cold, and the
+per-sample cost is a single compare. Swapping it would buy ~2,900 bytes of
+image in a patch already at 0.86% of the 512 KB region, in exchange for
+changing the safety limiter's character. Not worth it.
+
+The honest conclusion is that "zero libm" is not the goal; *not calling libm on
+the audio path* is. This patch reaches that, and the linked-but-cold remainder
+is left where it is.
