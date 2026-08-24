@@ -17,6 +17,13 @@ These files are useful as a reference archive for:
 
 There is no corresponding editable C++ source in this directory.
 
+**Per-effect controls:** [`CATALOG.md`](CATALOG.md) has all 23 — knob assignments,
+footswitch behavior, LED states — taken from the prompt logs and corroborated against
+the binaries. **Prompting patterns:**
+[`../../prompting-best-practices.md`](../../prompting-best-practices.md).
+**Rebuilding one as an SDK patch:**
+[`../../../docs/playground-to-sdk.md`](../../../docs/playground-to-sdk.md).
+
 This is a creator archive, not the official Polyend Plates catalog. For the official
 Polyend-authored plates archive and local sync notes, see
 [`playground/polyend_plates/README.md`](../../polyend_plates/README.md).
