@@ -404,13 +404,24 @@ in default loudness.
   effect; no new or lost qualitative flags for `wah`; default-settings loudness
   matches to within noise.
 
-### Not done in this pass
+### Growl/output saturator: measured, declined
 
-The growl and output-limiter `tanhf` stages (Bug 2's discovery — an actual old
-peak of 5.6×, not 2.8× — means they were already saturating harder and more
-often than the original design intended). Whether a cheaper saturator could
-replace them without an audible difference is investigated separately; see
-below for the outcome once that lands, rather than assuming an answer here.
+Bug 2's discovery — an actual old peak of 5.6×, not the 2.8× the original
+comment claimed — meant the growl and output-limiter `tanhf` stages were
+already saturating harder and more often than the original design intended.
+The obvious next move, following this session's corpus study (no third-party
+patch links a newlib transcendental; `Malleus_Fuzz` uses a cascaded
+`x/(1+|x|)` rational saturator instead of `tanhf`), was to try the same swap
+here.
+
+**Measured, not assumed, and declined.** Substituting `x/(1+d|x|)` for both
+`tanhf` call sites (same near-origin slope and asymptote, different
+transition shape) and comparing via `scripts/analyze_effects.py` at identical
+settings: `spectral.thd_percent` went from 0.044% to **1.65%** — a
+reproducible 37x increase — with `residual_ratio` elevated by 37–109x across
+the sweep. Both absolute figures are individually small, but the delta is
+consistent and real, not noise. `effects/wah.cpp` keeps `tanhf`. Full writeup:
+[`tests/wah_saturator_ab_probe.md`](../tests/wah_saturator_ab_probe.md).
 
 ---
 
