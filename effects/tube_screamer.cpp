@@ -16,6 +16,7 @@
 //   LED         — LightGreen/DimGreen TS808, PastelGreen/DarkLime TS9
 
 #include "../source/Patch.h"
+#include "../source/dsp/clamp.h"
 #include "../source/dsp/filter_coeff.h"
 #include "../source/dsp/soft_limit.h"
 
@@ -29,29 +30,8 @@ constexpr float kFs     = static_cast<float>(Patch::kSampleRate);
 using dsp::hpCoeff;
 using dsp::lpCoeff;
 using dsp::softLimit;
-
-float clamp01(float value)
-{
-    if (value < 0.0f) {
-        return 0.0f;
-    }
-    if (value > 1.0f) {
-        return 1.0f;
-    }
-    return value;
-}
-
-float clampUnit(float value)
-{
-    if (value < -1.0f) {
-        return -1.0f;
-    }
-    if (value > 1.0f) {
-        return 1.0f;
-    }
-    return value;
-}
-
+using dsp::clamp01;
+using dsp::clampUnit;
 struct VoiceParams
 {
     float preHpHz;

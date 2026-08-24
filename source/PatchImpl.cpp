@@ -15,6 +15,7 @@
 // generates into build/generated_effects/ without touching this file.
 
 // Phase 90-inspired phaser for Polyend Endless
+// Phase 90-inspired phaser for Polyend Endless
 //
 // Primary voice:
 //   Block-logo Phase 90 style with a more pronounced, chewy sweep driven by
@@ -37,37 +38,17 @@
 //     second public control
 
 #include "Patch.h"
+#include "dsp/clamp.h"
 #include "dsp/lfo.h"
 
 #include <cmath>
 
 namespace {
+using dsp::clamp01;
+using dsp::clampUnit;
 constexpr float kPi    = 3.14159265359f;
 constexpr float kTwoPi = 6.28318530718f;
 constexpr float kFs    = static_cast<float>(Patch::kSampleRate);
-
-float clamp01(float x)
-{
-    if (x < 0.0f) {
-        return 0.0f;
-    }
-    if (x > 1.0f) {
-        return 1.0f;
-    }
-    return x;
-}
-
-float clampUnit(float x)
-{
-    if (x < -1.0f) {
-        return -1.0f;
-    }
-    if (x > 1.0f) {
-        return 1.0f;
-    }
-    return x;
-}
-
 // Triangle LFO shape comes from source/dsp/lfo.h. phase_90 manages its own
 // phase counter (lfoPhase_) outside this call, so the stateless value()
 // helper is the right fit; the stateful TriangleLfo class is the choice for

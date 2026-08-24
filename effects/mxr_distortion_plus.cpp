@@ -27,24 +27,16 @@
 //      hard-clipping; also adds a small "hot" character at the top of the knob)
 
 #include "../source/Patch.h"
+#include "../source/dsp/clamp.h"
 #include "../source/dsp/parameter_smoother.h"
 #include "../source/dsp/soft_limit.h"
 #include <cmath>
 
 namespace {
+using dsp::clamp01;
     constexpr float kTwoPi = 6.283185307f;
     constexpr float kFs    = static_cast<float>(Patch::kSampleRate);
 
-    float clamp01(float value)
-    {
-        if (value < 0.0f) {
-            return 0.0f;
-        }
-        if (value > 1.0f) {
-            return 1.0f;
-        }
-        return value;
-    }
 
     using dsp::softLimit;
     using SmoothedValue = dsp::ParamSmoother;

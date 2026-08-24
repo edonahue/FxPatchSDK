@@ -22,18 +22,15 @@
 // See docs/funk-machine-envelope-filter-build-walkthrough.md.
 
 #include "../source/Patch.h"
+#include "../source/dsp/clamp.h"
 #include "../source/dsp/filter_coeff.h"
 #include "../source/dsp/soft_limit.h"
 
 #include <cmath>
 
 namespace {
+using dsp::clamp01;
 constexpr float kFs = static_cast<float>(Patch::kSampleRate);
-
-constexpr float clamp01(float v)
-{
-    return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
-}
 
 // Detector timing. Attack is intentionally quick enough to catch bass/clav
 // transients; release is slow enough to produce a musical vowel rather than

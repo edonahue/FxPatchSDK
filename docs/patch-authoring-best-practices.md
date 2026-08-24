@@ -426,10 +426,12 @@ What they do instead, recovered from the disassembly
 ([`docs/reverse-engineering/factory-patch-idioms.md`](reverse-engineering/factory-patch-idioms.md)):
 a cascaded `x / (1 + |x|)` soft-clip — `vabs`, `vadd`, `vdiv`, no call — plus
 branchless `ite`-predicated asymmetry and single-instruction `vmaxnm`/`vminnm`
-clamping. That doc also measures a clamp idiom worth knowing about: under this
-Makefile's `-fno-builtin`, our `if`-chain `clamp01` is 6 instructions and a
+clamping. That doc also measured a clamp idiom that has since been adopted: under this
+Makefile's `-fno-builtin`, an `if`-chain `clamp01` is 6 instructions and a
 branch, plain `fminf`/`fmaxf` become real library calls, and only
 `__builtin_fminf`/`__builtin_fmaxf` give the 2-instruction branchless form.
+Use [`dsp::clamp01`/`clampSigned`/`clampUnit`](../source/dsp/clamp.h) rather
+than hand-rolling one.
 
 Practical reading: treat a newlib transcendental in a per-sample path as a cost
 to justify rather than a default. At control rate it is a non-issue — compute it

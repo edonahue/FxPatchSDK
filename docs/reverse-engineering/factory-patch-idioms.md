@@ -19,9 +19,13 @@ decode as noise, so read the ratios, not the absolutes.
 | | insns | `bl` /1k | `vfma` /1k | `vmaxnm` | `vminnm` | `vabs` | `vdiv` /1k |
 |---|---|---|---|---|---|---|---|
 | Polyend factory (5) | 10,698 | 24.9 | 26.5 | **66** | **76** | **42** | 3.8 |
-| This repo (14) | 43,281 | 21.2 | 23.4 | **0** | **0** | **0** | 6.4 |
+| This repo (14), as measured | 43,281 | 21.2 | 23.4 | **0** | **0** | **0** | 6.4 |
 
 Three complete separations, not differences of degree.
+
+> **Since measured:** the `vmaxnm`/`vminnm` gap is closed. Finding C was acted
+> on — see below — and our fourteen effects now carry **156** of them, against
+> Polyend's 142 across five plates. The `vabs` and `bl` columns are unchanged.
 
 ## Finding A — the nonlinearity is `x / (1 + |x|)`, not `tanhf`
 
@@ -76,12 +80,23 @@ fix is the worst of the three. Only the explicit builtins work under our flags.
 `clampSigned(v, l)` shows the same shape: 9 instructions with a branch, versus
 `vmaxnm`/`vminnm` and nothing else.
 
-Every effect in this repo has a `clamp01` and most have a `clampSigned`, called
-one to several times per sample. **This is not applied** — it is a change to
-shared code across 14 effects, and it alters NaN behavior (the `if` chain
-propagates NaN; `vmaxnm` returns the non-NaN operand, so a NaN would become a
-bounded value and stop tripping `effect_probe.cpp`'s detector). Worth doing
-deliberately, with the probe re-run, rather than as a drive-by.
+Ten effects had a `clamp01`, eight a `clampUnit`, two a `clampSigned`, and six
+of the `clamp01` bodies were byte-identical — called one to several times per
+sample in every case.
+
+**Applied**, as [`source/dsp/clamp.h`](../../source/dsp/clamp.h). The eleven
+effects that had local copies now share it; `chorus`, `dimension_chorus` and
+`wah` never had one and are unchanged. Verified two ways: `vmaxnm`/`vminnm`
+count went 0 → 156, and `analyze_effects.py` compared field-by-field against
+the pre-change run shows **12,107 scalar fields, 0 differences** — the same
+values clamped the same way.
+
+The NaN difference is real and is documented in the header: the `if` chain
+propagated NaN, `vmaxnm` returns the non-NaN operand, so a NaN reaching
+`clamp01` now comes out bounded instead of escaping to the output. That
+contains a NaN rather than shipping it, and `effect_probe.cpp`'s detector still
+catches NaNs produced anywhere other than at a clamp — which is where they
+originate.
 
 ## Finding D — one-poles are FMA, and state is dense
 
@@ -109,9 +124,9 @@ same per-block hoisting this repo already practises.
    `dsp::softLimit`'s `tanhf`, for the safety stage and for drive effects where
    the exact `tanh` curve is not the point. Two effects would need it before it
    meets this repo's own extraction bar.
-2. **Clamp helpers should use `__builtin_fminf`/`__builtin_fmaxf`** — 6 insns
-   plus a branch down to 2, in code every effect runs several times per sample.
-   Flagged, deliberately not applied; see Finding C.
+2. **Clamp helpers now use `__builtin_fminf`/`__builtin_fmaxf`** — 6 insns plus
+   a branch down to 2, in code every effect runs several times per sample.
+   Extracted to `source/dsp/clamp.h`; see Finding C.
 3. **Branchless mode selection** via `vsel`-friendly ternaries is worth
    preferring over `if` in per-sample paths.
 
