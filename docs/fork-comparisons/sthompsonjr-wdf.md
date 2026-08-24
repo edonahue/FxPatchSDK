@@ -208,9 +208,9 @@ RAM. The fork is evidently placing hot DMM state there to cut access latency.
 repo's linker script
 ([`internal/patch_imx.ld`](../../internal/patch_imx.ld)) places the *entire* patch
 image — `.text`, `.rodata`, `.data`, and `.bss` — into one contiguous 512 KB `RAM`
-region at `0x80000000`. There is no separate DTCM output section, and patch code is a
-relocatable image dropped at a fixed address by the firmware loader, so a patch author
-here cannot choose DTCM placement for hot data. Treat the fork's DTCM annotations as
+region at `0x80000000`. There is no separate DTCM output section, and patch code is
+linked to that absolute address and loaded there verbatim -- not relocatable -- so a
+patch author here cannot choose DTCM placement for hot data. Treat the fork's DTCM annotations as
 inapplicable to this SDK unless the linker model changes; see
 [`docs/cycle-budget.md`](../cycle-budget.md) for the same note in budget context.
 

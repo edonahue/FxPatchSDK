@@ -212,6 +212,17 @@ class SonicStompEnhancer final : public Patch
         }
     }
 
+    const char* getParameterName(int idx) override
+    {
+        switch (idx)
+        {
+        case 0: return "Contour";
+        case 1: return "Process";
+        case 2: return "Midrange";
+        default: return nullptr;
+        }
+    }
+
     void setParamValue(int idx, float value) override
     {
         switch (idx)

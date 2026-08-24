@@ -203,6 +203,16 @@ public:
         }
     }
 
+    const char* getParameterName(int idx) override
+    {
+        switch (idx) {
+            case 0: return nullptr; // intentionally unused
+            case 1: return "Speed";
+            case 2: return "Speed";
+            default: return nullptr;
+        }
+    }
+
     void setParamValue(int idx, float value) override
     {
         switch (idx) {

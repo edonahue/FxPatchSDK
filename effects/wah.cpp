@@ -194,6 +194,16 @@ public:
         }
     }
 
+    const char* getParameterName(int idx) override
+    {
+        switch (idx) {
+            case 0: return "Mix";
+            case 1: return "Q";
+            case 2: return "Wah";
+            default: return nullptr;
+        }
+    }
+
     void setParamValue(int idx, float value) override
     {
         // Called from audio thread — no synchronization needed per SDK contract.

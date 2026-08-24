@@ -39,8 +39,9 @@ to this repo.** This SDK's linker script
 ([`internal/patch_imx.ld`](../internal/patch_imx.ld)) places the entire
 patch image — `.text`, `.rodata`, `.data`, and `.bss` — into one
 contiguous 512 KB `RAM` region at `0x80000000`, with no separate DTCM
-output section. A patch here is a relocatable image dropped at a fixed
-address by the firmware loader; the author cannot choose DTCM placement.
+output section. A patch here is an image linked to that absolute address and
+loaded there verbatim -- not relocatable, and not position-independent; the
+author cannot choose DTCM placement.
 So the available cycle-budget levers are algorithmic (cheaper math, less
 per-sample work), not memory-placement. Do not chase DTCM annotations
 unless the linker model changes.

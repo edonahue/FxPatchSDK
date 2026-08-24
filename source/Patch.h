@@ -93,6 +93,38 @@ class Patch
     virtual ParameterMetadata getParameterMetadata(int paramIdx) = 0;
 
     /**
+     * Returns a short display name for a parameter, e.g. "Drive", or nullptr
+     * when the patch has no name to offer.
+     *
+     * The firmware ABI reserves a slot for this (PatchHeader's
+     * agent_get_param_name). Returning a pointer to a string literal is the
+     * intended use -- the wrapper does a bounded copy into the caller's
+     * buffer, so no storage is required here and nothing is allocated.
+     *
+     * Not confirmed to be displayed anywhere: no Polyend factory plate in
+     * docs/endl-corpus-study.md's corpus contains a knob-name string, so this
+     * is API surface the ABI defines rather than a feature observed working.
+     */
+    virtual const char* getParameterName(int paramIdx)
+    {
+        (void)paramIdx;
+        return nullptr;
+    }
+
+    /**
+     * Returns a unit suffix for a parameter, e.g. "ms", or nullptr when the
+     * value has no meaningful unit.
+     *
+     * Every parameter in this SDK is a normalized 0..1 control with a
+     * patch-defined taper, so "no unit" is usually the honest answer.
+     */
+    virtual const char* getParameterUnit(int paramIdx)
+    {
+        (void)paramIdx;
+        return nullptr;
+    }
+
+    /**
      * Called repeatedly to set a parameter value when changed by the user.
      * The function is called from the audio thread, no need to synchronize access to internal
      * structures.

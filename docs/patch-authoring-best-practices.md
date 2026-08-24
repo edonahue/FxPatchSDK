@@ -388,6 +388,40 @@ A rough mental model of cost on Cortex-M7 single precision:
 | L1 hit memory load | ~3 cycles |
 | Cache-miss load (delay buffer past a few kB) | ~30+ cycles |
 
+### What the platform's own patches do about transcendentals
+
+Binary analysis of all 42 compiled patches in this repo
+([`docs/endl-corpus-study.md`](endl-corpus-study.md), Finding 1) turned up a
+clean split: **no Polyend factory plate and no Playground-generated patch
+contains a newlib transcendental at all.** All 14 of ours do — 69.3% of our
+combined image bytes are newlib libm, up to 83.4% for `wah.cpp`, which is 1,126
+bytes of wah wrapped in 6,062 bytes of maths library.
+
+The image size does not matter; every effect sits at 1–3% of the 512 KB region.
+What it points at is the table above. `sinf`/`cosf` route through newlib's
+`__ieee754_rem_pio2f` argument reduction and `powf` through `__ieee754_powf` —
+the branch-heavy, hundreds-of-cycles end of the cost model, not the ~50-cycle
+end. Every other patch on the platform appears to avoid that path entirely.
+
+**No cycles have been measured**, here or anywhere in this repo, so this is a
+prior about platform norms rather than a demonstrated regression. It is also
+not established what those patches do instead; polynomial approximation, table
+lookup, or DSP that simply needs no transcendentals all fit the evidence
+equally, and their FPU instruction density sits in the same range as ours.
+
+What they do instead, recovered from the disassembly
+([`docs/reverse-engineering/factory-patch-idioms.md`](reverse-engineering/factory-patch-idioms.md)):
+a cascaded `x / (1 + |x|)` soft-clip — `vabs`, `vadd`, `vdiv`, no call — plus
+branchless `ite`-predicated asymmetry and single-instruction `vmaxnm`/`vminnm`
+clamping. That doc also measures a clamp idiom worth knowing about: under this
+Makefile's `-fno-builtin`, our `if`-chain `clamp01` is 6 instructions and a
+branch, plain `fminf`/`fmaxf` become real library calls, and only
+`__builtin_fminf`/`__builtin_fmaxf` give the 2-instruction branchless form.
+
+Practical reading: treat a newlib transcendental in a per-sample path as a cost
+to justify rather than a default. At control rate it is a non-issue — compute it
+once per block, as below.
+
 A few practical consequences:
 
 - **Cache the expensive bits outside the per-sample loop.** Filter

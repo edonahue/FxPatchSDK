@@ -222,6 +222,17 @@ public:
         }
     }
 
+    const char* getParameterName(int paramIdx) override
+    {
+        switch (paramIdx)
+        {
+        case 0: return "Rate";
+        case 1: return "Depth";
+        case 2: return "Width";
+        default: return nullptr;
+        }
+    }
+
     void setParamValue(int idx, float value) override
     {
         if (idx == 0) rate_.setTarget(value);

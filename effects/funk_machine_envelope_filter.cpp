@@ -210,6 +210,16 @@ public:
         }
     }
 
+    const char* getParameterName(int idx) override
+    {
+        switch (idx) {
+            case 0: return "Sens";
+            case 1: return "Reso";
+            case 2: return "Bias";
+            default: return nullptr;
+        }
+    }
+
     void setParamValue(int idx, float value) override
     {
         value = clamp01(value);
