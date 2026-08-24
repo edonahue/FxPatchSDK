@@ -52,7 +52,10 @@ Source: <https://electrosmash.com/back-talk-analysis>
 - **Endless fit:** excellent; the original control set already matches the Endless surface
 - **DSP fit:** excellent; reverse windowing/delay is more natural to do digitally than many analog pedals are to emulate
 - **Risk:** moderate; buffer/window artifacts and feedback feel will need tuning, but the architecture is straightforward
-- **Status:** `shortlisted`
+- **Status:** `implemented` — `effects/back_talk_reverse_delay.cpp`, a chunk-based
+  reverse delay with feedback, a hold-toggle Texture mode, and equal-power
+  expression-as-mix. See
+  [`back-talk-reverse-delay-build-walkthrough.md`](back-talk-reverse-delay-build-walkthrough.md).
 
 ### Big Muff Pi
 
@@ -214,7 +217,8 @@ Source: <https://www.electrosmash.com/proco-rat-analysis/pedals/distortion/pro-c
 - **Endless fit:** excellent; `Distortion`, `Filter`, `Volume` are a natural 3-knob mapping
 - **DSP fit:** excellent; clear topology, strong identity, and manageable implementation scope
 - **Risk:** low to moderate; the clip/filter interaction must feel right, but the architecture is clean
-- **Status:** `shortlisted`
+- **Status:** `shortlisted` — the only remaining ElectroSmash candidate here still
+  without an implementation.
 
 ### Sitar Swami
 
