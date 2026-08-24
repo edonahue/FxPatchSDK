@@ -56,9 +56,10 @@ docs/          design notes, walkthroughs, repo review, SDK reference
 playground/    downloaded example artifacts from Polyend Playground creators
 ```
 
-For current branch and fork-history conclusions, use
-[`repository-review.md`](repository-review.md) as the source of truth. This document is
-the technical reference, not the dated branch-status narrative.
+For fork-history conclusions use
+[`fork-comparisons/upstream-and-forks.md`](fork-comparisons/upstream-and-forks.md);
+[`repository-review.md`](repository-review.md) is a dated snapshot of repo state, not a
+live statement of branch status. This document is the technical reference.
 
 ---
 
@@ -393,6 +394,13 @@ These rules are enforced partly by toolchain flags and partly by discipline.
 ---
 
 ## 9. Playground Artifacts in This Repo
+
+Playground is Polyend's hosted text-to-effect service: describe an effect, and a pipeline
+of agents generates, compiles and tests C++, handing back a ready `.endl`. It is
+pay-per-prompt and restricted to registered Endless owners. Multi-round revision sessions
+are the norm for anything complex and cost roughly 2-3x a single-shot effect, with each
+revision keeping the previous result's context — which is why the prompt logs archived
+here read as conversations rather than one-shot requests.
 
 `playground/` is not source code. It is a reference archive of:
 
