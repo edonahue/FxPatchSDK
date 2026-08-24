@@ -32,7 +32,10 @@ inline float softLimit(float value,
                        float divisor   = 0.25f,
                        float tail      = 0.10f)
 {
-    const float absValue = fabsf(value);
+    // __builtin_ rather than fabsf: COMMON_FLAGS carries -fno-builtin, so the
+    // plain name is a `bl` into libm where the builtin is a single vabs.f32.
+    // Exact either way -- fabs only clears the sign bit. See dsp/clamp.h.
+    const float absValue = __builtin_fabsf(value);
     if (absValue <= threshold)
     {
         return value;

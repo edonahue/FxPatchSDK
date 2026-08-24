@@ -64,8 +64,11 @@ public:
     // Stateless: triangle wave value (range [-1, +1]) for normalized phase.
     static float value(float phase)
     {
-        const float wrapped = phase - floorf(phase);
-        return 1.0f - 4.0f * fabsf(wrapped - 0.5f);
+        // __builtin_ forms compile to vrintm.f32 and vabs.f32; the plain names
+        // are calls into libm under -fno-builtin. Both are exact, so this is a
+        // pure code-generation change. See dsp/clamp.h for the measurement.
+        const float wrapped = phase - __builtin_floorf(phase);
+        return 1.0f - 4.0f * __builtin_fabsf(wrapped - 0.5f);
     }
 
     void setRateHz(float rateHz)

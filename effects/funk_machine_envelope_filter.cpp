@@ -152,7 +152,11 @@ public:
 
             // Linked stereo detector: preserve stereo image by driving both
             // filters from one control envelope derived from the hotter channel.
-            const float level = fmaxf(fabsf(inL), fabsf(inR));
+            // Builtins, not fmaxf/fabsf: this runs every sample, and under
+            // -fno-builtin the plain names are three calls into libm here.
+            // The builtins are vabs.f32 x2 + vmaxnm.f32, and exact.
+            const float level = __builtin_fmaxf(__builtin_fabsf(inL),
+                                                __builtin_fabsf(inR));
             const float coeff = (level > envelope_) ? attackCoeff_ : releaseCoeff_;
             envelope_ = coeff * envelope_ + (1.0f - coeff) * level;
 
