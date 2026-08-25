@@ -6,7 +6,7 @@
 // harmonica.cpp's Q floor (2.0-3.0, both voicings) is the mildest of the
 // three effects fixed this session -- wah.cpp's is 1.0,
 // funk_machine_envelope_filter.cpp's is 1.2 -- so its detuning was the
-// smallest of the three: 51 cents worst case, versus 174 and 165. Still
+// smallest of the three: 51 cents worst case, versus 172.3 and 165. Still
 // measured, not assumed, and still fixed for the same reason.
 //
 // Method: exact z-transform magnitude response |H(f)|, same as
@@ -90,6 +90,6 @@ int main()
     std::printf("\nworst measured error: %.3f cents\n", static_cast<double>(worst));
     std::printf("(dsp::rbjBandpassCoeffs is the same function used by wah.cpp and\n");
     std::printf(" funk_machine_envelope_filter.cpp -- see tests/dsp/biquad_test.cpp\n");
-    std::printf(" for its corpus-wide accuracy grid, 0.007 cents worst case there.)\n");
+    std::printf(" for its corpus-wide accuracy grid, 0.022 cents worst case there.)\n");
     return 0;
 }

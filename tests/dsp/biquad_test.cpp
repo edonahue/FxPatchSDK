@@ -9,25 +9,27 @@
 // and DC/Nyquist boundary behavior. Run from the repo root via
 // tests/check_dsp.sh.
 //
-// Method: drive the actual per-sample recursion with swept sine test tones
-// and find the frequency of maximum steady-state output amplitude -- the
-// same empirical technique used to find and quantify the Chamberlin SVF bug
-// this primitive replaces (see filter_coeff.h's warning on svfF1). Trusting
-// the direct simulation over a closed-form pole-angle argument is
-// deliberate: for a filter with nontrivial zeros, the peak of |H| and the
-// pole angle can diverge, and simulation is what a player's ear actually
-// hears.
+// Method: exact z-transform magnitude response |H(f)|, not time-domain
+// simulation. For a biquad, |H(f)| computed from the coefficients themselves
+// *is* the frequency response, not a proxy for it, so this is exact and
+// sidesteps settling-time/search-grid artifacts a time-domain peak search
+// would carry -- see tests/funk_machine_biquad_accuracy_probe.cpp and
+// tests/wah_svf_accuracy_probe.cpp for the same method and the reasoning
+// behind it (including a prior version of this file's own coarse-grid
+// time-domain search, which could not actually support the sub-cent numbers
+// it printed).
 
 #include "dsp/biquad.h"
 #include "dsp/filter_coeff.h"
 
 #include <cmath>
+#include <complex>
 #include <cstdio>
 
 namespace {
 
 constexpr float kFs = 48000.0f;
-constexpr float kPi = 3.14159265f;
+constexpr double kPi = 3.14159265358979323846;
 
 int failed = 0;
 void check(bool cond, const char* msg)
@@ -35,26 +37,30 @@ void check(bool cond, const char* msg)
     if (!cond) { std::fprintf(stderr, "FAIL: %s\n", msg); ++failed; }
 }
 
-// Empirical resonant-peak frequency: sweep test tones, run each to
-// steady state, return the frequency with the largest steady-state
-// amplitude. Mirrors the technique used to discover the SVF bug.
-float measuredPeakHz(float fc, float q, int settleSamples = 2500)
+double magnitudeAt(float f, const dsp::BiquadCoeffs& c)
+{
+    const double w = 2.0 * kPi * f / kFs;
+    const std::complex<double> zInv = std::polar(static_cast<double>(1.0), -w);
+    const std::complex<double> b0{static_cast<double>(c.b0), 0.0};
+    const std::complex<double> b2{static_cast<double>(c.b2), 0.0};
+    const std::complex<double> a1{static_cast<double>(c.a1), 0.0};
+    const std::complex<double> a2{static_cast<double>(c.a2), 0.0};
+    const std::complex<double> num = b0 + b2 * zInv * zInv;
+    const std::complex<double> den = std::complex<double>{1.0, 0.0} + a1 * zInv + a2 * zInv * zInv;
+    return std::abs(num / den);
+}
+
+// Exact resonant-peak frequency: scan |H(f)| on a fine grid and return the
+// frequency of maximum magnitude.
+float measuredPeakHz(float fc, float q)
 {
     const dsp::BiquadCoeffs coeffs = dsp::rbjBandpassCoeffs(fc, q, kFs);
     float bestFreq = fc;
-    float bestAmp = -1.0f;
-    for (float testFc = fc * 0.6f; testFc <= fc * 1.5f; testFc += fc * 0.002f)
+    double bestMag = -1.0;
+    for (float testFc = fc * 0.6f; testFc <= fc * 1.5f; testFc += fc * 0.00001f)
     {
-        dsp::BandpassBiquad bp;
-        float maxAmp = 0.0f;
-        for (int i = 0; i < settleSamples; ++i)
-        {
-            const float t = static_cast<float>(i) / kFs;
-            const float x = sinf(2.0f * kPi * testFc * t);
-            const float y = bp.process(x, coeffs);
-            if (i > settleSamples * 3 / 4) { maxAmp = std::fmax(maxAmp, std::fabs(y)); }
-        }
-        if (maxAmp > bestAmp) { bestAmp = maxAmp; bestFreq = testFc; }
+        const double mag = magnitudeAt(testFc, coeffs);
+        if (mag > bestMag) { bestMag = mag; bestFreq = testFc; }
     }
     return bestFreq;
 }
@@ -65,7 +71,8 @@ int main()
 {
     // Resonant-peak accuracy across every current caller's real range.
     // This is the property the whole swap exists for: the Chamberlin SVF
-    // measured up to 174 cents of error over the same grid.
+    // measured up to 172.3 cents of error over the same grid (see
+    // tests/wah_svf_accuracy_probe.cpp).
     const struct { float fc, q; } grid[] = {
         {350.0f, 1.0f}, {935.0f, 1.0f}, {1425.0f, 1.0f}, {2200.0f, 1.0f}, {2500.0f, 1.0f},
         {350.0f, 5.0f}, {935.0f, 5.0f}, {1425.0f, 5.0f}, {2200.0f, 5.0f}, {2500.0f, 5.0f},

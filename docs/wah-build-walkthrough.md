@@ -78,8 +78,8 @@ expression-pedal-swept frequency.
 
 **This reasoning turned out to be backwards.** The biquad's "con" — "Q and fc coupled in
 some formulations" — is a real property of the Chamberlin SVF, not the biquad: measuring
-the *actual* resonant peak (not just the pole angle) shows it drifts up to 174 cents from
-its target as Q drops, while the RBJ biquad measures 0.007 cents error across the same
+the *actual* resonant peak (not just the pole angle) shows it drifts up to 172.3 cents from
+its target as Q drops, while the RBJ biquad measures 0.05 cents error across the same
 sweep. See the 2026-08-24 addendum below — this decision was reversed.
 
 **Stability note (on the now-replaced SVF):** The Chamberlin SVF can become unstable if
@@ -344,14 +344,18 @@ Q drops:
 
 | fc target | Q=1 (old error) | Q=10 (old error) |
 |---|---|---|
-| 350 Hz (heel) | +20.7 cents | +3.5 cents |
-| 935 Hz (mid) | +57.9 cents | +6.9 cents |
-| 2500 Hz (toe, Crybaby) | **+174.4 cents** | +13.8 cents |
+| 350 Hz (heel) | +20.3 cents | +2.0 cents |
+| 935 Hz (mid) | +56.5 cents | +5.3 cents |
+| 2500 Hz (toe, Crybaby) | **+172.3 cents** | +14.5 cents |
 
 At Q=1 — a fully reachable knob position — the Crybaby toe position, intended to
-hit 2500 Hz, actually peaked at 2765 Hz: 1.7 semitones sharp. Verified two
+hit 2500 Hz, actually peaked at 2761.7 Hz: 1.7 semitones sharp. Verified two
 independent ways: a C++ probe running the exact recursion, and a from-scratch
-Python reimplementation, agreeing to the Hz. This is a documented limitation of
+Python reimplementation, agreeing to the Hz. (An earlier pass at this
+measurement, using a coarser time-domain search grid, reported 174.4 cents;
+see the 2026-08-25 addendum below for how that was found to be a grid
+artifact and corrected via the filter's exact transfer function.) This is a
+documented limitation of
 the Chamberlin SVF in the DSP literature — Lazzarini & Timoney,
 ["Improving the Chamberlin Digital State Variable Filter"](https://arxiv.org/abs/2111.05592)
 (arXiv:2111.05592) — not something specific to this codebase.
@@ -359,7 +363,7 @@ the Chamberlin SVF in the DSP literature — Lazzarini & Timoney,
 **Fix:** replaced the Chamberlin SVF with the RBJ constant-peak-gain bandpass
 biquad (`dsp::rbjBandpassCoeffs` / `dsp::BandpassBiquad`,
 [`source/dsp/biquad.h`](../source/dsp/biquad.h)), whose peak sits at exactly the
-target frequency for any Q, by construction. Measures **0.007 cents** worst-case
+target frequency for any Q, by construction. Measures **0.05 cents** worst-case
 error across the same grid — see
 [`tests/wah_svf_accuracy_probe.cpp`](../tests/wah_svf_accuracy_probe.cpp), which
 keeps the old recursion around specifically so this comparison stays
@@ -422,6 +426,55 @@ reproducible 37x increase — with `residual_ratio` elevated by 37–109x across
 the sweep. Both absolute figures are individually small, but the delta is
 consistent and real, not noise. `effects/wah.cpp` keeps `tanhf`. Full writeup:
 [`tests/wah_saturator_ab_probe.md`](../tests/wah_saturator_ab_probe.md).
+
+---
+
+## 2026-08-25 — responding to automated PR review on the detuning fix
+
+PR #17 (the 2026-08-24 fix above) got two automated findings from
+`chatgpt-codex-connector[bot]`. Both were investigated; here's the
+resolution.
+
+**Test methodology (confirmed, fixed).**
+`tests/wah_svf_accuracy_probe.cpp` and `tests/dsp/biquad_test.cpp` found the
+resonant peak by time-domain simulation on a coarse frequency grid
+(`fc*0.002` step, about 3.46 cents/step) — too coarse to support the
+sub-cent numbers they were printing. This wasn't just a precision nitpick:
+the published "174.4 cents" worst case above was itself a grid artifact. Its
+true value, computed via the old Chamberlin recursion's exact transfer
+function (derived by converting its state-space form the same way any IIR
+structure's `H(z)` is found:
+`H(z) = f1·(z-1) / [z² - (d+1)z + (d+f1²)]`, `d = 1-f1²-f1·q1`) is
+**172.3 cents** — still a large, real bug, just not the number the coarse
+grid reported. Both probes now use exact `|H(f)|` evaluation, matching
+`tests/funk_machine_biquad_accuracy_probe.cpp` and
+`tests/harmonica_biquad_accuracy_probe.cpp`'s established method. The
+figures throughout this document have been corrected accordingly
+(172.3 cents worst old-filter error, 0.05 cents worst new-filter error).
+
+**DF2T biquad state vs. SVF state under live coefficient updates
+(investigated, no code change).** The bot's other finding: `dsp::BandpassBiquad`
+(Direct Form II Transposed) state (`s1`, `s2`) encodes future-output
+contributions under the *current* coefficients, unlike the old Chamberlin
+SVF's state (`low`, `band`), which are themselves meaningful filtered-signal
+values independent of the coefficients. Since all three effects recompute
+coefficients on a running filter (wah/harmonica: once per block; funk_machine:
+every 8 samples), this is a real, well-known category of DSP concern —
+abrupt coefficient changes can inject a transient into DF2T state that a
+coefficient-independent topology wouldn't have.
+
+Measured, not assumed: a Python model of both structures under each effect's
+real coefficient-update pattern (moderate sweep, Crybaby-mode fast sweep at
+Q=7, funk_machine's 8-sample update rate, and an extreme min-Q full-range fc
+jump), comparing the RMS divergence between the actual post-jump output and
+a reference filter already running at the new coefficients. Result: the
+DF2T biquad's transient was **not systematically worse** than the old
+Chamberlin's own coefficient-update transient — smaller in some scenarios,
+slightly larger in one (funk_machine's 8-sample rate: 19.5% vs 13.7% of
+steady-state RMS), never a blow-up. This is a real tradeoff in the abstract,
+but not a measured regression at these three effects' actual update rates.
+No code change; see `source/dsp/biquad.h`'s header comment for the
+documented tradeoff.
 
 ---
 

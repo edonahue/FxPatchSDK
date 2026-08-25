@@ -6,7 +6,7 @@
 // The first fix removed powf/sinf from the control chain (0.15 cent cutoff
 // error). The second fix -- this file -- addresses a different problem the
 // first one didn't touch: the Chamberlin SVF's resonant peak drifts from
-// its target as Q drops (wah.cpp measured up to 174 cents; this effect's own
+// its target as Q drops (wah.cpp measured up to 172.3 cents; this effect's own
 // Q floor of 1.2 measures 165 cents), independent of how the coefficient
 // arithmetic is computed. Both halves are libm-free; only the second is
 // correctly tuned.
@@ -67,20 +67,19 @@ dsp::BiquadCoeffs libmFreeBandpassCoeffs(float fc, float q)
 }
 
 // Peak search via the exact z-transform magnitude response |H(f)|, not
-// time-domain simulation. A time-domain peak search (drive the recursion
-// with test tones, measure steady-state amplitude) is what this repo uses
-// when it does NOT trust a closed-form shortcut -- see
-// tests/wah_svf_accuracy_probe.cpp, where the Chamberlin SVF's true peak
-// genuinely diverges from its pole angle and only direct simulation gets
-// the right answer. That reason doesn't apply here: for a biquad, |H(f)|
-// computed from the coefficients themselves *is* the frequency response,
-// not a proxy for it, so this is more exact, not less -- and it sidesteps
-// settling-time and search-grid artifacts entirely. (An earlier version of
-// this file used time-domain simulation and reported 3.48 cents at one
-// point that a closed-form check showed was actually 0.02 cents -- a
-// measurement artifact of that method, not a property of the coefficients.
-// Kept as a cautionary note: always cross-check a surprising number with a
-// second method before trusting it.)
+// time-domain simulation: for a biquad, |H(f)| computed from the
+// coefficients themselves *is* the frequency response, not a proxy for it,
+// so this is exact and sidesteps settling-time and search-grid artifacts
+// entirely. (Pole angle, by contrast, genuinely diverges from the true
+// |H(f)| peak for the Chamberlin SVF's zero structure at low Q -- see
+// tests/wah_svf_accuracy_probe.cpp's derivation of that filter's own exact
+// transfer function; the fix there was switching from pole-angle reasoning
+// to a direct evaluation of |H(f)|, the same principle applied here.) An
+// earlier version of this file used time-domain simulation and reported
+// 3.48 cents at one point that a closed-form check showed was actually
+// 0.02 cents -- a measurement artifact of that method, not a property of
+// the coefficients. Kept as a cautionary note: always cross-check a
+// surprising number with a second method before trusting it.
 double magnitudeAt(float f, const dsp::BiquadCoeffs& c)
 {
     const double w = 2.0 * static_cast<double>(kPi) * f / kFs;

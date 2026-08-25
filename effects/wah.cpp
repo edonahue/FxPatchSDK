@@ -31,7 +31,7 @@
 //   Q-independent too, at the same magnitude; see the constant's own comment
 //   below) — see the 2026-08-24 addendum in docs/wah-build-walkthrough.md for
 //   why the filter itself changed: the old SVF's actual resonant peak drifted
-//   up to 174 cents from its target at low Q.
+//   up to 172.3 cents from its target at low Q.
 
 #include "../source/Patch.h"
 #include "../source/dsp/biquad.h"

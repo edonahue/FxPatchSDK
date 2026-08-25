@@ -25,17 +25,19 @@
 // actual per-sample recursion with swept sine tones and measuring where the
 // output truly peaks (not where the pole angle points -- those diverge for
 // this filter's zero structure at low Q) shows the real resonant frequency
-// drifts sharply as Q drops: up to 174 cents (1.7 semitones) sharp at Q=1,
-// fc=2500 Hz, verified two independent ways (a C++ probe running the exact
-// recursion, and a from-scratch Python reimplementation, agreeing to the
-// Hz). This is a documented limitation of the Chamberlin SVF, not a bug
-// specific to this codebase -- see Lazzarini & Timoney, "Improving the
-// Chamberlin Digital State Variable Filter" (arXiv:2111.05592). All three
-// prior consumers (wah.cpp, funk_machine_envelope_filter.cpp,
-// harmonica.cpp) were measurably affected at their real operating ranges
-// and have since moved to `rbjBandpassCoeffs`/`dsp::BandpassBiquad`
-// (source/dsp/biquad.h) below, which measures 0.00 cents error across the
-// same sweep. `svfF1` is kept because it is still a correct, tested,
+// drifts sharply as Q drops: up to 172.3 cents (1.7 semitones) sharp at
+// Q=1, fc=2500 Hz -- verified via the recursion's exact transfer function
+// (state-space conversion) and cross-checked against a from-scratch Python
+// time-domain reimplementation, agreeing to the Hz; see
+// tests/wah_svf_accuracy_probe.cpp. This is a documented limitation of the
+// Chamberlin SVF, not a bug specific to this codebase -- see Lazzarini &
+// Timoney, "Improving the Chamberlin Digital State Variable Filter"
+// (arXiv:2111.05592). All three prior consumers (wah.cpp,
+// funk_machine_envelope_filter.cpp, harmonica.cpp) were measurably affected
+// at their real operating ranges and have since moved to
+// `rbjBandpassCoeffs`/`dsp::BandpassBiquad` (source/dsp/biquad.h) below,
+// which measures well under 0.1 cents error across the same sweep.
+// `svfF1` is kept because it is still a correct, tested,
 // general-purpose Chamberlin coefficient for a non-resonant use -- but as
 // of this fix it has no consumers in effects/.
 //

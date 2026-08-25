@@ -13,8 +13,31 @@
 // count (2 floats), so no per-effect state growth from the swap. See
 // filter_coeff.h's warning on `svfF1` for why the swap happened: the
 // Chamberlin SVF's actual resonant peak drifts sharply from its target as Q
-// drops (measured up to 174 cents), while this form measures 0.00 cents
-// error across the same fc/Q sweep.
+// drops (measured up to 172.3 cents), while this form measures well under
+// 0.1 cents error across the same fc/Q sweep.
+//
+// State-count parity is not the only property that changed. Chamberlin's
+// `low`/`band` state are themselves meaningful filtered-signal values,
+// independent of the current coefficients -- a live coefficient change
+// (all three callers recompute coefficients on a running filter, once per
+// block for wah/harmonica, every 8 samples for funk_machine) just continues
+// the recursion under new math. This class's `s1`/`s2`, by contrast, encode
+// future-output contributions *under the current coefficients* -- a
+// coefficient change reinterprets old-coefficient state through new
+// coefficients, which can inject a transient a coefficient-independent
+// topology wouldn't have. This is a real, well-known category of DSP
+// concern for Direct Form structures under live modulation. Measured
+// (Python model of both structures under each effect's real update
+// pattern, comparing post-jump output against a reference filter already
+// running at the new coefficients): this form's transient is not
+// systematically worse than the old Chamberlin's own coefficient-update
+// transient at these three effects' actual update rates -- smaller in most
+// tested scenarios, slightly larger in one (funk_machine's 8-sample rate).
+// See the 2026-08-25 addendum in docs/wah-build-walkthrough.md for the
+// scenario-by-scenario numbers. Documented here rather than mitigated in
+// code (e.g. coefficient smoothing/crossfade) because the measurement
+// didn't show a regression versus what already shipped; revisit if a
+// faster-than-block-rate consumer is ever added.
 //
 // Recurrence (Direct Form II Transposed, b1=0):
 //   y[n]  = b0*x[n] + s1
