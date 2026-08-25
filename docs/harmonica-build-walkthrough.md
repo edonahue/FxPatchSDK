@@ -2,7 +2,7 @@
 
 **File:** `effects/harmonica.cpp`
 **Date:** 2026-04-16
-**Filter/algorithm type:** dual Chamberlin bandpass formants + asymmetric tanh reed saturation with body/edge split + post-LPF + AM tremolo + fractional-delay micro-chorus
+**Filter/algorithm type:** dual RBJ bandpass biquad formants (Chamberlin SVF until 2026-08-24, see dated addendum) + asymmetric tanh reed saturation with body/edge split + post-LPF + AM tremolo + fractional-delay micro-chorus
 **Reference voice / inspiration:** Shure Green Bullet cupped into a cranked tube amp — Chicago blues harmonica (Little Walter, Sonny Boy Williamson II)
 **Template:** [`docs/templates/patch-build-walkthrough.md`](templates/patch-build-walkthrough.md)
 
@@ -81,8 +81,13 @@ first fret sounds like a bandpass-filtered guitar.
 
 A wah is a single swept peak. A cupped harp has a swept cup formant *and* a
 roughly fixed nasal peak from the reed-plate cavity. Combining a log-swept
-Chamberlin BP (cup) with a fixed Chamberlin BP at ~1.7 kHz (nasal) produces
+resonant bandpass (cup) with a fixed one at ~1.7 kHz (nasal) produces
 the two-peak vowel structure that reads as "harp" rather than "filtered guitar."
+
+**2026-08-24:** both formants were originally Chamberlin SVFs and are now RBJ
+bandpass biquads — see the dated addendum near the end of this document. The
+two-formant *idea* above is unaffected; what changed is how accurately each
+formant's peak lands where the Q/fc knobs say it should.
 
 ---
 
@@ -126,7 +131,7 @@ knob then applies a trim on top so each voicing still has useful travel.
 | Parameter | Open | Cupped |
 |---|---|---|
 | Formant-1 Q | 3.0 | 6.0 |
-| Formant-1 peak gain | ×3.0 (+9.5 dB) | ×4.2 (+12.5 dB) |
+| Formant-1 peak gain | ×6.0 (+15.6 dB) | ×8.4 (+18.5 dB) |
 | Formant-2 mix | 0.35 | 0.50 |
 | Pre-HP fc | 120 Hz | 160 Hz |
 | Low-shelf cut | −2 dB | −5 dB |
@@ -136,6 +141,15 @@ knob then applies a trim on top so each voicing still has useful travel.
 | Tremolo depth | ±0.8 dB | ±1.4 dB |
 | µ-chorus wet | 0.08 | 0.16 |
 | WAA fc_max | 2500 Hz | 2000 Hz |
+
+*Formant-1 peak gain corrected 2026-08-24.* The `Voicing` struct's `form1Gain`
+field is still ×3.0/×4.2 — its own comment ("peak amplitude after unity-peak
+normalization") assumed the Chamberlin bandpass's raw peak was `Q/2`; direct
+measurement showed it is `Q`, so the actual peak was always `2×form1Gain`
+(×6.0/×8.4), not the ×3.0/×4.2 this table originally stated. See the dated
+addendum — this is the same gain-staging bug found first in `wah.cpp`, and
+the *sound* is unchanged (the code always produced ×6.0/×8.4; only this
+table's arithmetic was wrong).
 
 Both the press-to-bypass toggle and the hold-to-switch-voicing path call
 `clearState()`, which zeros all filter state and the delay lines so mode
@@ -200,11 +214,72 @@ bash scripts/build_effects.sh --effect harmonica
 
 ---
 
+## 2026-08-24 — fixing the formant filters' Q-dependent detuning
+
+Third and last effect fixed for the Chamberlin SVF's resonant-peak accuracy
+problem, found first in `wah.cpp` and fixed next in
+`funk_machine_envelope_filter.cpp`. This effect's exposure was the mildest of
+the three — its Q floor (2.0 for formant-2, 3.0 for formant-1 Open) is well
+above wah's 1.0 and funk_machine's 1.2 — but still real and still measured
+rather than assumed.
+
+**Detuning.** Driving both formants' actual per-sample recursions with swept
+sine tones and measuring where the output truly peaks: **51 cents** worst
+case (formant-1 at Open's toe, `fc=2500 Hz, Q=3.0`; formant-2 at its fixed
+`fc=1700 Hz, Q=2.0`). Documented DSP-literature limitation of the Chamberlin
+SVF (Lazzarini & Timoney, arXiv:2111.05592) — see `wah-build-walkthrough.md`'s
+2026-08-24 addendum for the full derivation.
+
+**Fix:** both formants now use the same `dsp::rbjBandpassCoeffs`/
+`dsp::BandpassBiquad` primitive as `wah.cpp` and
+`funk_machine_envelope_filter.cpp`
+([`source/dsp/biquad.h`](../source/dsp/biquad.h)). Both formants are computed
+at block rate already (once per `processAudio` call, same as `wah.cpp`), so
+no libm-free treatment was needed here the way it was for
+`funk_machine_envelope_filter.cpp`'s faster control rate.
+
+Verified with the exact z-transform magnitude response `|H(f)|`, the same
+method used for the other two fixes and for the same reason: it computes the
+actual frequency response, not a proxy for it.
+[`tests/harmonica_biquad_accuracy_probe.cpp`](../tests/harmonica_biquad_accuracy_probe.cpp)
+measures **0.060 cents** worst-case error across both formants' full reachable
+range.
+
+**Gain staging.** Same root cause as the other two effects: `bp1Gain`'s
+`(2/Q)` correction assumed a raw Chamberlin peak of `Q/2`; direct measurement
+shows it is `Q`, so the correction always cancelled `Q`-dependence anyway.
+Unlike `wah.cpp`/`funk_machine_envelope_filter.cpp`, this meant **no actual
+gain change** here — `2 × q1 × form1Gain` and the new `2 × form1Gain` are
+algebraically identical once `q1 = 1/Q` is substituted, for any `Q`, so the
+simplification just removes a dead multiply rather than recalibrating a
+constant. Decision 5's peak-gain table above was corrected to state the real
+(and always-true) ×6.0/×8.4 figures, since it had been computed from the
+`Voicing` struct's `form1Gain` field alone.
+
+Measured, not assumed: `scripts/analyze_effects.py` field-by-field against
+the pre-fix build shows the smallest delta of the three effects fixed this
+session — the largest field movement is 10% on a minor `hot_sample_ratio`
+metric; default-settings loudness and THD are both within 0.2% of the
+pre-fix values (`spectral.thd_percent` 7.816% → 7.807%). **All three
+pre-existing qualitative flags are unchanged**, including "THD 7.8% is high
+for a filter effect" and "spurious spectral energy −18.2 dB is high" — both
+already documented as this patch's intended reed-saturation character, not a
+defect, and this fix doesn't touch that. A dedicated stability sweep (extreme
+tone/reed/waa corners, voicing-toggle cycling every 8 blocks, 20× input
+overload) stayed bounded and finite throughout.
+
 ## Related Files
 
 - `effects/harmonica.cpp`
-- `effects/wah.cpp` (Chamberlin SVF and log fc sweep reuse)
+- `effects/wah.cpp` (log fc sweep reuse; also the sibling effect where the
+  2026-08-24 filter fix was designed first, with the fuller derivation)
+- `effects/funk_machine_envelope_filter.cpp` (the other sibling fix,
+  including the libm-free coefficient variant this effect didn't need)
 - `effects/tube_screamer.cpp` (body/edge split and soft-limit reuse)
 - `effects/chorus.cpp` (fractional-delay working-buffer pattern reuse)
+- `source/dsp/biquad.h` / `source/dsp/filter_coeff.h` — the RBJ bandpass
+  biquad primitive both formants now use
+- `tests/harmonica_biquad_accuracy_probe.cpp` — the accuracy measurement for
+  the 2026-08-24 fix
 - `docs/circuit-to-patch-conversion.md`
 - `docs/endless-reference.md`

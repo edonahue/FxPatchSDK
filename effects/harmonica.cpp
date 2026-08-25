@@ -35,6 +35,7 @@
 //   effects/chorus.cpp       — fractional-delay line layout in the working buffer
 
 #include "../source/Patch.h"
+#include "../source/dsp/biquad.h"
 #include "../source/dsp/clamp.h"
 #include "../source/dsp/dc_blocker.h"
 #include "../source/dsp/filter_coeff.h"
@@ -167,18 +168,27 @@ public:
         const float edgeGain  = baseDrive * 1.4f;
 
         // --- WAA knob (Right / expression): log-sweep formant-1 center ---
+        // RBJ constant-peak-gain bandpass (dsp::rbjBandpassCoeffs,
+        // source/dsp/filter_coeff.h — shared with wah.cpp and
+        // funk_machine_envelope_filter.cpp) replaces the Chamberlin SVF this
+        // used to inline: see wah-build-walkthrough.md's 2026-08-24 addendum
+        // for why -- the Chamberlin form's actual resonant peak drifts from
+        // its target as Q drops, up to 51 cents at this patch's own Q floor.
         const float fcRatio = base.form1FcMax / kFormant1FcMin;
         const float f1Fc    = kFormant1FcMin * powf(fcRatio, waa);
-        const float f1      = dsp::svfF1(f1Fc, kFs);
-        const float q1      = 1.0f / base.form1Q;
-        // Peak of Chamberlin bandpass is Q/2. Normalize to 1.0 via (2/Q) then
-        // scale by voicing peak gain (same logic as effects/wah.cpp:125).
-        const float bp1Gain = base.form1Gain * 2.0f * q1;
+        const dsp::BiquadCoeffs coeffs1 = dsp::rbjBandpassCoeffs(f1Fc, base.form1Q, kFs);
+        // The RBJ biquad's peak is exactly 1.0x input at fc for any Q, so
+        // form1Gain is the whole story -- no per-Q correction needed. (The
+        // old "form1Gain * 2 * q1" formula assumed a raw Chamberlin peak of
+        // Q/2; direct measurement shows it is Q, so the formula's
+        // Q-dependence happened to cancel by coincidence, giving an actual
+        // old peak of 2*form1Gain, not the Q-dependent value its shape
+        // suggested -- same bug found and fixed first in wah.cpp.)
+        const float bp1Gain = base.form1Gain * 2.0f;
 
         // --- Formant-2 (fixed) ---
-        const float f2      = dsp::svfF1(kFormant2Fc, kFs);
-        const float q2      = 1.0f / kFormant2Q;
-        const float bp2Gain = 2.0f * q2;  // normalized to unity peak
+        const dsp::BiquadCoeffs coeffs2 = dsp::rbjBandpassCoeffs(kFormant2Fc, kFormant2Q, kFs);
+        const float bp2Gain = 2.0f;  // was "2*q2" -- see bp1Gain's comment; actual old peak was 2.0 constant
 
         const float preHpAlpha   = hpCoeff(base.preHpFc);
         const float shelfLpAlpha = lpCoeff(kLowShelfFc);
@@ -204,7 +214,7 @@ public:
         {
             left[i]  = processChannel(0, left[i],
                                       preHpAlpha, shelfLpAlpha, lowShelfGain,
-                                      f1, q1, bp1Gain, f2, q2, bp2Gain, form2Mix,
+                                      coeffs1, bp1Gain, coeffs2, bp2Gain, form2Mix,
                                       splitLpAlpha, baseDrive, edgeGain, clipGain, base.asymmetry,
                                       postLpAlpha,
                                       tremDepth, tremPhase_,
@@ -214,7 +224,7 @@ public:
 
             right[i] = processChannel(1, right[i],
                                       preHpAlpha, shelfLpAlpha, lowShelfGain,
-                                      f1, q1, bp1Gain, f2, q2, bp2Gain, form2Mix,
+                                      coeffs1, bp1Gain, coeffs2, bp2Gain, form2Mix,
                                       splitLpAlpha, baseDrive, edgeGain, clipGain, base.asymmetry,
                                       postLpAlpha,
                                       tremDepth, tremPhase_ + kTremPhaseRightOffset,
@@ -286,8 +296,8 @@ public:
 private:
     float processChannel(int ch, float x,
                          float preHpAlpha, float shelfLpAlpha, float lowShelfGain,
-                         float f1, float q1, float bp1Gain,
-                         float f2, float q2, float bp2Gain, float form2Mix,
+                         const dsp::BiquadCoeffs& coeffs1, float bp1Gain,
+                         const dsp::BiquadCoeffs& coeffs2, float bp2Gain, float form2Mix,
                          float splitLpAlpha, float baseDrive, float edgeGain,
                          float clipGain, float asymmetry,
                          float postLpAlpha,
@@ -307,17 +317,11 @@ private:
         const float highBranch = hpOut - lowLp_[ch];
         const float shelved    = lowBranch + highBranch;
 
-        // [C] Formant-1: swept Chamberlin bandpass (hand-cup resonance).
-        lowF1_[ch] += f1 * bandF1_[ch];
-        const float hiF1 = shelved - lowF1_[ch] - q1 * bandF1_[ch];
-        bandF1_[ch] += f1 * hiF1;
-        const float formant1 = bandF1_[ch] * bp1Gain;
+        // [C] Formant-1: swept resonant bandpass (hand-cup resonance).
+        const float formant1 = bpF1_[ch].process(shelved, coeffs1) * bp1Gain;
 
-        // [D] Formant-2: fixed Chamberlin bandpass (nasal/reed-plate resonance).
-        lowF2_[ch] += f2 * bandF2_[ch];
-        const float hiF2 = shelved - lowF2_[ch] - q2 * bandF2_[ch];
-        bandF2_[ch] += f2 * hiF2;
-        const float formant2 = bandF2_[ch] * bp2Gain;
+        // [D] Formant-2: fixed resonant bandpass (nasal/reed-plate resonance).
+        const float formant2 = bpF2_[ch].process(shelved, coeffs2) * bp2Gain;
 
         const float voiced = formant1 + form2Mix * formant2;
 
@@ -362,10 +366,8 @@ private:
             hpPrev_[ch]       = 0.0f;
             inputPrev_[ch]    = 0.0f;
             lowLp_[ch]        = 0.0f;
-            lowF1_[ch]        = 0.0f;
-            bandF1_[ch]       = 0.0f;
-            lowF2_[ch]        = 0.0f;
-            bandF2_[ch]       = 0.0f;
+            bpF1_[ch].reset();
+            bpF2_[ch].reset();
             splitLp_[ch]      = 0.0f;
             postLp_[ch]       = 0.0f;
             dcBlock_[ch].reset();
@@ -395,10 +397,10 @@ private:
     float hpPrev_[2]      = {0.0f, 0.0f};
     float inputPrev_[2]   = {0.0f, 0.0f};
     float lowLp_[2]       = {0.0f, 0.0f};
-    float lowF1_[2]       = {0.0f, 0.0f};
-    float bandF1_[2]      = {0.0f, 0.0f};
-    float lowF2_[2]       = {0.0f, 0.0f};
-    float bandF2_[2]      = {0.0f, 0.0f};
+    // Same state count (2 floats each) as the lowF1_/bandF1_/lowF2_/bandF2_
+    // arrays these replaced.
+    dsp::BandpassBiquad bpF1_[2];
+    dsp::BandpassBiquad bpF2_[2];
     float splitLp_[2]     = {0.0f, 0.0f};
     float postLp_[2]      = {0.0f, 0.0f};
     dsp::DcBlocker dcBlock_[2];

@@ -437,3 +437,6 @@ consistent and real, not noise. `effects/wah.cpp` keeps `tanhf`. Full writeup:
 - `tests/wah_svf_accuracy_probe.cpp` — the before/after accuracy measurement
 - `docs/endl-corpus-study.md` / `docs/reverse-engineering/` — the methodology
   this fix came from, originally built for `funk_machine_envelope_filter.cpp`
+- `docs/funk-machine-envelope-filter-build-walkthrough.md` /
+  `docs/harmonica-build-walkthrough.md` — the two sibling effects that shared
+  this same detuning bug and received the same fix

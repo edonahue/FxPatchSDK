@@ -154,10 +154,12 @@ g++ -std=c++20 -O2 -fsingle-precision-constant -Wall -Wextra -I source \
 
 - `effects/funk_machine_envelope_filter.cpp`
 - `effects/wah.cpp`
+- `effects/harmonica.cpp` — the third effect sharing this same detuning bug,
+  fixed the same day with the same primitive
 - `source/dsp/biquad.h` / `source/dsp/filter_coeff.h` — the RBJ bandpass
-  biquad primitive this patch now shares with `wah.cpp`; `filter_coeff.h`'s
-  `svfF1` is the Chamberlin coefficient this patch used to inline and no
-  longer does
+  biquad primitive this patch now shares with `wah.cpp` and `harmonica.cpp`;
+  `filter_coeff.h`'s `svfF1` is the Chamberlin coefficient this patch used to
+  inline and no longer does
 - `tests/funk_machine_acceptance_test.cpp`
 - `tests/funk_machine_biquad_accuracy_probe.cpp` — the before/after
   accuracy measurement for the 2026-08-24 filter fix
