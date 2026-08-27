@@ -22,6 +22,7 @@
 // See docs/funk-machine-envelope-filter-build-walkthrough.md.
 
 #include "../source/Patch.h"
+#include "../source/dsp/biquad.h"
 #include "../source/dsp/clamp.h"
 #include "../source/dsp/soft_limit.h"
 
@@ -51,16 +52,16 @@ float onePoleTimeCoeff(float ms)
 
 // --- libm-free control-rate maths -------------------------------------------
 //
-// The frequency chain used to run powf() then sinf() every eight samples: a
-// 6 kHz control rate, so 12,000 newlib transcendental calls per second. No
-// Polyend or Playground patch in docs/endl-corpus-study.md's corpus links a
-// transcendental at all, which prompted replacing these.
+// The frequency chain runs at a 6 kHz control rate (every eight samples): a
+// 12,000-times/second budget for anything that touches libm. No Polyend or
+// Playground patch in docs/endl-corpus-study.md's corpus links a transcendental
+// at all, which prompted replacing these.
 //
 // Accuracy was measured before adopting, not assumed:
 // tests/funk_machine_approx_probe.cpp sweeps both voices across the full
 // bias x envelope space (80,802 points) and reports a worst-case cutoff error
-// of 0.15 cents. Pitch discrimination tops out near 1 cent and filter cutoff
-// is far less sensitive than pitch.
+// of 0.15 cents for the exp2 substitution. Pitch discrimination tops out near
+// 1 cent and filter cutoff is far less sensitive than pitch.
 //
 // Kept file-local rather than promoted to source/dsp/: this is the only effect
 // that needs them so far, and the repo's bar is two users.
@@ -88,11 +89,54 @@ inline float fastExp2(float x)
     return p * __builtin_bit_cast(float, bits);
 }
 
-// sin(x) for small x. fc never exceeds ~2.9 kHz, so pi*fc/fs stays below
-// 0.19 rad and the first omitted term (x^5/120) is under 2.1e-6.
+// sin(x)/cos(x) for small x. fc never exceeds ~2.9 kHz, so pi*fc/fs (this
+// patch's own half-angle -- see below) stays below 0.19 rad and the first
+// omitted term in each series is under 2.1e-6.
 inline float sinSmall(float x)
 {
     return x - (x * x * x) * (1.0f / 6.0f);
+}
+
+inline float cosSmall(float x)
+{
+    const float x2 = x * x;
+    return 1.0f - x2 * 0.5f + x2 * x2 * (1.0f / 24.0f);
+}
+
+// Libm-free RBJ constant-peak-gain bandpass coefficients (see
+// dsp::rbjBandpassCoeffs, source/dsp/filter_coeff.h, which this mirrors
+// exactly except for how sin(w0)/cos(w0) are obtained).
+//
+// RBJ's w0 = 2*pi*fc/fs is double the angle sinSmall/cosSmall above were
+// validated for (pi*fc/fs, this patch's own control-rate half-angle) -- but
+// w0/2 is exactly that angle, so sin(w0)/cos(w0) are derived via the double-
+// angle identities from sinSmall(w0/2)/cosSmall(w0/2) rather than fitting a
+// new series over a wider range. Verified end-to-end (not just the
+// intermediate sin/cos values) in tests/funk_machine_biquad_accuracy_probe.cpp,
+// which evaluates the exact z-transform magnitude response |H(f)| of this
+// function's output rather than a time-domain peak search (the latter's
+// settling/grid artifacts produced a spurious 13.8-cent reading during
+// development that the exact method showed was actually 0.02 cents -- see
+// that file's own comments). Worst genuine error across this patch's full
+// fc range (70-2900 Hz) and Q range (1.2-7.5) is 1.387 cents, consistent
+// with float32 rounding in the coefficients themselves rather than the
+// small-angle approximation.
+inline dsp::BiquadCoeffs libmFreeBandpassCoeffs(float fc, float q)
+{
+    const float half  = kPi * fc / kFs;  // == w0/2
+    const float sh    = sinSmall(half);
+    const float ch    = cosSmall(half);
+    const float sinW0 = 2.0f * sh * ch;
+    const float cosW0 = 1.0f - 2.0f * sh * sh;
+    const float alpha = sinW0 / (2.0f * q);
+    const float invA0 = 1.0f / (1.0f + alpha);
+
+    return {
+        alpha * invA0,
+        -alpha * invA0,
+        -2.0f * cosW0 * invA0,
+        (1.0f - alpha) * invA0,
+    };
 }
 
 // log2 of each literal in the frequency windows below. These are constants in
@@ -175,8 +219,20 @@ public:
         // the envelope sweep punchy and prevents note-on spikes from becoming
         // brittle or unstable.
         const float q  = 1.2f + 6.3f * res;
-        const float q1 = 1.0f / q;
-        const float bpGain = 2.0f * q1 * 1.75f;
+
+        // The RBJ biquad's peak is exactly 1.0x input at fc for any Q, by
+        // construction, so kResonanceGain is the whole story -- no per-Q
+        // correction needed. (The Chamberlin SVF this replaced had the same
+        // bug found in wah.cpp: its "2*q1*1.75" formula assumed a raw peak of
+        // Q/2, but direct measurement shows the true raw peak is Q, so the
+        // formula's Q-dependence happened to cancel by coincidence, giving an
+        // actual old peak of 2*1.75=3.5, not the Q-dependent value its shape
+        // suggested. kResonanceGain is set to that same 3.5 directly, so this
+        // reproduces the real old loudness rather than the old formula's
+        // never-quite-true intent. See wah-build-walkthrough.md's 2026-08-24
+        // addendum for the full derivation, done first on that effect.)
+        constexpr float kResonanceGain = 3.5f;
+        const float bpGain = kResonanceGain;
 
         // Bias moves the window but deliberately keeps the top frequency under
         // ~3 kHz, where this repo's Chamberlin SVF precedent remains comfortable
@@ -228,7 +284,7 @@ public:
             const float driven = envelope_ * envelopeGain;
             const float envNorm = driven / (1.0f + driven);
 
-            // Recompute the SVF frequency coefficient at a 6 kHz control rate.
+            // Recompute the biquad coefficients at a 6 kHz control rate.
             // Filter state itself still updates every sample, so there is no
             // decimation of the audio path.
             if (controlCountdown_ <= 0) {
@@ -236,28 +292,18 @@ public:
                 // Same geometric sweep as before, evaluated in the log2 domain:
                 // fc = fcMin * fcRatio^exponent.
                 const float fc = fastExp2(log2FcMin + exponent * log2FcSpan);
-                // dsp::svfF1 is 2*sinf(pi*fc/fs); sinSmall is exact enough here
-                // and costs three multiplies instead of a libm call.
-                f1_ = 2.0f * sinSmall(kPi * fc / kFs);
+                coeffs_ = libmFreeBandpassCoeffs(fc, q);
                 controlCountdown_ = kControlInterval;
             }
             --controlCountdown_;
 
-            // LEFT state-variable filter.
-            lowL_ += f1_ * bandL_;
-            const float hiL = inL - lowL_ - q1 * bandL_;
-            bandL_ += f1_ * hiL;
+            const float bpL = bpL_.process(inL, coeffs_);
+            const float bpR = bpR_.process(inR, coeffs_);
 
-            // RIGHT state-variable filter.
-            lowR_ += f1_ * bandR_;
-            const float hiR = inR - lowR_ - q1 * bandR_;
-            bandR_ += f1_ * hiR;
-
-            // Normalize raw Chamberlin bandpass peak (roughly Q/2) then add a
-            // moderate vocal boost. Bass voice retains a fixed clean foundation
-            // so fundamentals survive even at high resonance.
-            const float wetL = bandL_ * bpGain;
-            const float wetR = bandR_ * bpGain;
+            // Resonant-peak boost. Bass voice retains a fixed clean
+            // foundation so fundamentals survive even at high resonance.
+            const float wetL = bpL * bpGain;
+            const float wetR = bpR * bpGain;
 
             const float outL = wetL * (1.0f - dryFoundation) + inL * dryFoundation;
             const float outR = wetR * (1.0f - dryFoundation) + inR * dryFoundation;
@@ -340,13 +386,13 @@ private:
     float attackCoeff_  = 0.0f;
     float releaseCoeff_ = 0.0f;
     float envelope_     = 0.0f;
-    float f1_           = 0.0f;
+    dsp::BiquadCoeffs coeffs_{};
     int controlCountdown_ = 0;
 
-    float lowL_  = 0.0f;
-    float bandL_ = 0.0f;
-    float lowR_  = 0.0f;
-    float bandR_ = 0.0f;
+    // Biquad filter state -- one instance per channel. Same state count (2
+    // floats each) as the Chamberlin lowL_/bandL_/lowR_/bandR_ this replaced.
+    dsp::BandpassBiquad bpL_;
+    dsp::BandpassBiquad bpR_;
 
     int holdState_ = 0;  // index into kVoiceForHoldState/kDirectionForHoldState
     FunkVoice voice_ = FunkVoice::kBass;
@@ -355,16 +401,14 @@ private:
 
     void clearFilterState()
     {
-        lowL_ = 0.0f;
-        bandL_ = 0.0f;
-        lowR_ = 0.0f;
-        bandR_ = 0.0f;
+        bpL_.reset();
+        bpR_.reset();
     }
 
     void clearState()
     {
         envelope_ = 0.0f;
-        f1_ = 0.0f;
+        coeffs_ = dsp::BiquadCoeffs{};
         controlCountdown_ = 0;
         clearFilterState();
     }

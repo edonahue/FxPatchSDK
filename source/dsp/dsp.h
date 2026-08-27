@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "biquad.h"
 #include "crossfade.h"
 #include "dc_blocker.h"
 #include "filter_coeff.h"

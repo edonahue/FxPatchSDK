@@ -34,11 +34,17 @@ The defining behavior is input dynamics, not periodic modulation. A linked stere
 
 The detector uses a conventional asymmetric one-pole response. Its control value is then passed through a rational saturator, `x / (1 + x)`, so hot line-level keyboards do not pin the filter at the top of its range.
 
-## Decision 2 — Chamberlin SVF bandpass
+## Decision 2 — Chamberlin SVF bandpass (superseded 2026-08-24, see addendum)
 
 The existing wah patch already establishes a stable, inexpensive Chamberlin state-variable filter for vocal resonant filtering. Funk Machine reuses that topology rather than introducing a new filter class.
 
 Resonance maps to Q 1.2–7.5. This is intentionally less extreme than the wah's highest settings: an envelope filter is repeatedly hit by transients, so a slightly gentler top end is more usable and safer.
+
+**Reusing wah's topology also meant reusing its bug.** The Chamberlin SVF's
+resonant peak drifts from its target as Q drops — measured up to 165 cents
+(1.65 semitones) at this effect's own Q floor of 1.2. See the 2026-08-24
+addendum: this patch now shares `wah.cpp`'s replacement filter instead of its
+original one.
 
 ## Decision 3 — Control layout
 
@@ -85,11 +91,18 @@ Hardware listening must still check for zippering on sharp clav/guitar transient
 
 **Why this deviates from every other effect's "once per `processAudio` call" pattern (kept deliberately, not an oversight).** Every other coefficient-recompute site in this corpus — including `wah.cpp`, the file this patch's SVF is built on — computes its expensive coefficients once per `processAudio` call, not at a sub-block interval (`patch-authoring-best-practices.md` §6's `dimension_chorus.cpp` example is the corpus's canonical "don't call `powf` every sample" fix, and it resolves to the same once-per-block pattern). This patch is the one deliberate exception: the SDK does not document or guarantee a block size to patches, so relying on "once per call" gives an *undefined* cutoff-tracking rate — fine for a slowly-moving, user-driven parameter like wah's expression sweep, but not obviously fine for a touch envelope that needs to track playing dynamics faster than an unknown host block size might otherwise allow. A self-controlled fixed interval (every 8 samples, ~167 µs) gives a deterministic tracking rate regardless of host block size. The added cost is small in absolute terms — roughly 16-31 cycles/sample amortized, ~0.1-0.2% of the working 15k-cycle/sample ceiling (see `docs/cycle-budget.md`) — so this is a pattern-consistency question the corpus hadn't needed to answer before, not a CPU-budget one. See `patch-authoring-best-practices.md` §6 for a pointer back to this reasoning.
 
-## Decision 6 — Gain staging
+## Decision 6 — Gain staging (superseded 2026-08-24, see addendum)
 
 Raw Chamberlin bandpass level varies with Q, so the output is first normalized by approximately `2 / Q`, then given a moderate 1.75x vocal boost. Bass mode mixes in a fixed dry foundation before the final `dsp::softLimit` safety stage.
 
 The limiter is an airbag, not the effect's creative nonlinearity.
+
+**The `2/Q` premise was wrong**, the same bug found and fixed first in
+`wah.cpp`: the raw Chamberlin peak is actually `Q`, not `Q/2`, so `2/Q`
+happened to cancel it by coincidence rather than by the design this section
+describes — giving an actual old peak of `2 × 1.75 = 3.5`, constant across
+Q, not the Q-dependent value the formula's shape suggests. See the
+addendum for the fix and the recalibration.
 
 ## Primitive reuse policy
 
@@ -141,11 +154,20 @@ g++ -std=c++20 -O2 -fsingle-precision-constant -Wall -Wextra -I source \
 
 - `effects/funk_machine_envelope_filter.cpp`
 - `effects/wah.cpp`
-- `source/dsp/filter_coeff.h` (`dsp::svfF1`, shared with `wah.cpp`)
+- `effects/harmonica.cpp` — the third effect sharing this same detuning bug,
+  fixed the same day with the same primitive
+- `source/dsp/biquad.h` / `source/dsp/filter_coeff.h` — the RBJ bandpass
+  biquad primitive this patch now shares with `wah.cpp` and `harmonica.cpp`;
+  `filter_coeff.h`'s `svfF1` is the Chamberlin coefficient this patch used to
+  inline and no longer does
 - `tests/funk_machine_acceptance_test.cpp`
+- `tests/funk_machine_biquad_accuracy_probe.cpp` — the before/after
+  accuracy measurement for the 2026-08-24 filter fix
 - `docs/patch-backlog.md`
 - `docs/circuit-to-patch-conversion.md`
 - `docs/patch-authoring-best-practices.md`
+- `docs/wah-build-walkthrough.md` — the sibling effect where this same fix
+  was designed first, with the fuller derivation
 
 ---
 
@@ -232,3 +254,64 @@ changing the safety limiter's character. Not worth it.
 The honest conclusion is that "zero libm" is not the goal; *not calling libm on
 the audio path* is. This patch reaches that, and the linked-but-cold remainder
 is left where it is.
+
+### The Chamberlin SVF detuning, fixed (later the same day)
+
+The work above removed `powf`/`sinf` from the control chain but left the
+*filter itself* unchanged — and it turned out to have a real accuracy bug,
+found while applying this same methodology to `wah.cpp` next. Driving the
+actual per-sample recursion with swept sine tones and measuring where the
+output truly peaks (not the pole angle, which diverges from the true peak for
+this filter's zero structure at low Q) shows the resonant frequency drifts
+from its target as Q drops — **165 cents (1.65 semitones) sharp** at this
+effect's own Q floor of 1.2, `fc≈2900 Hz`. Documented DSP-literature
+limitation of the Chamberlin SVF (Lazzarini & Timoney, arXiv:2111.05592), not
+specific to this codebase — see `wah-build-walkthrough.md`'s 2026-08-24
+addendum, where the fix was designed first.
+
+**Fix:** replaced the Chamberlin SVF with the same RBJ constant-peak-gain
+bandpass biquad `wah.cpp` now uses
+(`dsp::rbjBandpassCoeffs`/`dsp::BandpassBiquad`,
+[`source/dsp/biquad.h`](../source/dsp/biquad.h)) — with one difference. This
+patch's control chain is libm-free (the work above), and RBJ's coefficient
+formula needs both `sin(w0)` and `cos(w0)` at `w0 = 2π·fc/fs` — double the
+angle the existing `sinSmall` was validated for. Rather than fit a new series
+over the wider range, `sin(w0)`/`cos(w0)` are derived via double-angle
+identities from `sinSmall(w0/2)`/a new `cosSmall(w0/2)` — `w0/2` is exactly
+this patch's own existing half-angle, so the already-validated `<0.19` rad
+range still applies.
+
+Verified end-to-end with the exact z-transform magnitude response `|H(f)|`,
+not a time-domain peak search — for a biquad, `|H(f)|` computed from the
+coefficients *is* the frequency response, not a proxy for it, so this is more
+exact and sidesteps settling/grid artifacts entirely.
+[`tests/funk_machine_biquad_accuracy_probe.cpp`](../tests/funk_machine_biquad_accuracy_probe.cpp)
+measures **1.387 cents** worst-case error across this effect's full `fc`
+(70–2900 Hz) and `Q` (1.2–7.5) range — consistent with float32 rounding in
+the coefficients themselves, not the small-angle approximation.
+
+**Gain staging recalibrated for the same reason found in `wah.cpp`.**
+Decision 6's `2/Q` normalization assumed the raw Chamberlin peak was `Q/2`;
+direct measurement shows it is `Q`. The old formula's `Q`-dependence
+happened to cancel the `2/Q` term anyway, so the *actual* old peak was
+already `Q`-independent — `2 × 1.75 = 3.5`, not the `Q`-dependent value the
+formula's shape suggested. `kResonanceGain` is now `3.5` directly, matching
+real old loudness rather than the formula's never-quite-true intent.
+
+Measured, not assumed: `scripts/analyze_effects.py` field-by-field against
+the pre-fix build shows default-settings loudness essentially unchanged
+(`fundamental_gain` 2.767931 → 2.794333, +0.95%) — and, as a side effect of
+the more accurate filter, **lower** distortion at default settings
+(`spectral.thd_percent` 0.0955% → 0.0394%, THD roughly halved). No new or
+lost qualitative flags. A dedicated stability sweep (extreme sensitivity/
+resonance/bias corners, hold-cycling through all four voice/direction states
+every 8 blocks, 20× input overload) stayed bounded and finite throughout.
+
+Image size: 4,508 B → 4,852 B (+344 B, from the added `cosSmall` and the
+biquad's extra state-update multiply) — still the smallest or
+near-smallest effect in the repo, comfortably inside Polyend's factory
+range.
+
+Not revisited in this pass: the `tanhf` conclusion above (declined, cold
+limiter) still holds — the biquad swap didn't change how hard the limiter
+gets driven at realistic levels, only how accurately the filter is tuned.

@@ -19,17 +19,22 @@
 //     DimYellow  = Vox, bypassed
 //
 // Signal chain (per sample, stereo):
-//   Chamberlin SVF bandpass → resonant peak boost → tanh "op-amp growl"
+//   RBJ bandpass biquad → resonant peak boost → tanh "op-amp growl"
 //   → equal-power dry/wet crossfade → safety soft-clip
 //
-// Filter: Chamberlin State-Variable Filter (2nd order)
-//   Per buffer: f1 = 2*sin(π*fc/fs), q1 = 1/Q
-//   Per sample: lo += f1*band; hi = in - lo - q1*band; band += f1*hi
-//   Output: band * kResonanceGain (≈ +9 dB at the resonant peak) — the unity-peak
-//   normalization present in earlier versions killed the vocal character of the
-//   real Crybaby/Vox, which boost ~+10 to +18 dB at the resonance frequency.
+// Filter: RBJ constant-peak-gain bandpass biquad (Audio EQ Cookbook), 2nd order
+//   Per buffer: w0 = 2*pi*fc/fs, alpha = sin(w0)/(2*Q); b0=alpha, b2=-alpha,
+//               a1=-2*cos(w0), a2=1-alpha, all divided by a0=1+alpha
+//   Per sample: dsp::BandpassBiquad::process (Direct Form II Transposed)
+//   Output: band * kResonanceGain (≈ +15 dB at the resonant peak, Q-independent
+//   by construction — the old SVF's peak was already accidentally
+//   Q-independent too, at the same magnitude; see the constant's own comment
+//   below) — see the 2026-08-24 addendum in docs/wah-build-walkthrough.md for
+//   why the filter itself changed: the old SVF's actual resonant peak drifted
+//   up to 172.3 cents from its target at low Q.
 
 #include "../source/Patch.h"
+#include "../source/dsp/biquad.h"
 #include "../source/dsp/crossfade.h"
 #include "../source/dsp/filter_coeff.h"
 #include <cmath>
@@ -51,12 +56,23 @@ namespace {
     constexpr float kCrybabyQKnobDefault = 0.667f;   // → Q ≈ 7.0
     constexpr float kVoxQKnobDefault     = 0.389f;   // → Q ≈ 4.5
 
-    // Fixed resonant-peak gain applied to the bandpass output. A real Crybaby peaks
-    // at ~+12 dB (×≈4), a Vox at ~+10 dB (×≈3.2). kResonanceGain = 2.8 sits in the
-    // middle (~+9 dB) — enough to sound unmistakably "wah" without risking runaway
-    // when Q is cranked and the expression pedal sits on a strong guitar note.
-    // The output soft-clipper downstream absorbs the rest.
-    constexpr float kResonanceGain = 2.8f;
+    // Fixed resonant-peak gain applied to the bandpass output. The RBJ biquad's
+    // peak is exactly 1.0x input at fc for any Q, by construction -- verified
+    // to 5 decimal places in tests/dsp/biquad_test.cpp.
+    //
+    // The Chamberlin SVF this replaced carried its own, separate bug: its
+    // in-code comment claimed "raw bandpass peak gain = Q/2", but direct
+    // measurement of the actual recursion (low+=f1*band; hi=in-low-q1*band;
+    // band+=f1*hi) shows the true raw peak is Q, not Q/2 -- confirmed across
+    // Q=1..20, matching to 4 decimal places. Because the old bpGain formula
+    // was `(2/Q)*kResonanceGain`, the wrong "/2" and the real factor of Q
+    // happened to cancel exactly, so the OLD effect's actual peak gain was
+    // already Q-independent in practice: 2*kResonanceGain = 5.6, not the
+    // Q-dependent value its own comment described. kResonanceGain is set here
+    // to that same 5.6 directly, so the new (correctly, not accidentally,
+    // Q-independent) formula reproduces the actual old loudness rather than
+    // the old formula's stated-but-never-true intent.
+    constexpr float kResonanceGain = 5.6f;
 
     // Log taper ratio for frequency sweep (computed from constants, avoids runtime division)
     // fc = kFcMin * powf(fc_max / kFcMin, wahPos)
@@ -98,7 +114,7 @@ public:
             return;
         }
 
-        // --- Compute SVF coefficients once per buffer ---
+        // --- Compute biquad coefficients once per buffer ---
 
         // Log-taper frequency sweep: fc = kFcMin * (fc_max/kFcMin)^wahPos
         // This gives perceptually even spacing: heel=350 Hz, mid≈935 Hz, toe=2500/2200 Hz.
@@ -106,34 +122,28 @@ public:
         const float ratio = (mode_ == WahMode::kCrybaby) ? kCrybabyRatio : kVoxRatio;
         const float fc    = kFcMin * powf(ratio, wahPos_);
 
-        // SVF frequency coefficient: f1 = 2*sin(π*fc/fs) (dsp::svfF1,
-        // source/dsp/filter_coeff.h — shared with funk_machine_envelope_filter.cpp).
-        // Valid approximation for fc << fs/2; stable for fc ≤ ~3 kHz at 48 kHz.
-        const float f1 = dsp::svfF1(fc, kFs);
-
-        // SVF damping coefficient: q1 = 1/Q  (lower q1 = sharper, more nasal resonance)
         // Q knob: Q = 1.0 + q_knob_ * 9.0  (linear, range 1.0–10.0)
         const float q_ = 1.0f + q_knob_ * 9.0f;
-        const float q1 = 1.0f / q_;
 
-        // Bandpass output scaling:
-        //   The raw Chamberlin SVF bandpass has peak gain Q/2 at resonance, so the
-        //   naïve output grows linearly with Q. The factor (2/Q)*kResonanceGain
-        //   first normalizes the peak to 1.0 (Q-independent, so the Q knob shapes
-        //   sharpness without changing loudness), then scales by kResonanceGain
-        //   so the peak sits at ~+9 dB — matching the vocal character of the real
-        //   pedals. The earlier release used (2/Q) only, which flattened the
-        //   signature resonant hump.
-        const float bpGain = 2.0f * q1 * kResonanceGain;
+        // RBJ constant-peak-gain bandpass coefficients (dsp::rbjBandpassCoeffs,
+        // source/dsp/filter_coeff.h — shared with funk_machine_envelope_filter.cpp
+        // and harmonica.cpp). One more cosf than the Chamberlin form this
+        // replaced; still called once per buffer, so the added cost is negligible.
+        const dsp::BiquadCoeffs coeffs = dsp::rbjBandpassCoeffs(fc, q_, kFs);
+
+        // Bandpass output scaling: the RBJ biquad's peak is exactly 1.0x input
+        // at fc for any Q, so kResonanceGain is the whole story here -- no
+        // per-Q correction needed (see the constant's own comment above).
+        const float bpGain = kResonanceGain;
 
         // Equal-power dry/wet crossfade. Linear blends have a −3 dB dip at mix=0.5;
         // equal-power keeps perceived loudness constant across the knob sweep, which
         // lets full-wet actually read as "more wah" rather than just "same level but
-        // filtered." Equal-power crossfade comes from source/dsp/crossfade.h.
-        const float mixClamped = (mix_ < 0.0f) ? 0.0f : (mix_ > 1.0f ? 1.0f : mix_);
-        const auto  mixGains   = dsp::equalPower(mixClamped);
-        const float dry        = mixGains.dry;
-        const float wet        = mixGains.wet;
+        // filtered." dsp::equalPower clamps its input internally, so mix_ is passed
+        // straight through rather than clamped again here first.
+        const auto  mixGains = dsp::equalPower(mix_);
+        const float dry      = mixGains.dry;
+        const float wet      = mixGains.wet;
 
         // Op-amp "growl" drive. Real wah circuits feed the peaking filter into a
         // transistor/op-amp stage that softly clips at the top of the swept peak —
@@ -153,31 +163,21 @@ public:
         // --- Process each sample ---
         for (int i = 0; i < numSamples; ++i) {
 
-            // === LEFT CHANNEL — Chamberlin SVF ===
-            // lo  = lowpass  output
-            // hi  = highpass output
-            // band = bandpass output  (this is our wah signal)
-            //
-            // Update order: lo first (uses prior band), then hi (uses updated lo, prior band),
-            // then band (uses updated hi). This ordering gives stable, correct frequency response.
+            // === LEFT CHANNEL ===
             const float inL = left[i];
-            lowL_  += f1 * bandL_;
-            const float hiL = inL - lowL_ - q1 * bandL_;
-            bandL_ += f1 * hiL;
+            const float bpL = bpL_.process(inL, coeffs);
 
             // Resonant-peak boost → op-amp growl → equal-power blend → output limiter
-            const float peakL  = bandL_ * bpGain;
+            const float peakL  = bpL * bpGain;
             const float growlL = tanhf(peakL * kGrowlDrive) * kGrowlInv;
             const float mixedL = wet * growlL + dry * inL;
             left[i] = tanhf(mixedL * kOutDrive) * kOutInv;
 
-            // === RIGHT CHANNEL — identical SVF with independent state ===
+            // === RIGHT CHANNEL — identical biquad with independent state ===
             const float inR = right[i];
-            lowR_  += f1 * bandR_;
-            const float hiR = inR - lowR_ - q1 * bandR_;
-            bandR_ += f1 * hiR;
+            const float bpR = bpR_.process(inR, coeffs);
 
-            const float peakR  = bandR_ * bpGain;
+            const float peakR  = bpR * bpGain;
             const float growlR = tanhf(peakR * kGrowlDrive) * kGrowlInv;
             const float mixedR = wet * growlR + dry * inR;
             right[i] = tanhf(mixedR * kOutDrive) * kOutInv;
@@ -255,18 +255,16 @@ private:
     WahMode mode_    = WahMode::kCrybaby;
     bool    bypassed_= false;
 
-    // Chamberlin SVF state — one pair per channel (low, band)
-    // 'lo'   accumulates the lowpass response
-    // 'band' accumulates the bandpass response (our primary wah output)
-    float lowL_  = 0.0f;
-    float bandL_ = 0.0f;
-    float lowR_  = 0.0f;
-    float bandR_ = 0.0f;
+    // Biquad filter state — one instance per channel. Same state count (2
+    // floats each) as the Chamberlin low_/band_ pair this replaced.
+    dsp::BandpassBiquad bpL_;
+    dsp::BandpassBiquad bpR_;
 
     // Clear filter state to prevent pops on bypass-off or mode change.
     void clearFilterState()
     {
-        lowL_ = bandL_ = lowR_ = bandR_ = 0.0f;
+        bpL_.reset();
+        bpR_.reset();
     }
 };
 
